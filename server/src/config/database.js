@@ -84,6 +84,8 @@ function initSchema() {
       late_deduction_multiplier REAL DEFAULT 0.5,
       overtime_multiplier REAL DEFAULT 2.0,
       overtime_allowed INTEGER DEFAULT 1,
+      min_overtime_minutes INTEGER DEFAULT 0,
+      min_overtime_deduction_minutes INTEGER DEFAULT 0,
       special_rules TEXT,
       salary_history_json TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -109,6 +111,8 @@ function initSchema() {
   addColumnIfNotExists('employees', 'late_deduction_multiplier', 'REAL DEFAULT 0.5');
   addColumnIfNotExists('employees', 'overtime_multiplier', 'REAL DEFAULT 2.0');
   addColumnIfNotExists('employees', 'overtime_allowed', 'INTEGER DEFAULT 1');
+  addColumnIfNotExists('employees', 'min_overtime_minutes', 'INTEGER DEFAULT 0');
+  addColumnIfNotExists('employees', 'min_overtime_deduction_minutes', 'INTEGER DEFAULT 0');
   addColumnIfNotExists('employees', 'special_rules', 'TEXT');
   addColumnIfNotExists('employees', 'salary_history_json', 'TEXT');
 

@@ -1,7 +1,16 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
-export const Modal = ({ isOpen, onClose, title, children, size = 'md', footer }) => {
+export const Modal = ({ 
+  isOpen, 
+  onClose, 
+  title, 
+  children, 
+  size = 'md', // 'sm', 'md', 'lg', 'xl', 'full'
+  footer,
+  customHeader = null
+}) => {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' && isOpen) {
@@ -20,18 +29,32 @@ export const Modal = ({ isOpen, onClose, title, children, size = 'md', footer })
 
   if (!isOpen) return null;
 
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
+  const modalContent = (
+    <div 
+      className="modal-backdrop" 
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
       <div 
-        className={`modal-dialog ${size === 'lg' ? 'modal-lg' : ''}`} 
+        className={`modal-dialog modal-${size}`} 
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="modal-header">
-          <h3>{title}</h3>
-          <button className="modal-close-btn" onClick={onClose} aria-label="Close modal">
-            <X size={20} />
-          </button>
-        </div>
+        {customHeader ? (
+          customHeader
+        ) : (
+          <div className="modal-header">
+            <h3>{title}</h3>
+            <button 
+              className="modal-close-btn" 
+              onClick={onClose} 
+              aria-label="Close modal"
+              type="button"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        )}
         <div className="modal-body">
           {children}
         </div>
@@ -39,4 +62,6 @@ export const Modal = ({ isOpen, onClose, title, children, size = 'md', footer })
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };

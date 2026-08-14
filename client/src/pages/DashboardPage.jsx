@@ -22,7 +22,8 @@ export const DashboardPage = ({
   onNavigateToImport, 
   onNavigateToEmployees,
   onNavigateToAttendanceImport,
-  onNavigateToReports
+  onNavigateToReports,
+  onNavigateToEmployeeAttendance
 }) => {
   const [stats, setStats] = useState(null);
   const [recentEmployees, setRecentEmployees] = useState([]);
@@ -228,30 +229,30 @@ export const DashboardPage = ({
             </div>
           </div>
 
-          {/* SQLite Status Card */}
+          {/* SQLite Status Card - Clean Light Theme */}
           <div 
+            className="card"
             style={{
-              background: 'linear-gradient(135deg, #0369a1 0%, #0f172a 100%)',
-              borderRadius: '16px',
-              padding: '1.5rem',
-              color: '#ffffff',
-              boxShadow: 'var(--shadow-md)'
+              background: 'var(--primary-50)',
+              border: '1px solid var(--primary-200)',
+              padding: '1.25rem 1.5rem',
+              color: 'var(--slate-800)'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-              <Activity size={22} color="#38bdf8" />
-              <h4 style={{ color: '#ffffff', fontSize: '1.0625rem', fontWeight: '700' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '0.5rem' }}>
+              <Activity size={20} color="var(--primary-600)" />
+              <h4 style={{ color: 'var(--primary-900)', fontSize: '1rem', fontWeight: '700', margin: 0 }}>
                 Local Database Active
               </h4>
             </div>
-            <p style={{ fontSize: '0.8125rem', color: '#cbd5e1', lineHeight: '1.5' }}>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--slate-600)', lineHeight: '1.5', margin: 0 }}>
               Attendance & Master records stored locally in <code>ams.db</code> with automatic upsert on <code>Employee ID + Date</code>.
             </p>
-            <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <span className="badge" style={{ background: 'rgba(56, 189, 248, 0.2)', color: '#bae6fd', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+            <div style={{ marginTop: '0.875rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span className="badge badge-dept">
                 WAL Engine Active
               </span>
-              <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#a7f3d0', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+              <span className="badge badge-working">
                 Deduplication Ready
               </span>
             </div>

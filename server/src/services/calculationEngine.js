@@ -134,9 +134,11 @@ class CalculationEngine {
     const stdBreakMins = parseInt(emp.standard_break_minutes, 10) || 0;
     const stdWorkHours = parseFloat(emp.standard_work_hours) || 12.0;
     const lateGraceMins = parseInt(emp.late_grace_minutes, 10) || 11;
-    const lateMultiplier = parseFloat(emp.late_deduction_multiplier) ?? 0.5;
-    const overtimeMultiplier = parseFloat(emp.overtime_multiplier) ?? 2.0;
+    const lateMultiplier = !isNaN(parseFloat(emp.late_deduction_multiplier)) ? parseFloat(emp.late_deduction_multiplier) : 0.5;
+    const overtimeMultiplier = !isNaN(parseFloat(emp.overtime_multiplier)) ? parseFloat(emp.overtime_multiplier) : 2.0;
     const overtimeAllowed = emp.overtime_allowed !== 0 && emp.overtime_allowed !== false;
+    const minOvertimeMins = parseInt(emp.min_overtime_minutes, 10) || 0;
+    const minOvertimeDeductionMins = parseInt(emp.min_overtime_deduction_minutes, 10) || 0;
 
     const stdInMins = this.timeToMinutes(stdInTimeStr);
     const stdOutMins = this.timeToMinutes(stdOutTimeStr);
@@ -158,22 +160,96 @@ class CalculationEngine {
     const breakOutMins = this.timeToMinutes(rawBreakOut);
     const breakInMins = this.timeToMinutes(rawBreakIn);
 
-    // Actual Break Duration
-    const actualBreakMins = breakInMins > breakOutMins ? breakInMins - breakOutMins : 0;
+    // Actual Break Duration: Break Out - Break In (difference between break punches)
+    let actualBreakMins = 0;
+    if (breakOutMins > 0 && breakInMins > 0) {
+      actualBreakMins = Math.abs(breakOutMins - breakInMins);
+    } else if (breakOutMins > 0 || breakInMins > 0) {
+      // If only one break punch is available, default to scheduled break or 0
+      actualBreakMins = stdBreakMins;
+    }
 
-    // Actual Time Duration calculation (with Excel-compatible grace rules)
-    let actualDurMins = 0;
-    if (actualInMins > 0 && actualOutMins > 0) {
-      if (actualOutMins >= actualInMins) {
-        actualDurMins = actualOutMins - actualInMins;
+    // Effective In Time for calculations (Grace period evaluation)
+    // If actual In Time is within late_grace_minutes from standard In Time, consider it as standard In Time in all calculations
+    let effectiveInMins = actualInMins;
+    if (actualInMins > 0 && stdInMins > 0) {
+      if (actualInMins >= stdInMins && (actualInMins - stdInMins) <= lateGraceMins) {
+        // Within grace period (e.g. standard 09:00, actual 09:07, grace 10m/11m -> considered 09:00)
+        effectiveInMins = stdInMins;
+      } else if (actualInMins < stdInMins) {
+        // Early arrival before shift start -> considered standard In Time
+        effectiveInMins = stdInMins;
+      } else {
+        // Exceeded grace period (e.g. 09:20 when std is 09:00) -> late arrival, starts from actual In Time
+        effectiveInMins = actualInMins;
       }
     }
 
-    // Actual Work Time
+    // Effective Out Time for calculations
+    let effectiveOutMins = actualOutMins;
+
+    // Overtime Duration (excluding early arrival time - only post-shift work past standard out time qualifies)
+    let rawOvertimeMins = 0;
+    if (record.overtime_override_minutes && record.overtime_override_minutes > 0) {
+      rawOvertimeMins = record.overtime_override_minutes;
+    } else if (actualOutMins > 0 && stdOutMins > 0 && (statusCode === 'P' || statusCode === 'HD')) {
+      // Overtime is strictly time worked after standard shift out time
+      if (actualOutMins > stdOutMins) {
+        rawOvertimeMins = actualOutMins - stdOutMins;
+      } else {
+        rawOvertimeMins = 0;
+      }
+    } else if (record.over_time_minutes && record.over_time_minutes > 0) {
+      rawOvertimeMins = record.over_time_minutes;
+    } else if (record.over_time && typeof record.over_time === 'string' && record.over_time !== '00:00') {
+      rawOvertimeMins = this.timeToMinutes(record.over_time);
+    }
+
+    if (!overtimeAllowed) {
+      rawOvertimeMins = 0;
+    }
+
+    // Step 1: Subtract OT deduction (min_overtime_deduction_minutes) from raw overtime
+    let overtimeMins = rawOvertimeMins;
+    if (overtimeMins > 0 && minOvertimeDeductionMins > 0) {
+      overtimeMins = Math.max(0, overtimeMins - minOvertimeDeductionMins);
+    }
+
+    // Step 2: If O.T. after subtracting OT deduction is less than or equal to min O.T., consider it as no overtime (0 OT, 0 OT pay)
+    if (minOvertimeMins > 0 && overtimeMins <= minOvertimeMins) {
+      overtimeMins = 0;
+    }
+
+    // Actual Time Duration calculation
+    let inShiftDurMins = 0;
+    if (actualInMins > 0 && actualOutMins > 0) {
+      if (stdOutMins > 0) {
+        const shiftEndMins = Math.min(actualOutMins, stdOutMins);
+        inShiftDurMins = Math.max(0, shiftEndMins - effectiveInMins);
+      } else {
+        inShiftDurMins = Math.max(0, actualOutMins - effectiveInMins);
+      }
+    }
+
+    // Post-shift regular credit:
+    // If overtime qualified, post-shift work is paid as OT.
+    // If overtime did not qualify, post-shift time up to minOvertimeDeductionMins is credited to regular duration.
+    let regularPostShiftMins = 0;
+    if (overtimeMins === 0 && rawOvertimeMins > 0 && stdOutMins > 0) {
+      regularPostShiftMins = minOvertimeDeductionMins > 0
+        ? Math.min(rawOvertimeMins, minOvertimeDeductionMins)
+        : rawOvertimeMins;
+    }
+
+    let actualDurMins = inShiftDurMins + regularPostShiftMins;
+
+    // Effective Break Time: If actual break <= standard break, subtract standard break; if actual break is more, subtract actual break
+    const effectiveBreak = Math.max(actualBreakMins, stdBreakMins);
+
+    // Actual Work Time: Duration minus Effective Break Time
     let actualWorkMins = 0;
     if (statusCode === 'P' || statusCode === 'WOP' || statusCode === 'HD') {
       if (actualDurMins > 0) {
-        const effectiveBreak = Math.max(actualBreakMins, stdBreakMins);
         actualWorkMins = Math.max(0, actualDurMins - effectiveBreak);
       } else if (statusCode === 'WOP' || statusCode === 'P') {
         // Fallback to scheduled work time if punch exists
@@ -207,16 +283,6 @@ class CalculationEngine {
       if (diffOut > lateGraceMins) {
         earlyMins = diffOut;
       }
-    }
-
-    // Overtime Duration
-    let overtimeMins = 0;
-    if (record.overtime_override_minutes && record.overtime_override_minutes > 0) {
-      overtimeMins = record.overtime_override_minutes;
-    } else if (record.over_time_minutes && record.over_time_minutes > 0) {
-      overtimeMins = record.over_time_minutes;
-    } else if (record.over_time && typeof record.over_time === 'string' && record.over_time !== '00:00') {
-      overtimeMins = this.timeToMinutes(record.over_time);
     }
 
     // Financial calculations for the day
@@ -274,6 +340,8 @@ class CalculationEngine {
       break_in: this.formatTimeString(rawBreakIn),
       actual_break_minutes: actualBreakMins,
       actual_break_formatted: this.minutesToHHMM(actualBreakMins),
+      effective_break_minutes: effectiveBreak,
+      effective_break_formatted: this.minutesToHHMM(effectiveBreak),
       actual_duration_minutes: actualDurMins,
       actual_duration_formatted: this.minutesToHHMM(actualDurMins),
       actual_work_minutes: actualWorkMins,
@@ -327,6 +395,7 @@ class CalculationEngine {
 
     let totalSchedWorkMins = 0;
     let totalActualWorkMins = 0;
+    let totalActualBreakMins = 0;
     let totalWorkDiffMins = 0;
     let totalLateMins = 0;
     let totalEarlyMins = 0;
@@ -352,6 +421,7 @@ class CalculationEngine {
 
       totalSchedWorkMins += day.scheduled_work_minutes;
       totalActualWorkMins += day.actual_work_minutes;
+      totalActualBreakMins += (day.actual_break_minutes || 0);
       totalWorkDiffMins += day.work_diff_minutes;
       totalLateMins += day.late_minutes;
       totalEarlyMins += day.early_minutes;
@@ -386,16 +456,28 @@ class CalculationEngine {
       lateDaysCount,
       earlyDaysCount,
 
-      // Time Durations
+      // Time Durations (in Hours & Minutes)
+      totalExpectedWorkMinutes: totalSchedWorkMins,
+      totalExpectedWorkFormatted: this.minutesToHHMM(totalSchedWorkMins),
       totalExpectedWorkHours: (totalSchedWorkMins / 60).toFixed(2),
+      totalActualWorkMinutes: totalActualWorkMins,
+      totalActualWorkFormatted: this.minutesToHHMM(totalActualWorkMins),
       totalActualWorkHours: (totalActualWorkMins / 60).toFixed(2),
-      totalWorkDiffHours: (totalWorkDiffMins / 60).toFixed(2),
+      totalActualBreakMinutes: totalActualBreakMins,
+      totalActualBreakFormatted: this.minutesToHHMM(totalActualBreakMins),
+      totalActualBreakHours: (totalActualBreakMins / 60).toFixed(2),
+      totalWorkDiffMinutes: totalWorkDiffMins,
       totalWorkDiffFormatted: this.minutesToHHMM(totalWorkDiffMins, true),
-      totalLateHours: (totalLateMins / 60).toFixed(2),
+      totalWorkDiffHours: (totalWorkDiffMins / 60).toFixed(2),
+      totalLateMinutes: totalLateMins,
       totalLateFormatted: this.minutesToHHMM(totalLateMins),
+      totalLateHours: (totalLateMins / 60).toFixed(2),
+      totalEarlyMinutes: totalEarlyMins,
+      totalEarlyFormatted: this.minutesToHHMM(totalEarlyMins),
       totalEarlyHours: (totalEarlyMins / 60).toFixed(2),
-      totalOvertimeHours: (totalOvertimeMins / 60).toFixed(2),
+      totalOvertimeMinutes: totalOvertimeMins,
       totalOvertimeFormatted: this.minutesToHHMM(totalOvertimeMins),
+      totalOvertimeHours: (totalOvertimeMins / 60).toFixed(2),
 
       // Rates and Financials
       baseSalary: Number(baseSalary.toFixed(2)),
@@ -434,6 +516,8 @@ class CalculationEngine {
         late_deduction_multiplier: emp.late_deduction_multiplier ?? 0.5,
         overtime_multiplier: emp.overtime_multiplier ?? 2.0,
         overtime_allowed: emp.overtime_allowed !== 0,
+        min_overtime_minutes: emp.min_overtime_minutes || 0,
+        min_overtime_deduction_minutes: emp.min_overtime_deduction_minutes || 0,
         special_rules: emp.special_rules || '',
         salary_history: emp.salary_history_json ? JSON.parse(emp.salary_history_json) : []
       },

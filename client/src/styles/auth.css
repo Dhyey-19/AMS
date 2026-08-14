@@ -1,81 +1,56 @@
-/* Auth Page Layout */
+/* Auth Page Layout - Clean Professional Light Theme */
 .auth-page-container {
   min-height: 100vh;
   display: flex;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0c4a6e 100%);
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 40%, #f8fafc 100%);
+  padding: 1.5rem;
   position: relative;
-  overflow: hidden;
-}
-
-/* Background Ambient Orbs */
-.auth-page-container::before {
-  content: '';
-  position: absolute;
-  width: 500px;
-  height: 500px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(14, 165, 233, 0.15) 0%, rgba(14, 165, 233, 0) 70%);
-  top: -100px;
-  left: -100px;
-  pointer-events: none;
-}
-
-.auth-page-container::after {
-  content: '';
-  position: absolute;
-  width: 600px;
-  height: 600px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(13, 148, 136, 0.12) 0%, rgba(13, 148, 136, 0) 70%);
-  bottom: -150px;
-  right: -100px;
-  pointer-events: none;
 }
 
 .auth-split-wrapper {
   display: flex;
   width: 100%;
-  max-width: 1100px;
-  margin: auto;
-  min-height: 620px;
-  background: rgba(30, 41, 59, 0.85);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  max-width: 1000px;
+  min-height: 560px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-xl);
   overflow: hidden;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-xl);
   z-index: 10;
 }
 
-/* Auth Left Banner */
+/* Left Brand Banner */
 .auth-banner-side {
   flex: 1;
-  background: linear-gradient(145deg, #0369a1 0%, #0f172a 100%);
-  padding: 3.5rem 3rem;
+  background: linear-gradient(145deg, #0369a1 0%, #0284c7 100%);
+  padding: 3rem 2.5rem;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   position: relative;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  color: #ffffff;
 }
 
 .banner-hospital-brand {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.875rem;
 }
 
 .banner-logo-icon {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
 }
 
 .banner-title-text h2 {
@@ -83,52 +58,53 @@
   font-size: 1.35rem;
   font-weight: 800;
   letter-spacing: -0.02em;
+  margin: 0;
 }
 
 .banner-title-text span {
-  color: #38bdf8;
-  font-size: 0.8125rem;
+  color: #bae6fd;
+  font-size: 0.775rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .banner-main-hero {
-  margin: 2rem 0;
+  margin: 1.5rem 0;
 }
 
 .banner-main-hero h1 {
   color: #ffffff;
-  font-size: 2rem;
+  font-size: 1.85rem;
   font-weight: 800;
-  line-height: 1.2;
-  margin-bottom: 1rem;
+  line-height: 1.25;
+  margin-bottom: 0.75rem;
 }
 
 .banner-main-hero p {
-  color: #94a3b8;
-  font-size: 0.9375rem;
-  line-height: 1.6;
+  color: #e0f2fe;
+  font-size: 0.9rem;
+  line-height: 1.5;
 }
 
 .banner-highlights {
   display: flex;
   flex-direction: column;
-  gap: 0.875rem;
-  margin-top: 1.5rem;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
 }
 
 .highlight-pill {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  font-size: 0.875rem;
-  color: #e0f2fe;
+  font-size: 0.85rem;
+  color: #ffffff;
 }
 
 .highlight-pill-icon {
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.15);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.2);
   padding: 4px;
   border-radius: var(--radius-sm);
   display: flex;
@@ -136,45 +112,45 @@
 
 .banner-footer {
   font-size: 0.75rem;
-  color: #64748b;
+  color: #bae6fd;
 }
 
-/* Auth Form Side */
+/* Right Auth Form */
 .auth-form-side {
-  flex: 1.1;
+  flex: 1.15;
   background: #ffffff;
-  padding: 3.5rem 3rem;
+  padding: 3rem 2.5rem;
   display: flex;
   flex-direction: column;
   justify-content: center;
 }
 
 .auth-form-header {
-  margin-bottom: 2rem;
+  margin-bottom: 1.75rem;
 }
 
 .auth-form-header h2 {
-  font-size: 1.625rem;
-  font-weight: 700;
+  font-size: 1.5rem;
+  font-weight: 800;
   color: var(--slate-900);
 }
 
 .auth-form-header p {
   color: var(--slate-500);
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   margin-top: 0.25rem;
 }
 
 .auth-alert-error {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
+  gap: 0.5rem;
   padding: 0.75rem 1rem;
   background: var(--danger-bg);
   border: 1px solid var(--danger-border);
   color: var(--danger-text);
   border-radius: var(--radius-md);
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   margin-bottom: 1.25rem;
 }
 
@@ -201,21 +177,21 @@
   color: var(--slate-600);
 }
 
-/* Quick Fill Demo Credentials Box */
+/* Demo Credentials Quick-Fill Card */
 .demo-credentials-box {
-  margin-top: 1.5rem;
-  padding: 1rem;
+  margin-top: 1.25rem;
+  padding: 0.875rem 1rem;
   background: var(--primary-50);
   border: 1px dashed var(--primary-300);
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .demo-credentials-text {
-  font-size: 0.8125rem;
+  font-size: 0.8rem;
   color: var(--primary-900);
 }
 
@@ -224,26 +200,34 @@
 }
 
 .auth-toggle-link {
-  margin-top: 1.5rem;
+  margin-top: 1.25rem;
   text-align: center;
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   color: var(--slate-500);
 }
 
-.auth-toggle-link a {
+.auth-toggle-link a, .auth-toggle-link button {
   font-weight: 600;
   color: var(--primary-600);
+  background: transparent;
+  border: none;
+  cursor: pointer;
 }
 
+.auth-toggle-link button:hover {
+  text-decoration: underline;
+}
+
+/* Responsive adjustments */
 @media (max-width: 850px) {
   .auth-split-wrapper {
     flex-direction: column;
-    margin: 1rem;
+    max-width: 480px;
   }
   .auth-banner-side {
     display: none;
   }
   .auth-form-side {
-    padding: 2.5rem 1.75rem;
+    padding: 2rem 1.5rem;
   }
 }

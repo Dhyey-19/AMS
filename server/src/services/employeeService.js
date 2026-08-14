@@ -140,6 +140,8 @@ class EmployeeService {
       late_deduction_multiplier: normalized['latedeductionmultiplier'] ? parseFloat(normalized['latedeductionmultiplier']) : 0.5,
       overtime_multiplier: normalized['overtimemultiplier'] ? parseFloat(normalized['overtimemultiplier']) : 2.0,
       overtime_allowed: normalized['overtimeallowed'] !== undefined ? (normalized['overtimeallowed'] === '0' || normalized['overtimeallowed'] === 'false' ? 0 : 1) : 1,
+      min_overtime_minutes: normalized['minovertimeminutes'] ? parseInt(normalized['minovertimeminutes'], 10) : 0,
+      min_overtime_deduction_minutes: (normalized['minovertimedeductionminutes'] || normalized['minovertimededuction'] || normalized['overtimedeductionminutes'] || normalized['overtimededuction']) ? parseInt(normalized['minovertimedeductionminutes'] || normalized['minovertimededuction'] || normalized['overtimedeductionminutes'] || normalized['overtimededuction'], 10) : 0,
       special_rules: normalized['specialrules'] || normalized['rules'] || normalized['remarks'] || null,
       salary_history_json: normalized['salaryhistoryjson'] || null
     };
@@ -169,7 +171,7 @@ class EmployeeService {
         salary, standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
         rate_type, hourly_rate, daily_rate, payment_mode,
         late_grace_minutes, late_deduction_multiplier, overtime_multiplier, overtime_allowed,
-        special_rules, salary_history_json
+        min_overtime_minutes, min_overtime_deduction_minutes, special_rules, salary_history_json
       ) VALUES (
         @employee_code, @employee_name, @device_code, @company, @department,
         @location, @designation, @grade, @team, @category,
@@ -179,7 +181,7 @@ class EmployeeService {
         @salary, @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
         @rate_type, @hourly_rate, @daily_rate, @payment_mode,
         @late_grace_minutes, @late_deduction_multiplier, @overtime_multiplier, @overtime_allowed,
-        @special_rules, @salary_history_json
+        @min_overtime_minutes, @min_overtime_deduction_minutes, @special_rules, @salary_history_json
       )
     `);
 
@@ -220,6 +222,8 @@ class EmployeeService {
         late_deduction_multiplier = COALESCE(@late_deduction_multiplier, late_deduction_multiplier),
         overtime_multiplier = COALESCE(@overtime_multiplier, overtime_multiplier),
         overtime_allowed = COALESCE(@overtime_allowed, overtime_allowed),
+        min_overtime_minutes = COALESCE(@min_overtime_minutes, min_overtime_minutes),
+        min_overtime_deduction_minutes = COALESCE(@min_overtime_deduction_minutes, min_overtime_deduction_minutes),
         special_rules = COALESCE(@special_rules, special_rules),
         salary_history_json = COALESCE(@salary_history_json, salary_history_json),
         updated_at = CURRENT_TIMESTAMP
@@ -316,7 +320,7 @@ class EmployeeService {
         salary, standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
         rate_type, hourly_rate, daily_rate, payment_mode,
         late_grace_minutes, late_deduction_multiplier, overtime_multiplier, overtime_allowed,
-        special_rules, salary_history_json
+        min_overtime_minutes, min_overtime_deduction_minutes, special_rules, salary_history_json
       ) VALUES (
         @employee_code, @employee_name, @device_code, @company, @department,
         @location, @designation, @grade, @team, @category,
@@ -324,7 +328,7 @@ class EmployeeService {
         @salary, @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
         @rate_type, @hourly_rate, @daily_rate, @payment_mode,
         @late_grace_minutes, @late_deduction_multiplier, @overtime_multiplier, @overtime_allowed,
-        @special_rules, @salary_history_json
+        @min_overtime_minutes, @min_overtime_deduction_minutes, @special_rules, @salary_history_json
       )
       ON CONFLICT(employee_code) DO UPDATE SET
         employee_name = excluded.employee_name,
@@ -560,6 +564,8 @@ class EmployeeService {
             late_deduction_multiplier: 0.5,
             overtime_multiplier: (nameHeader.includes('OVER TIME નથી') || specialRules.includes('OVER TIME નથી')) ? 0 : 2.0,
             overtime_allowed: (nameHeader.includes('OVER TIME નથી') || specialRules.includes('OVER TIME નથી')) ? 0 : 1,
+            min_overtime_minutes: 0,
+            min_overtime_deduction_minutes: 0,
             special_rules: specialRules || null,
             salary_history_json: salaryHistory.length > 0 ? JSON.stringify(salaryHistory) : null
           });
@@ -744,6 +750,8 @@ class EmployeeService {
         late_deduction_multiplier = COALESCE(@late_deduction_multiplier, late_deduction_multiplier),
         overtime_multiplier = COALESCE(@overtime_multiplier, overtime_multiplier),
         overtime_allowed = COALESCE(@overtime_allowed, overtime_allowed),
+        min_overtime_minutes = COALESCE(@min_overtime_minutes, min_overtime_minutes),
+        min_overtime_deduction_minutes = COALESCE(@min_overtime_deduction_minutes, min_overtime_deduction_minutes),
         special_rules = COALESCE(@special_rules, special_rules),
         salary_history_json = COALESCE(@salary_history_json, salary_history_json),
         updated_at = CURRENT_TIMESTAMP
@@ -787,6 +795,8 @@ class EmployeeService {
       late_deduction_multiplier: updateData.late_deduction_multiplier ?? existing.late_deduction_multiplier,
       overtime_multiplier: updateData.overtime_multiplier ?? existing.overtime_multiplier,
       overtime_allowed: updateData.overtime_allowed !== undefined ? (updateData.overtime_allowed ? 1 : 0) : existing.overtime_allowed,
+      min_overtime_minutes: updateData.min_overtime_minutes !== undefined ? (parseInt(updateData.min_overtime_minutes, 10) || 0) : existing.min_overtime_minutes,
+      min_overtime_deduction_minutes: updateData.min_overtime_deduction_minutes !== undefined ? (parseInt(updateData.min_overtime_deduction_minutes, 10) || 0) : existing.min_overtime_deduction_minutes,
       special_rules: updateData.special_rules ?? existing.special_rules,
       salary_history_json: updateData.salary_history_json !== undefined ? (typeof updateData.salary_history_json === 'object' ? JSON.stringify(updateData.salary_history_json) : updateData.salary_history_json) : existing.salary_history_json
     });
@@ -833,7 +843,7 @@ class EmployeeService {
         salary, standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
         rate_type, hourly_rate, daily_rate, payment_mode,
         late_grace_minutes, late_deduction_multiplier, overtime_multiplier, overtime_allowed,
-        special_rules, salary_history_json
+        min_overtime_minutes, min_overtime_deduction_minutes, special_rules, salary_history_json
       ) VALUES (
         @employee_code, @employee_name, @device_code, @company, @department,
         @location, @designation, @grade, @team, @category,
@@ -843,7 +853,7 @@ class EmployeeService {
         @salary, @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
         @rate_type, @hourly_rate, @daily_rate, @payment_mode,
         @late_grace_minutes, @late_deduction_multiplier, @overtime_multiplier, @overtime_allowed,
-        @special_rules, @salary_history_json
+        @min_overtime_minutes, @min_overtime_deduction_minutes, @special_rules, @salary_history_json
       )
     `);
 
@@ -858,7 +868,7 @@ class EmployeeService {
       grade: data.grade || null,
       team: data.team || null,
       category: data.category || 'HospitalStaff',
-      employment_type: data.employment_type || 'Full Time',
+      employment_type: data.employment_type || null,
       gender: data.gender || 'Not Specified',
       doj: data.doj || null,
       doc: data.doc || null,
@@ -874,16 +884,18 @@ class EmployeeService {
       salary: salary,
       standard_in_time: data.standard_in_time || '08:00',
       standard_out_time: data.standard_out_time || '20:00',
-      standard_break_minutes: data.standard_break_minutes ? parseInt(data.standard_break_minutes, 10) : 0,
+      standard_break_minutes: parseInt(data.standard_break_minutes, 10) || 0,
       standard_work_hours: stdHours,
       rate_type: data.rate_type || 'hourly',
       hourly_rate: hourlyRate,
       daily_rate: dailyRate,
       payment_mode: data.payment_mode || 'Bank',
-      late_grace_minutes: data.late_grace_minutes ? parseInt(data.late_grace_minutes, 10) : 11,
-      late_deduction_multiplier: data.late_deduction_multiplier ? parseFloat(data.late_deduction_multiplier) : 0.5,
-      overtime_multiplier: data.overtime_multiplier ? parseFloat(data.overtime_multiplier) : 2.0,
+      late_grace_minutes: parseInt(data.late_grace_minutes, 10) || 11,
+      late_deduction_multiplier: parseFloat(data.late_deduction_multiplier) || 0.5,
+      overtime_multiplier: parseFloat(data.overtime_multiplier) || 2.0,
       overtime_allowed: data.overtime_allowed !== undefined ? (data.overtime_allowed ? 1 : 0) : 1,
+      min_overtime_minutes: parseInt(data.min_overtime_minutes, 10) || 0,
+      min_overtime_deduction_minutes: parseInt(data.min_overtime_deduction_minutes, 10) || 0,
       special_rules: data.special_rules || null,
       salary_history_json: data.salary_history_json ? (typeof data.salary_history_json === 'object' ? JSON.stringify(data.salary_history_json) : data.salary_history_json) : null
     });

@@ -132,6 +132,14 @@ export const EmployeeDetailsModal = ({ isOpen, onClose, employee, onOpenAttendan
               <span className="detail-item-label">Overtime Rate Factor</span>
               <span className="detail-item-value">{employee.overtime_multiplier ?? 2.0}x</span>
             </div>
+            <div className="detail-item">
+              <span className="detail-item-label">Min Overtime Threshold</span>
+              <span className="detail-item-value">{employee.min_overtime_minutes || 0} mins</span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-item-label">Min Overtime Deduction</span>
+              <span className="detail-item-value">{employee.min_overtime_deduction_minutes || 0} mins</span>
+            </div>
           </div>
         </div>
 

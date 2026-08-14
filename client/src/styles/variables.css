@@ -1,5 +1,5 @@
 :root {
-  /* Medical Hospital Palette */
+  /* Medical Hospital Palette - Professional Blue & Teal */
   --primary-50: #f0f9ff;
   --primary-100: #e0f2fe;
   --primary-200: #bae6fd;
@@ -14,11 +14,12 @@
 
   /* Teal / Hospital Accents */
   --teal-50: #f0fdfa;
+  --teal-100: #ccfbf1;
   --teal-500: #14b8a6;
   --teal-600: #0d9488;
   --teal-700: #0f766e;
 
-  /* Dark Slate / Navy Foundations */
+  /* Clean Slate & Gray Foundation for Light Theme */
   --slate-50: #f8fafc;
   --slate-100: #f1f5f9;
   --slate-200: #e2e8f0;
@@ -31,7 +32,7 @@
   --slate-900: #0f172a;
   --slate-950: #020617;
 
-  /* Semantic Status Colors */
+  /* Semantic Status Colors (High-Contrast Light Theme) */
   --success-bg: #ecfdf5;
   --success-border: #a7f3d0;
   --success-text: #065f46;
@@ -52,43 +53,38 @@
   --info-text: #1e40af;
   --info-solid: #3b82f6;
 
-  /* Surface & Backgrounds */
+  /* Surfaces & Backgrounds - Pure Clean Light Theme */
   --bg-app: #f8fafc;
   --bg-card: #ffffff;
-  --bg-sidebar: #0f172a;
-  --bg-sidebar-hover: #1e293b;
-  --bg-sidebar-active: #0284c7;
+  --bg-sidebar: #ffffff;
+  --bg-sidebar-hover: #f1f5f9;
+  --bg-sidebar-active: #e0f2fe;
   --border-color: #e2e8f0;
   --border-color-light: #f1f5f9;
 
   /* Typography */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-heading: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-heading: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 
-  /* Elevation Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
-  --shadow-glow: 0 0 20px rgba(14, 165, 233, 0.25);
-
-  /* Glassmorphism */
-  --glass-bg: rgba(255, 255, 255, 0.85);
-  --glass-border: rgba(255, 255, 255, 0.3);
-  --glass-blur: blur(12px);
+  /* Refined Elevation Shadows */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -4px rgba(0, 0, 0, 0.03);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+  --shadow-modal: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
 
   /* Dimensions */
   --sidebar-width: 260px;
-  --sidebar-collapsed-width: 76px;
-  --header-height: 70px;
+  --header-height: 68px;
   --radius-sm: 6px;
   --radius-md: 10px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
   --radius-full: 9999px;
 
   /* Transitions */
   --transition-fast: 0.15s ease;
-  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-smooth: 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-normal: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }

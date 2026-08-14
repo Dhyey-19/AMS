@@ -12,19 +12,22 @@ import {
   ChevronDown, 
   CheckCircle2, 
   AlertTriangle, 
-  XCircle, 
   TrendingUp, 
-  Award, 
   ShieldAlert, 
   FileText,
   Upload,
-  Sparkles,
-  Info,
-  Building,
-  Briefcase
+  Sparkles
 } from 'lucide-react';
 import { employeeApi, attendanceApi } from '../services/api';
 import { EditEmployeeMasterModal } from '../components/employees/EditEmployeeMasterModal';
+
+const formatHoursToHHMM = (hrs) => {
+  if (hrs === null || hrs === undefined || isNaN(hrs)) return '00:00';
+  const totalMins = Math.round(Number(hrs) * 60);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
 
 export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmployees }) => {
   const [employees, setEmployees] = useState([]);
@@ -66,9 +69,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
           }
         }
 
-        // Set initial selected employee
         if (!selectedEmployeeCode && empList.length > 0) {
-          // Prefer SANJAY (128) or first employee
           const defaultEmp = empList.find(e => e.employee_code === '128') || empList[0];
           setSelectedEmployeeCode(defaultEmp.employee_code);
         }
@@ -112,7 +113,6 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
         format
       });
 
-      // Trigger browser file download
       const blob = new Blob([response.data], { 
         type: format === 'xlsx' 
           ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
@@ -147,7 +147,6 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
         type: 'success',
         text: res.message || 'MAY - 26.xlsx imported successfully!'
       });
-      // Refresh employees and sheet
       const empRes = await employeeApi.getAll({ limit: 200 });
       setEmployees(empRes.data || []);
       const sheetRes = await attendanceApi.getEmployeeSheet(selectedEmployeeCode, { month: selectedMonth });
@@ -162,7 +161,6 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
     }
   };
 
-  // Filtered employees for dropdown search
   const filteredEmployees = employees.filter(e => 
     e.employee_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     e.employee_code.toString().includes(searchQuery) ||
@@ -174,27 +172,23 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
   const records = sheetData?.dailyRecords || [];
 
   return (
-    <div className="employee-attendance-page animate-fade-in" style={{ paddingBottom: '3rem' }}>
+    <div className="employee-attendance-page animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Top Banner & Control Bar */}
       <div 
+        className="card"
         style={{
+          padding: '1.25rem 1.5rem',
           display: 'flex',
           flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '1rem',
-          marginBottom: '1.5rem',
-          background: '#ffffff',
-          padding: '1.25rem 1.5rem',
-          borderRadius: '16px',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
-          border: '1px solid #e2e8f0'
+          gap: '1rem'
         }}
       >
         {/* Left: Employee Search & Switcher Dropdown */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, minWidth: '280px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, minWidth: '280px', flexWrap: 'wrap' }}>
           <div style={{ position: 'relative', width: '100%', maxWidth: '380px' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '0.25rem', display: 'block' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--slate-500)', textTransform: 'uppercase', marginBottom: '0.25rem', display: 'block' }}>
               Select Employee Profile
             </label>
             <div 
@@ -203,42 +197,43 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '0.65rem 1rem',
-                backgroundColor: '#f8fafc',
-                border: '1px solid #cbd5e1',
-                borderRadius: '10px',
+                padding: '0.55rem 0.875rem',
+                backgroundColor: '#ffffff',
+                border: '1px solid var(--slate-300)',
+                borderRadius: 'var(--radius-md)',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
-                boxShadow: isDropdownOpen ? '0 0 0 2px rgba(2, 132, 199, 0.2)' : 'none'
+                boxShadow: isDropdownOpen ? '0 0 0 3px rgba(2, 132, 199, 0.12)' : 'none'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', overflow: 'hidden' }}>
                 <div 
                   style={{
                     width: '30px',
                     height: '30px',
                     borderRadius: '8px',
-                    background: 'linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%)',
+                    background: 'linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%)',
                     color: '#ffffff',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: '700',
-                    fontSize: '0.85rem'
+                    fontSize: '0.85rem',
+                    flexShrink: 0
                   }}
                 >
                   {currentEmp?.employee_name?.charAt(0) || 'E'}
                 </div>
-                <div>
-                  <div style={{ fontWeight: '600', fontSize: '0.9rem', color: '#0f172a', lineHeight: '1.2' }}>
+                <div style={{ overflow: 'hidden' }}>
+                  <div style={{ fontWeight: '600', fontSize: '0.875rem', color: 'var(--slate-900)', lineHeight: '1.2', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
                     {currentEmp?.employee_name || 'Select Employee...'}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                  <div style={{ fontSize: '0.725rem', color: 'var(--slate-500)' }}>
                     Code: #{currentEmp?.employee_code || ''} • {currentEmp?.department || 'General'}
                   </div>
                 </div>
               </div>
-              <ChevronDown size={18} style={{ color: '#64748b' }} />
+              <ChevronDown size={16} style={{ color: 'var(--slate-500)', flexShrink: 0 }} />
             </div>
 
             {/* Dropdown Menu */}
@@ -251,25 +246,25 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                   right: 0,
                   marginTop: '0.35rem',
                   backgroundColor: '#ffffff',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '12px',
-                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--radius-md)',
+                  boxShadow: 'var(--shadow-xl)',
                   zIndex: 50,
-                  maxHeight: '340px',
+                  maxHeight: '320px',
                   overflow: 'hidden',
                   display: 'flex',
                   flexDirection: 'column'
                 }}
               >
-                <div style={{ padding: '0.5rem', borderBottom: '1px solid #f1f5f9' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.6rem', background: '#f8fafc', borderRadius: '8px' }}>
-                    <Search size={16} style={{ color: '#94a3b8' }} />
+                <div style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color-light)', background: 'var(--slate-50)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.6rem', background: '#ffffff', border: '1px solid var(--slate-200)', borderRadius: '6px' }}>
+                    <Search size={15} style={{ color: 'var(--slate-400)' }} />
                     <input 
                       type="text"
                       placeholder="Search employee by name, code, dept..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '0.85rem' }}
+                      style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '0.8125rem' }}
                       autoFocus
                     />
                   </div>
@@ -286,35 +281,30 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                           setSearchQuery('');
                         }}
                         style={{
-                          padding: '0.65rem 1rem',
+                          padding: '0.6rem 0.875rem',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          backgroundColor: isSelected ? '#f0f9ff' : 'transparent',
-                          borderLeft: isSelected ? '3px solid #0284c7' : '3px solid transparent',
+                          backgroundColor: isSelected ? 'var(--primary-50)' : 'transparent',
+                          borderLeft: isSelected ? '3px solid var(--primary-600)' : '3px solid transparent',
                           cursor: 'pointer',
                           transition: 'background 0.15s'
                         }}
-                        onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+                        onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--slate-50)'; }}
                         onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
                       >
                         <div>
-                          <div style={{ fontWeight: isSelected ? '700' : '500', fontSize: '0.875rem', color: isSelected ? '#0369a1' : '#1e293b' }}>
+                          <div style={{ fontWeight: isSelected ? '700' : '500', fontSize: '0.85rem', color: isSelected ? 'var(--primary-700)' : 'var(--slate-900)' }}>
                             {emp.employee_name}
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                          <div style={{ fontSize: '0.725rem', color: 'var(--slate-500)' }}>
                             #{emp.employee_code} • {emp.designation || emp.department || 'Staff'} {emp.salary ? `• ₹${emp.salary}` : ''}
                           </div>
                         </div>
-                        {isSelected && <CheckCircle2 size={16} style={{ color: '#0284c7' }} />}
+                        {isSelected && <CheckCircle2 size={15} style={{ color: 'var(--primary-600)' }} />}
                       </div>
                     );
                   })}
-                  {filteredEmployees.length === 0 && (
-                    <div style={{ padding: '1rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>
-                      No employees match "{searchQuery}"
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -322,22 +312,14 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
 
           {/* Month Selector */}
           <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', marginBottom: '0.25rem', display: 'block' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--slate-500)', textTransform: 'uppercase', marginBottom: '0.25rem', display: 'block' }}>
               Attendance Month
             </label>
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              style={{
-                padding: '0.65rem 1rem',
-                backgroundColor: '#f8fafc',
-                border: '1px solid #cbd5e1',
-                borderRadius: '10px',
-                fontWeight: '600',
-                fontSize: '0.9rem',
-                color: '#0f172a',
-                cursor: 'pointer'
-              }}
+              className="form-select"
+              style={{ width: 'auto', minWidth: '180px', fontWeight: '600', fontSize: '0.85rem' }}
             >
               {availableMonths.map((m) => {
                 const [year, monthNum] = m.split('-');
@@ -353,90 +335,38 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
         </div>
 
         {/* Right: Actions Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button
             onClick={() => setIsEditModalOpen(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              padding: '0.65rem 1rem',
-              borderRadius: '10px',
-              backgroundColor: '#f0f9ff',
-              border: '1px solid #bae6fd',
-              color: '#0369a1',
-              fontWeight: '600',
-              fontSize: '0.875rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
+            className="btn btn-secondary btn-sm"
             title="Edit Master Data & Rules for this employee"
           >
-            <Edit3 size={16} /> Edit Master Rules
+            <Edit3 size={15} color="var(--primary-600)" /> Edit Rules
           </button>
 
           <button
             onClick={() => handleExport('xlsx')}
             disabled={exporting || loading}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              padding: '0.65rem 1.15rem',
-              borderRadius: '10px',
-              backgroundColor: '#0284c7',
-              border: 'none',
-              color: '#ffffff',
-              fontWeight: '600',
-              fontSize: '0.875rem',
-              cursor: exporting ? 'not-allowed' : 'pointer',
-              boxShadow: '0 4px 6px -1px rgba(2, 132, 199, 0.3)',
-              transition: 'all 0.2s'
-            }}
+            className="btn btn-primary btn-sm"
           >
-            <FileSpreadsheet size={16} /> {exporting ? 'Exporting...' : 'Export Excel'}
+            <FileSpreadsheet size={15} /> {exporting ? 'Exporting...' : 'Export Excel'}
           </button>
 
           <button
             onClick={() => handleExport('csv')}
             disabled={exporting || loading}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              padding: '0.65rem 1rem',
-              borderRadius: '10px',
-              backgroundColor: '#ffffff',
-              border: '1px solid #cbd5e1',
-              color: '#334155',
-              fontWeight: '600',
-              fontSize: '0.875rem',
-              cursor: exporting ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s'
-            }}
+            className="btn btn-secondary btn-sm"
           >
-            <Download size={16} /> CSV
+            <Download size={15} /> CSV
           </button>
 
           <button
             onClick={handleImportSampleWorkbook}
             disabled={importingWorkbook}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              padding: '0.65rem 0.9rem',
-              borderRadius: '10px',
-              backgroundColor: '#f1f5f9',
-              border: '1px solid #e2e8f0',
-              color: '#475569',
-              fontWeight: '600',
-              fontSize: '0.825rem',
-              cursor: importingWorkbook ? 'not-allowed' : 'pointer'
-            }}
-            title="Import or Sync MAY - 26.xlsx multi-sheet workbook"
+            className="btn btn-secondary btn-sm"
+            title="Sync all sheets from MAY - 26.xlsx"
           >
-            <Upload size={15} /> {importingWorkbook ? 'Syncing...' : 'Sync MAY - 26.xlsx'}
+            <Upload size={14} /> {importingWorkbook ? 'Syncing...' : 'Sync Workbook'}
           </button>
         </div>
       </div>
@@ -445,12 +375,11 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
       {importMessage && (
         <div 
           style={{
-            marginBottom: '1.5rem',
-            padding: '0.85rem 1.25rem',
-            borderRadius: '12px',
-            backgroundColor: importMessage.type === 'success' ? '#ecfdf5' : '#fff1f2',
-            border: `1px solid ${importMessage.type === 'success' ? '#a7f3d0' : '#fecdd3'}`,
-            color: importMessage.type === 'success' ? '#065f46' : '#9f1239',
+            padding: '0.75rem 1.25rem',
+            borderRadius: 'var(--radius-md)',
+            backgroundColor: importMessage.type === 'success' ? 'var(--success-bg)' : 'var(--danger-bg)',
+            border: `1px solid ${importMessage.type === 'success' ? 'var(--success-border)' : 'var(--danger-border)'}`,
+            color: importMessage.type === 'success' ? 'var(--success-text)' : 'var(--danger-text)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -458,7 +387,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            {importMessage.type === 'success' ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+            {importMessage.type === 'success' ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
             <span>{importMessage.text}</span>
           </div>
           <button 
@@ -471,189 +400,132 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
       )}
 
       {loading ? (
-        <div style={{ padding: '4rem', textAlign: 'center', background: '#ffffff', borderRadius: '16px' }}>
-          <RefreshCw size={32} className="spin" style={{ color: '#0284c7', marginBottom: '1rem' }} />
-          <div style={{ fontSize: '1.1rem', fontWeight: '600', color: '#1e293b' }}>
-            Computing Dynamic Attendance & Salary Records...
+        <div className="card" style={{ padding: '3.5rem', textAlign: 'center' }}>
+          <RefreshCw size={30} className="spin" style={{ color: 'var(--primary-600)', marginBottom: '0.875rem' }} />
+          <div style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--slate-800)' }}>
+            Calculating Attendance & Salary Dynamics...
           </div>
-          <div style={{ fontSize: '0.875rem', color: '#64748b', marginTop: '0.25rem' }}>
-            Applying individual shift timings, tolerance grace, and rate calculations
+          <div style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.25rem' }}>
+            Applying individual shift timings, tolerance grace, and rates
           </div>
         </div>
       ) : error ? (
-        <div style={{ padding: '3rem', textAlign: 'center', background: '#ffffff', borderRadius: '16px', border: '1px solid #fecdd3' }}>
-          <AlertTriangle size={36} style={{ color: '#e11d48', marginBottom: '0.75rem' }} />
-          <div style={{ fontSize: '1.1rem', fontWeight: '700', color: '#9f1239' }}>{error}</div>
+        <div className="card" style={{ padding: '2.5rem', textAlign: 'center', borderColor: 'var(--danger-border)' }}>
+          <AlertTriangle size={32} style={{ color: 'var(--danger-solid)', marginBottom: '0.5rem' }} />
+          <div style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--danger-text)' }}>{error}</div>
         </div>
       ) : (
         <>
-          {/* 1. Employee Profile & Master Rules Hero Card */}
-          <div 
-            style={{
-              background: '#ffffff',
-              borderRadius: '16px',
-              border: '1px solid #e2e8f0',
-              padding: '1.5rem',
-              marginBottom: '1.5rem',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
-              position: 'relative',
-              overflow: 'hidden'
-            }}
-          >
-            <div 
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                height: '4px',
-                background: 'linear-gradient(90deg, #0284c7 0%, #38bdf8 50%, #10b981 100%)'
-              }}
-            />
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+          {/* 1. Employee Profile & Master Rules Hero Card - Pure Light Theme */}
+          <div className="card" style={{ padding: '1.25rem 1.5rem', position: 'relative' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
               {/* Profile Main Info */}
-              <div style={{ display: 'flex', gap: '1rem' }}>
+              <div style={{ display: 'flex', gap: '0.875rem', alignItems: 'center' }}>
                 <div 
                   style={{
-                    width: '64px',
-                    height: '64px',
-                    borderRadius: '14px',
-                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                    width: '56px',
+                    height: '56px',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%)',
                     color: '#ffffff',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: '800',
-                    fontSize: '1.6rem',
-                    boxShadow: '0 4px 10px rgba(2, 132, 199, 0.25)',
-                    flexShrink: 0
+                    fontSize: '1.4rem',
+                    flexShrink: 0,
+                    boxShadow: '0 4px 10px rgba(2, 132, 199, 0.2)'
                   }}
                 >
                   {currentEmp?.employee_name?.charAt(0) || 'E'}
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: '800', color: '#0f172a' }}>
+                    <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', color: 'var(--slate-900)' }}>
                       {currentEmp?.employee_name}
                     </h2>
                     <span 
-                      style={{
-                        padding: '0.2rem 0.55rem',
-                        borderRadius: '9999px',
-                        fontSize: '0.75rem',
-                        fontWeight: '700',
-                        backgroundColor: currentEmp?.status === 'Working' ? '#ecfdf5' : '#fff1f2',
-                        color: currentEmp?.status === 'Working' ? '#065f46' : '#9f1239'
-                      }}
+                      className={`badge ${currentEmp?.status === 'Working' ? 'badge-working' : 'badge-resigned'}`}
                     >
                       {currentEmp?.status || 'Working'}
                     </span>
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.25rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    <span><strong>ID:</strong> #{currentEmp?.employee_code}</span>
-                    <span>•</span>
-                    <span><strong>Dept:</strong> {currentEmp?.department || 'General'}</span>
-                    <span>•</span>
-                    <span><strong>Designation:</strong> {currentEmp?.designation || 'Staff'}</span>
+                  <div style={{ fontSize: '0.8125rem', color: 'var(--slate-600)', marginTop: '0.2rem' }}>
+                    <strong>#{currentEmp?.employee_code}</strong> • {currentEmp?.department || 'General'} • {currentEmp?.designation || 'Staff'}
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.25rem' }}>
-                    <strong>D.O.J:</strong> {currentEmp?.doj || 'Not recorded'} • <strong>Payment Mode:</strong> {currentEmp?.payment_mode || 'Bank'}
+                  <div style={{ fontSize: '0.75rem', color: 'var(--slate-500)', marginTop: '0.15rem' }}>
+                    DOJ: {currentEmp?.doj || 'Not recorded'} • Mode: {currentEmp?.payment_mode || 'Bank'}
                   </div>
                 </div>
               </div>
 
-              {/* Working Hours & Shifts Pill */}
+              {/* Working Hours & Shifts Box */}
               <div 
                 style={{
-                  background: '#f8fafc',
-                  borderRadius: '12px',
-                  padding: '1rem',
-                  border: '1px solid #e2e8f0',
+                  background: 'var(--slate-50)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '0.875rem 1rem',
+                  border: '1px solid var(--border-color)',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'center'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#0284c7', fontWeight: '700', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
-                  <Clock size={15} /> Standard Working Shift
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--primary-700)', fontWeight: '700', fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                  <Clock size={14} /> Standard Schedule
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.85rem' }}>
-                  <div>
-                    <span style={{ color: '#64748b' }}>Shift Timings:</span>{' '}
-                    <strong style={{ color: '#0f172a' }}>{currentEmp?.standard_in_time} - {currentEmp?.standard_out_time}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: '#64748b' }}>Daily Target:</span>{' '}
-                    <strong style={{ color: '#0f172a' }}>{currentEmp?.standard_work_hours} hrs/day</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: '#64748b' }}>Scheduled Break:</span>{' '}
-                    <strong style={{ color: '#0f172a' }}>{currentEmp?.standard_break_minutes || 0} mins</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: '#64748b' }}>Late Grace:</span>{' '}
-                    <strong style={{ color: '#0f172a' }}>{currentEmp?.late_grace_minutes || 11} mins</strong>
-                  </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem', fontSize: '0.8125rem' }}>
+                  <div><span style={{ color: 'var(--slate-500)' }}>Shift:</span> <strong>{currentEmp?.standard_in_time} - {currentEmp?.standard_out_time}</strong></div>
+                  <div><span style={{ color: 'var(--slate-500)' }}>Daily Target:</span> <strong>{formatHoursToHHMM(currentEmp?.standard_work_hours)} hrs/d</strong></div>
+                  <div><span style={{ color: 'var(--slate-500)' }}>Total Break:</span> <strong>{summary?.totalActualBreakFormatted || '00:00'} hrs</strong></div>
+                  <div><span style={{ color: 'var(--slate-500)' }}>Grace:</span> <strong>{currentEmp?.late_grace_minutes || 11}m</strong></div>
                 </div>
               </div>
 
-              {/* Salary & Hourly Rates Pill */}
+              {/* Salary & Rates Box */}
               <div 
                 style={{
-                  background: '#f0fdf4',
-                  borderRadius: '12px',
-                  padding: '1rem',
-                  border: '1px solid #bbf7d0',
+                  background: 'var(--success-bg)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '0.875rem 1rem',
+                  border: '1px solid var(--success-border)',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'center'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#15803d', fontWeight: '700', fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
-                  <DollarSign size={15} /> Salary & Rate Breakdown
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--success-text)', fontWeight: '700', fontSize: '0.75rem', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                  <DollarSign size={14} /> Salary & Rate Breakdown
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.85rem' }}>
-                  <div>
-                    <span style={{ color: '#166534' }}>Base Salary:</span>{' '}
-                    <strong style={{ color: '#14532d', fontSize: '1rem' }}>₹{currentEmp?.salary?.toLocaleString() || '0'}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: '#166534' }}>Hourly Rate:</span>{' '}
-                    <strong style={{ color: '#14532d' }}>₹{summary?.hourlyRate}/hr</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: '#166534' }}>Daily Rate:</span>{' '}
-                    <strong style={{ color: '#14532d' }}>₹{summary?.dailyRate}/day</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: '#166534' }}>Late / OT Factor:</span>{' '}
-                    <strong style={{ color: '#14532d' }}>{currentEmp?.late_deduction_multiplier}x / {currentEmp?.overtime_multiplier}x</strong>
-                  </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem', fontSize: '0.8125rem' }}>
+                  <div><span style={{ color: 'var(--slate-600)' }}>Base Salary:</span> <strong style={{ color: 'var(--success-text)', fontSize: '0.95rem' }}>₹{currentEmp?.salary?.toLocaleString() || '0'}</strong></div>
+                  <div><span style={{ color: 'var(--slate-600)' }}>Hourly:</span> <strong>₹{summary?.hourlyRate}/hr</strong></div>
+                  <div><span style={{ color: 'var(--slate-600)' }}>Daily Rate:</span> <strong>₹{summary?.dailyRate}/day</strong></div>
+                  <div><span style={{ color: 'var(--slate-600)' }}>Late / OT:</span> <strong>{currentEmp?.late_deduction_multiplier}x / {currentEmp?.overtime_multiplier}x</strong></div>
                 </div>
               </div>
             </div>
 
-            {/* Special Rules / Bond Box (if present in Excel sheet) */}
+            {/* Special Rules / Bond Box */}
             {currentEmp?.special_rules && (
               <div 
                 style={{
-                  marginTop: '1.25rem',
-                  padding: '0.85rem 1.15rem',
-                  borderRadius: '10px',
-                  backgroundColor: '#fffbeb',
-                  border: '1px solid #fde68a',
+                  marginTop: '1rem',
+                  padding: '0.75rem 1rem',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--warning-bg)',
+                  border: '1px solid var(--warning-border)',
                   display: 'flex',
                   alignItems: 'flex-start',
-                  gap: '0.6rem'
+                  gap: '0.5rem'
                 }}
               >
-                <ShieldAlert size={18} style={{ color: '#b45309', flexShrink: 0, marginTop: '2px' }} />
+                <ShieldAlert size={16} style={{ color: 'var(--warning-solid)', flexShrink: 0, marginTop: '2px' }} />
                 <div>
-                  <div style={{ fontWeight: '700', fontSize: '0.825rem', color: '#92400e', textTransform: 'uppercase' }}>
+                  <div style={{ fontWeight: '700', fontSize: '0.775rem', color: 'var(--warning-text)', textTransform: 'uppercase' }}>
                     Special Employee Rules & Bond Terms
                   </div>
-                  <div style={{ fontSize: '0.875rem', color: '#78350f', marginTop: '0.2rem', lineHeight: '1.5' }}>
+                  <div style={{ fontSize: '0.8125rem', color: '#78350f', marginTop: '0.15rem', lineHeight: '1.4' }}>
                     {currentEmp.special_rules}
                   </div>
                 </div>
@@ -661,213 +533,137 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
             )}
           </div>
 
-          {/* 2. Dynamic Monthly Summary Cards */}
+          {/* 2. Dynamic Monthly Summary Cards - Light Theme */}
           <div 
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: '1rem',
-              marginBottom: '1.5rem'
+              gap: '1rem'
             }}
           >
-            {/* Card 1: Attendance Percentage */}
-            <div 
-              style={{
-                background: '#ffffff',
-                padding: '1.25rem',
-                borderRadius: '14px',
-                border: '1px solid #e2e8f0',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.04)'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
+            {/* Card 1: Attendance Rate */}
+            <div className="card" style={{ padding: '1.15rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--slate-500)', textTransform: 'uppercase' }}>
                   Attendance Rate
                 </span>
                 <span 
+                  className="badge"
                   style={{
-                    padding: '0.2rem 0.5rem',
-                    borderRadius: '6px',
-                    fontSize: '0.75rem',
-                    fontWeight: '700',
-                    background: summary?.attendancePercentage >= 90 ? '#ecfdf5' : (summary?.attendancePercentage >= 75 ? '#fffbeb' : '#fff1f2'),
-                    color: summary?.attendancePercentage >= 90 ? '#065f46' : (summary?.attendancePercentage >= 75 ? '#92400e' : '#9f1239')
+                    backgroundColor: summary?.attendancePercentage >= 90 ? 'var(--success-bg)' : (summary?.attendancePercentage >= 75 ? 'var(--warning-bg)' : 'var(--danger-bg)'),
+                    color: summary?.attendancePercentage >= 90 ? 'var(--success-text)' : (summary?.attendancePercentage >= 75 ? 'var(--warning-text)' : 'var(--danger-text)')
                   }}
                 >
-                  {summary?.attendancePercentage >= 90 ? 'Excellent' : (summary?.attendancePercentage >= 75 ? 'Good' : 'Needs Review')}
+                  {summary?.attendancePercentage >= 90 ? 'Excellent' : (summary?.attendancePercentage >= 75 ? 'Good' : 'Review')}
                 </span>
               </div>
-              <div style={{ fontSize: '1.85rem', fontWeight: '800', color: '#0f172a' }}>
+              <div style={{ fontSize: '1.75rem', fontWeight: '800', color: 'var(--slate-900)' }}>
                 {summary?.attendancePercentage}%
               </div>
-              <div style={{ fontSize: '0.775rem', color: '#64748b', marginTop: '0.35rem' }}>
-                Present: <strong>{summary?.presentDays}</strong> | WOP: <strong>{summary?.weeklyOffPresentDays}</strong> | Absent: <strong>{summary?.absentDays}</strong> | Off: <strong>{summary?.weeklyOffDays}</strong>
+              <div style={{ fontSize: '0.75rem', color: 'var(--slate-500)', marginTop: '0.25rem' }}>
+                P: <strong>{summary?.presentDays}</strong> | WOP: <strong>{summary?.weeklyOffPresentDays}</strong> | A: <strong>{summary?.absentDays}</strong> | Off: <strong>{summary?.weeklyOffDays}</strong>
               </div>
             </div>
 
-            {/* Card 2: Work Hours Variance */}
-            <div 
-              style={{
-                background: '#ffffff',
-                padding: '1.25rem',
-                borderRadius: '14px',
-                border: '1px solid #e2e8f0',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.04)'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
+            {/* Card 2: Work Time Variance */}
+            <div className="card" style={{ padding: '1.15rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--slate-500)', textTransform: 'uppercase' }}>
                   Total Work Time
                 </span>
                 <span 
+                  className="badge"
                   style={{
-                    padding: '0.2rem 0.5rem',
-                    borderRadius: '6px',
-                    fontSize: '0.75rem',
-                    fontWeight: '700',
-                    background: Number(summary?.totalWorkDiffHours) >= 0 ? '#ecfdf5' : '#fff1f2',
-                    color: Number(summary?.totalWorkDiffHours) >= 0 ? '#065f46' : '#9f1239'
+                    backgroundColor: Number(summary?.totalWorkDiffHours) >= 0 ? 'var(--success-bg)' : 'var(--danger-bg)',
+                    color: Number(summary?.totalWorkDiffHours) >= 0 ? 'var(--success-text)' : 'var(--danger-text)'
                   }}
                 >
                   Diff: {summary?.totalWorkDiffFormatted}
                 </span>
               </div>
-              <div style={{ fontSize: '1.85rem', fontWeight: '800', color: '#0f172a' }}>
-                {summary?.totalActualWorkHours} <span style={{ fontSize: '1rem', fontWeight: '500', color: '#64748b' }}>hrs</span>
+              <div style={{ fontSize: '1.75rem', fontWeight: '800', color: 'var(--slate-900)' }}>
+                {summary?.totalActualWorkFormatted || '00:00'} <span style={{ fontSize: '0.9rem', fontWeight: '500', color: 'var(--slate-500)' }}>hrs</span>
               </div>
-              <div style={{ fontSize: '0.775rem', color: '#64748b', marginTop: '0.35rem' }}>
-                Expected: <strong>{summary?.totalExpectedWorkHours} hrs</strong> ({summary?.workingDaysInMonth} working days)
+              <div style={{ fontSize: '0.75rem', color: 'var(--slate-500)', marginTop: '0.25rem' }}>
+                Expected: <strong>{summary?.totalExpectedWorkFormatted || '00:00'} hrs</strong> ({summary?.workingDaysInMonth} work days)
               </div>
             </div>
 
-            {/* Card 3: Late Arrivals & Deductions */}
-            <div 
-              style={{
-                background: '#ffffff',
-                padding: '1.25rem',
-                borderRadius: '14px',
-                border: '1px solid #e2e8f0',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.04)'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
+            {/* Card 3: Late Arrivals */}
+            <div className="card" style={{ padding: '1.15rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--slate-500)', textTransform: 'uppercase' }}>
                   Late Arrivals
                 </span>
                 <span 
+                  className="badge"
                   style={{
-                    padding: '0.2rem 0.5rem',
-                    borderRadius: '6px',
-                    fontSize: '0.75rem',
-                    fontWeight: '700',
-                    background: summary?.lateDaysCount === 0 ? '#ecfdf5' : '#fffbeb',
-                    color: summary?.lateDaysCount === 0 ? '#065f46' : '#92400e'
+                    backgroundColor: summary?.lateDaysCount === 0 ? 'var(--success-bg)' : 'var(--warning-bg)',
+                    color: summary?.lateDaysCount === 0 ? 'var(--success-text)' : 'var(--warning-text)'
                   }}
                 >
-                  {summary?.lateDaysCount} Instances
+                  {summary?.lateDaysCount} Late Days
                 </span>
               </div>
-              <div style={{ fontSize: '1.85rem', fontWeight: '800', color: summary?.lateDaysCount > 0 ? '#b45309' : '#0f172a' }}>
-                {summary?.totalLateFormatted} <span style={{ fontSize: '1rem', fontWeight: '500', color: '#64748b' }}>hrs</span>
+              <div style={{ fontSize: '1.75rem', fontWeight: '800', color: summary?.lateDaysCount > 0 ? 'var(--warning-solid)' : 'var(--slate-900)' }}>
+                {summary?.totalLateFormatted || '00:00'} <span style={{ fontSize: '0.9rem', fontWeight: '500', color: 'var(--slate-500)' }}>hrs</span>
               </div>
-              <div style={{ fontSize: '0.775rem', color: '#991b1b', marginTop: '0.35rem' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--danger-text)', marginTop: '0.25rem' }}>
                 Late Salary Deduction: <strong>-₹{summary?.totalLateDeductions}</strong>
               </div>
             </div>
 
-            {/* Card 4: Overtime & Bonus */}
-            <div 
-              style={{
-                background: '#ffffff',
-                padding: '1.25rem',
-                borderRadius: '14px',
-                border: '1px solid #e2e8f0',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.04)'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
+            {/* Card 4: Overtime */}
+            <div className="card" style={{ padding: '1.15rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--slate-500)', textTransform: 'uppercase' }}>
                   Overtime (O.T.)
                 </span>
-                <span 
-                  style={{
-                    padding: '0.2rem 0.5rem',
-                    borderRadius: '6px',
-                    fontSize: '0.75rem',
-                    fontWeight: '700',
-                    background: Number(summary?.totalOvertimeHours) > 0 ? '#f0fdf4' : '#f1f5f9',
-                    color: Number(summary?.totalOvertimeHours) > 0 ? '#15803d' : '#64748b'
-                  }}
-                >
-                  {currentEmp?.overtime_multiplier}x Rate
+                <span className="badge badge-dept">
+                  {currentEmp?.overtime_multiplier}x Multiplier
                 </span>
               </div>
-              <div style={{ fontSize: '1.85rem', fontWeight: '800', color: Number(summary?.totalOvertimeHours) > 0 ? '#15803d' : '#0f172a' }}>
-                {summary?.totalOvertimeFormatted} <span style={{ fontSize: '1rem', fontWeight: '500', color: '#64748b' }}>hrs</span>
+              <div style={{ fontSize: '1.75rem', fontWeight: '800', color: (summary?.totalOvertimeFormatted && summary?.totalOvertimeFormatted !== '00:00') ? 'var(--success-text)' : 'var(--slate-900)' }}>
+                {summary?.totalOvertimeFormatted || '00:00'} <span style={{ fontSize: '0.9rem', fontWeight: '500', color: 'var(--slate-500)' }}>hrs</span>
               </div>
-              <div style={{ fontSize: '0.775rem', color: '#15803d', marginTop: '0.35rem' }}>
-                Overtime Compensation: <strong>+₹{summary?.totalOvertimePay}</strong>
+              <div style={{ fontSize: '0.75rem', color: 'var(--success-text)', marginTop: '0.25rem' }}>
+                Overtime Pay: <strong>+₹{summary?.totalOvertimePay}</strong> {currentEmp?.min_overtime_minutes > 0 ? `(Min: ${currentEmp.min_overtime_minutes}m)` : ''} {currentEmp?.min_overtime_deduction_minutes > 0 ? `(Ded: ${currentEmp.min_overtime_deduction_minutes}m)` : ''}
               </div>
             </div>
 
             {/* Card 5: Net Payable Salary */}
             <div 
+              className="card"
               style={{
-                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                padding: '1.15rem',
+                background: 'linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%)',
                 color: '#ffffff',
-                padding: '1.25rem',
-                borderRadius: '14px',
-                boxShadow: '0 10px 15px -3px rgba(2, 132, 199, 0.25)'
+                border: 'none',
+                boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)'
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#bae6fd', textTransform: 'uppercase' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#bae6fd', textTransform: 'uppercase' }}>
                   Net Payable Salary
                 </span>
-                <span 
-                  style={{
-                    padding: '0.2rem 0.5rem',
-                    borderRadius: '6px',
-                    fontSize: '0.7rem',
-                    fontWeight: '700',
-                    background: 'rgba(255, 255, 255, 0.2)',
-                    color: '#ffffff'
-                  }}
-                >
+                <span className="badge" style={{ background: 'rgba(255, 255, 255, 0.2)', color: '#ffffff' }}>
                   {selectedMonth}
                 </span>
               </div>
-              <div style={{ fontSize: '1.85rem', fontWeight: '800', color: '#ffffff' }}>
+              <div style={{ fontSize: '1.75rem', fontWeight: '800', color: '#ffffff' }}>
                 ₹{summary?.netPayableSalary?.toLocaleString()}
               </div>
-              <div style={{ fontSize: '0.775rem', color: '#e0f2fe', marginTop: '0.35rem' }}>
+              <div style={{ fontSize: '0.75rem', color: '#e0f2fe', marginTop: '0.25rem' }}>
                 Gross Earned: ₹{summary?.grossEarnedSalary} | Ded: ₹{summary?.totalDeductions}
               </div>
             </div>
           </div>
 
           {/* Sub Navigation Bar */}
-          <div 
-            style={{
-              display: 'flex',
-              gap: '0.5rem',
-              marginBottom: '1rem',
-              borderBottom: '1px solid #e2e8f0',
-              paddingBottom: '0.5rem'
-            }}
-          >
+          <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
             <button
               onClick={() => setActiveSubTab('attendance')}
-              style={{
-                padding: '0.5rem 1rem',
-                borderRadius: '8px',
-                fontWeight: activeSubTab === 'attendance' ? '700' : '500',
-                fontSize: '0.875rem',
-                backgroundColor: activeSubTab === 'attendance' ? '#0284c7' : 'transparent',
-                color: activeSubTab === 'attendance' ? '#ffffff' : '#64748b',
-                border: 'none',
-                cursor: 'pointer'
-              }}
+              className={`btn btn-sm ${activeSubTab === 'attendance' ? 'btn-primary' : 'btn-secondary'}`}
             >
               Daily Attendance Sheet ({records.length} Days)
             </button>
@@ -875,207 +671,150 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
             {currentEmp?.salary_history && currentEmp?.salary_history.length > 0 && (
               <button
                 onClick={() => setActiveSubTab('salary-history')}
-                style={{
-                  padding: '0.5rem 1rem',
-                  borderRadius: '8px',
-                  fontWeight: activeSubTab === 'salary-history' ? '700' : '500',
-                  fontSize: '0.875rem',
-                  backgroundColor: activeSubTab === 'salary-history' ? '#0284c7' : 'transparent',
-                  color: activeSubTab === 'salary-history' ? '#ffffff' : '#64748b',
-                  border: 'none',
-                  cursor: 'pointer'
-                }}
+                className={`btn btn-sm ${activeSubTab === 'salary-history' ? 'btn-primary' : 'btn-secondary'}`}
               >
-                Salary Scales & Revisions ({currentEmp.salary_history.length} Months)
+                Salary Scales & History ({currentEmp.salary_history.length} Months)
               </button>
             )}
           </div>
 
-          {/* 3. Detailed Attendance & Calculations Table */}
+          {/* 3. Detailed Attendance & Calculations Table - Clean Light Theme */}
           {activeSubTab === 'attendance' && (
-            <div 
-              style={{
-                background: '#ffffff',
-                borderRadius: '16px',
-                border: '1px solid #e2e8f0',
-                overflow: 'hidden',
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
-              }}
-            >
-              <div 
-                style={{
-                  padding: '1rem 1.25rem',
-                  borderBottom: '1px solid #e2e8f0',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  background: '#f8fafc'
-                }}
-              >
+            <div className="card" style={{ overflow: 'hidden' }}>
+              <div className="card-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <FileText size={18} style={{ color: '#0284c7' }} />
-                  <span style={{ fontWeight: '700', fontSize: '0.95rem', color: '#0f172a' }}>
-                    Individual Attendance Record & Dynamic Formulas
+                  <FileText size={18} color="var(--primary-600)" />
+                  <span style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--slate-900)' }}>
+                    Individual Attendance Record & Dynamic Formulations
                   </span>
                 </div>
-                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                  All derived values are calculated dynamically using employee master rules
+                <div style={{ fontSize: '0.775rem', color: 'var(--slate-500)' }}>
+                  All derived values are calculated on the fly
                 </div>
               </div>
 
-              <div style={{ overflowX: 'auto', maxHeight: '680px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem', textAlign: 'left' }}>
-                  <thead style={{ position: 'sticky', top: 0, background: '#0f172a', color: '#f8fafc', zIndex: 10 }}>
+              <div className="table-responsive-wrapper" style={{ border: 'none', borderRadius: 0, maxHeight: '650px', overflowY: 'auto' }}>
+                <table className="data-table">
+                  <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                     <tr>
-                      <th style={{ padding: '0.75rem 0.6rem', borderRight: '1px solid #334155' }}>DATE</th>
-                      <th style={{ padding: '0.75rem 0.6rem', textAlign: 'center', borderRight: '1px solid #334155' }}>P/A</th>
-                      <th style={{ padding: '0.75rem 0.6rem', borderRight: '1px solid #334155' }}>SCHED IN</th>
-                      <th style={{ padding: '0.75rem 0.6rem', borderRight: '1px solid #334155' }}>SCHED OUT</th>
-                      <th style={{ padding: '0.75rem 0.6rem', borderRight: '1px solid #334155' }}>WORK TIME</th>
-                      <th style={{ padding: '0.75rem 0.6rem', borderRight: '1px solid #334155', background: '#1e293b' }}>A.IN TIME</th>
-                      <th style={{ padding: '0.75rem 0.6rem', borderRight: '1px solid #334155', background: '#1e293b' }}>A.OUT TIME</th>
-                      <th style={{ padding: '0.75rem 0.6rem', borderRight: '1px solid #334155', background: '#1e293b' }}>A.DURATION</th>
-                      <th style={{ padding: '0.75rem 0.6rem', borderRight: '1px solid #334155', background: '#1e293b' }}>A.WORK TIME</th>
-                      <th style={{ padding: '0.75rem 0.6rem', borderRight: '1px solid #334155', textAlign: 'center' }}>DIFF (+/-)</th>
-                      <th style={{ padding: '0.75rem 0.6rem', borderRight: '1px solid #334155', color: '#fbbf24' }}>LATE BY</th>
-                      <th style={{ padding: '0.75rem 0.6rem', borderRight: '1px solid #334155', color: '#4ade80' }}>O.T.</th>
-                      <th style={{ padding: '0.75rem 0.6rem', borderRight: '1px solid #334155', textAlign: 'right' }}>RATE</th>
-                      <th style={{ padding: '0.75rem 0.6rem', borderRight: '1px solid #334155', textAlign: 'right' }}>SALARY</th>
-                      <th style={{ padding: '0.75rem 0.6rem', borderRight: '1px solid #334155', textAlign: 'right', color: '#f87171' }}>LATE DED</th>
-                      <th style={{ padding: '0.75rem 0.6rem', borderRight: '1px solid #334155', textAlign: 'right', color: '#4ade80' }}>O.T. PAY</th>
-                      <th style={{ padding: '0.75rem 0.6rem', textAlign: 'right', background: '#0369a1' }}>NET SALARY</th>
+                      <th>DATE</th>
+                      <th style={{ textAlign: 'center' }}>P/A</th>
+                      <th>SCHED IN</th>
+                      <th>SCHED OUT</th>
+                      <th>TARGET</th>
+                      <th>ACTUAL IN</th>
+                      <th>ACTUAL OUT</th>
+                      <th>DURATION</th>
+                      <th>BREAK OUT</th>
+                      <th>BREAK IN</th>
+                      <th>BREAK TIME</th>
+                      <th>ACTUAL WORK</th>
+                      <th style={{ textAlign: 'center' }}>DIFF (+/-)</th>
+                      <th>LATE BY</th>
+                      <th>O.T.</th>
+                      <th style={{ textAlign: 'right' }}>RATE</th>
+                      <th style={{ textAlign: 'right' }}>SALARY</th>
+                      <th style={{ textAlign: 'right', color: 'var(--danger-text)' }}>LATE DED</th>
+                      <th style={{ textAlign: 'right', color: 'var(--success-text)' }}>O.T. PAY</th>
+                      <th style={{ textAlign: 'right', background: 'var(--primary-50)', color: 'var(--primary-800)' }}>NET SALARY</th>
                     </tr>
                   </thead>
                   <tbody>
                     {records.map((r, idx) => {
-                      const isEven = idx % 2 === 0;
                       const isWO = r.status_code === 'WO';
                       const isWOP = r.status_code === 'WOP';
                       const isAbsent = r.status_code === 'A';
                       const isLate = r.is_late;
 
-                      let rowBg = isEven ? '#ffffff' : '#f8fafc';
-                      if (isWO) rowBg = '#eff6ff';
-                      if (isWOP) rowBg = '#ecfeff';
+                      let rowBg = '#ffffff';
+                      if (isWO) rowBg = '#f0f9ff';
+                      if (isWOP) rowBg = '#f0fdfa';
                       if (isAbsent) rowBg = '#fff1f2';
 
                       return (
                         <tr 
                           key={r.attendance_date_iso || idx}
-                          style={{
-                            backgroundColor: rowBg,
-                            borderBottom: '1px solid #e2e8f0',
-                            transition: 'background 0.15s'
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#e2e8f0'; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = rowBg; }}
+                          style={{ backgroundColor: rowBg }}
                         >
-                          {/* Date */}
-                          <td style={{ padding: '0.65rem 0.6rem', fontWeight: '600', color: '#0f172a', whiteSpace: 'nowrap', borderRight: '1px solid #e2e8f0' }}>
+                          <td style={{ fontWeight: '600', color: 'var(--slate-900)' }}>
                             {r.attendance_date || r.attendance_date_iso}
                           </td>
-
-                          {/* Status Badge */}
-                          <td style={{ padding: '0.65rem 0.6rem', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
+                          <td style={{ textAlign: 'center' }}>
                             <span
+                              className="badge"
                               style={{
-                                display: 'inline-block',
-                                padding: '0.15rem 0.45rem',
-                                borderRadius: '6px',
-                                fontSize: '0.75rem',
-                                fontWeight: '700',
-                                backgroundColor: isAbsent ? '#fecdd3' : (isWO ? '#bfdbfe' : (isWOP ? '#a5f3fc' : '#bbf7d0')),
-                                color: isAbsent ? '#9f1239' : (isWO ? '#1e40af' : (isWOP ? '#0e7490' : '#14532d'))
+                                backgroundColor: isAbsent ? 'var(--danger-bg)' : (isWO ? 'var(--info-bg)' : (isWOP ? 'var(--teal-50)' : 'var(--success-bg)')),
+                                color: isAbsent ? 'var(--danger-text)' : (isWO ? 'var(--info-text)' : (isWOP ? 'var(--teal-700)' : 'var(--success-text)')),
+                                border: `1px solid ${isAbsent ? 'var(--danger-border)' : (isWO ? 'var(--info-border)' : (isWOP ? '#a7f3d0' : 'var(--success-border)'))}`
                               }}
                             >
                               {r.status_code}
                             </span>
                           </td>
-
-                          {/* Sched In / Out / Work */}
-                          <td style={{ padding: '0.65rem 0.6rem', color: '#475569', borderRight: '1px solid #e2e8f0' }}>{r.scheduled_in_time}</td>
-                          <td style={{ padding: '0.65rem 0.6rem', color: '#475569', borderRight: '1px solid #e2e8f0' }}>{r.scheduled_out_time}</td>
-                          <td style={{ padding: '0.65rem 0.6rem', fontWeight: '600', color: '#334155', borderRight: '1px solid #e2e8f0' }}>{r.scheduled_work_formatted}</td>
-
-                          {/* Actual In / Out / Dur / Work */}
-                          <td style={{ padding: '0.65rem 0.6rem', fontWeight: isLate ? '700' : 'normal', color: isLate ? '#b45309' : '#0f172a', borderRight: '1px solid #e2e8f0', background: isLate ? '#fef3c7' : 'transparent' }}>
+                          <td style={{ color: 'var(--slate-600)' }}>{r.scheduled_in_time}</td>
+                          <td style={{ color: 'var(--slate-600)' }}>{r.scheduled_out_time}</td>
+                          <td style={{ fontWeight: '600', color: 'var(--slate-700)' }}>{r.scheduled_work_formatted}</td>
+                          <td style={{ fontWeight: isLate ? '700' : 'normal', color: isLate ? 'var(--warning-text)' : 'var(--slate-900)', background: isLate ? 'var(--warning-bg)' : 'transparent' }}>
                             {r.actual_in_time || '—'}
                           </td>
-                          <td style={{ padding: '0.65rem 0.6rem', color: '#0f172a', borderRight: '1px solid #e2e8f0' }}>
-                            {r.actual_out_time || '—'}
+                          <td style={{ color: 'var(--slate-900)' }}>{r.actual_out_time || '—'}</td>
+                          <td style={{ color: 'var(--slate-600)' }}>{r.actual_duration_formatted}</td>
+                          <td style={{ color: 'var(--slate-700)' }}>{r.break_out || '—'}</td>
+                          <td style={{ color: 'var(--slate-700)' }}>{r.break_in || '—'}</td>
+                          <td style={{ color: r.actual_break_minutes > 0 ? 'var(--primary-700)' : 'var(--slate-400)', fontWeight: r.actual_break_minutes > 0 ? '600' : 'normal' }}>
+                            {r.actual_break_minutes > 0 ? r.actual_break_formatted : '—'}
                           </td>
-                          <td style={{ padding: '0.65rem 0.6rem', color: '#475569', borderRight: '1px solid #e2e8f0' }}>
-                            {r.actual_duration_formatted}
-                          </td>
-                          <td style={{ padding: '0.65rem 0.6rem', fontWeight: '700', color: '#0f172a', borderRight: '1px solid #e2e8f0' }}>
-                            {r.actual_work_formatted}
-                          </td>
-
-                          {/* Work Hour Difference (+/-) */}
-                          <td style={{ padding: '0.65rem 0.6rem', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>
-                            <span 
-                              style={{
-                                fontWeight: '700',
-                                color: r.work_diff_minutes > 0 ? '#15803d' : (r.work_diff_minutes < 0 ? '#b91c1c' : '#64748b')
-                              }}
-                            >
+                          <td style={{ fontWeight: '700', color: 'var(--slate-900)' }}>{r.actual_work_formatted}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span style={{ fontWeight: '700', color: r.work_diff_minutes > 0 ? 'var(--success-text)' : (r.work_diff_minutes < 0 ? 'var(--danger-text)' : 'var(--slate-500)') }}>
                               {r.work_diff_formatted}
                             </span>
                           </td>
-
-                          {/* Late */}
-                          <td style={{ padding: '0.65rem 0.6rem', color: isLate ? '#b45309' : '#94a3b8', fontWeight: isLate ? '700' : 'normal', borderRight: '1px solid #e2e8f0' }}>
+                          <td style={{ color: isLate ? 'var(--warning-text)' : 'var(--slate-400)', fontWeight: isLate ? '700' : 'normal' }}>
                             {isLate ? r.late_formatted : '—'}
                           </td>
-
-                          {/* Overtime */}
-                          <td style={{ padding: '0.65rem 0.6rem', color: r.overtime_minutes > 0 ? '#15803d' : '#94a3b8', fontWeight: r.overtime_minutes > 0 ? '700' : 'normal', borderRight: '1px solid #e2e8f0' }}>
+                          <td style={{ color: r.overtime_minutes > 0 ? 'var(--success-text)' : 'var(--slate-400)', fontWeight: r.overtime_minutes > 0 ? '700' : 'normal' }}>
                             {r.overtime_minutes > 0 ? r.overtime_formatted : '—'}
                           </td>
-
-                          {/* Rates & Financials */}
-                          <td style={{ padding: '0.65rem 0.6rem', textAlign: 'right', color: '#64748b', borderRight: '1px solid #e2e8f0' }}>
-                            ₹{r.hourly_rate}
-                          </td>
-                          <td style={{ padding: '0.65rem 0.6rem', textAlign: 'right', fontWeight: '600', color: '#0f172a', borderRight: '1px solid #e2e8f0' }}>
-                            ₹{r.daily_salary_earned}
-                          </td>
-                          <td style={{ padding: '0.65rem 0.6rem', textAlign: 'right', color: r.late_salary_deduction > 0 ? '#b91c1c' : '#94a3b8', borderRight: '1px solid #e2e8f0' }}>
+                          <td style={{ textAlign: 'right', color: 'var(--slate-500)' }}>₹{r.hourly_rate}</td>
+                          <td style={{ textAlign: 'right', fontWeight: '600' }}>₹{r.daily_salary_earned}</td>
+                          <td style={{ textAlign: 'right', color: r.late_salary_deduction > 0 ? 'var(--danger-text)' : 'var(--slate-400)' }}>
                             {r.late_salary_deduction > 0 ? `-₹${r.late_salary_deduction}` : '—'}
                           </td>
-                          <td style={{ padding: '0.65rem 0.6rem', textAlign: 'right', color: r.overtime_pay > 0 ? '#15803d' : '#94a3b8', borderRight: '1px solid #e2e8f0' }}>
+                          <td style={{ textAlign: 'right', color: r.overtime_pay > 0 ? 'var(--success-text)' : 'var(--slate-400)' }}>
                             {r.overtime_pay > 0 ? `+₹${r.overtime_pay}` : '—'}
                           </td>
-                          <td style={{ padding: '0.65rem 0.6rem', textAlign: 'right', fontWeight: '700', color: '#0369a1', background: 'rgba(2, 132, 199, 0.05)' }}>
+                          <td style={{ textAlign: 'right', fontWeight: '700', color: 'var(--primary-700)', background: 'var(--primary-50)' }}>
                             ₹{r.net_daily_salary}
                           </td>
                         </tr>
                       );
                     })}
                   </tbody>
-
-                  {/* Summary Footer Matching Excel Total Row */}
-                  <tfoot style={{ position: 'sticky', bottom: 0, background: '#0f172a', color: '#f8fafc', fontWeight: '700' }}>
+                  <tfoot style={{ position: 'sticky', bottom: 0, background: 'var(--slate-100)', borderTop: '2px solid var(--slate-300)', fontWeight: '700', zIndex: 10 }}>
                     <tr>
-                      <td style={{ padding: '0.85rem 0.6rem', borderRight: '1px solid #334155' }}>TOTAL</td>
-                      <td style={{ padding: '0.85rem 0.6rem', textAlign: 'center', borderRight: '1px solid #334155' }}>{summary?.presentDays}P/{summary?.absentDays}A</td>
-                      <td style={{ padding: '0.85rem 0.6rem', borderRight: '1px solid #334155' }}>—</td>
-                      <td style={{ padding: '0.85rem 0.6rem', borderRight: '1px solid #334155' }}>—</td>
-                      <td style={{ padding: '0.85rem 0.6rem', borderRight: '1px solid #334155' }}>{summary?.totalExpectedWorkHours}h</td>
-                      <td style={{ padding: '0.85rem 0.6rem', borderRight: '1px solid #334155' }}>—</td>
-                      <td style={{ padding: '0.85rem 0.6rem', borderRight: '1px solid #334155' }}>—</td>
-                      <td style={{ padding: '0.85rem 0.6rem', borderRight: '1px solid #334155' }}>—</td>
-                      <td style={{ padding: '0.85rem 0.6rem', borderRight: '1px solid #334155', color: '#38bdf8' }}>{summary?.totalActualWorkHours}h</td>
-                      <td style={{ padding: '0.85rem 0.6rem', textAlign: 'center', borderRight: '1px solid #334155', color: Number(summary?.totalWorkDiffHours) >= 0 ? '#4ade80' : '#f87171' }}>
+                      <td>TOTAL</td>
+                      <td style={{ textAlign: 'center' }}>{summary?.presentDays}P/{summary?.absentDays}A</td>
+                      <td>—</td>
+                      <td>—</td>
+                      <td>{summary?.totalExpectedWorkFormatted || '00:00'}</td>
+                      <td>—</td>
+                      <td>—</td>
+                      <td>—</td>
+                      <td>—</td>
+                      <td>—</td>
+                      <td style={{ color: 'var(--primary-700)' }}>{summary?.totalActualBreakFormatted || '00:00'}</td>
+                      <td style={{ color: 'var(--primary-700)' }}>{summary?.totalActualWorkFormatted || '00:00'}</td>
+                      <td style={{ textAlign: 'center', color: Number(summary?.totalWorkDiffHours) >= 0 ? 'var(--success-text)' : 'var(--danger-text)' }}>
                         {summary?.totalWorkDiffFormatted}
                       </td>
-                      <td style={{ padding: '0.85rem 0.6rem', color: '#fbbf24', borderRight: '1px solid #334155' }}>{summary?.totalLateFormatted}</td>
-                      <td style={{ padding: '0.85rem 0.6rem', color: '#4ade80', borderRight: '1px solid #334155' }}>{summary?.totalOvertimeFormatted}</td>
-                      <td style={{ padding: '0.85rem 0.6rem', textAlign: 'right', borderRight: '1px solid #334155' }}>—</td>
-                      <td style={{ padding: '0.85rem 0.6rem', textAlign: 'right', borderRight: '1px solid #334155' }}>₹{summary?.grossEarnedSalary}</td>
-                      <td style={{ padding: '0.85rem 0.6rem', textAlign: 'right', color: '#f87171', borderRight: '1px solid #334155' }}>-₹{summary?.totalLateDeductions}</td>
-                      <td style={{ padding: '0.85rem 0.6rem', textAlign: 'right', color: '#4ade80', borderRight: '1px solid #334155' }}>+₹{summary?.totalOvertimePay}</td>
-                      <td style={{ padding: '0.85rem 0.6rem', textAlign: 'right', color: '#38bdf8', fontSize: '0.95rem' }}>₹{summary?.netPayableSalary}</td>
+                      <td style={{ color: 'var(--warning-text)' }}>{summary?.totalLateFormatted}</td>
+                      <td style={{ color: 'var(--success-text)' }}>{summary?.totalOvertimeFormatted}</td>
+                      <td style={{ textAlign: 'right' }}>—</td>
+                      <td style={{ textAlign: 'right' }}>₹{summary?.grossEarnedSalary}</td>
+                      <td style={{ textAlign: 'right', color: 'var(--danger-text)' }}>-₹{summary?.totalLateDeductions}</td>
+                      <td style={{ textAlign: 'right', color: 'var(--success-text)' }}>+₹{summary?.totalOvertimePay}</td>
+                      <td style={{ textAlign: 'right', color: 'var(--primary-700)', fontSize: '0.95rem', background: 'var(--primary-100)' }}>₹{summary?.netPayableSalary}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -1085,45 +824,31 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
 
           {/* 4. Historical Salary Scales Table */}
           {activeSubTab === 'salary-history' && currentEmp?.salary_history && (
-            <div 
-              style={{
-                background: '#ffffff',
-                borderRadius: '16px',
-                border: '1px solid #e2e8f0',
-                overflow: 'hidden',
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
-              }}
-            >
-              <div 
-                style={{
-                  padding: '1rem 1.25rem',
-                  borderBottom: '1px solid #e2e8f0',
-                  background: '#f8fafc'
-                }}
-              >
-                <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#0f172a' }}>
+            <div className="card" style={{ overflow: 'hidden' }}>
+              <div className="card-header">
+                <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: 'var(--slate-900)' }}>
                   Historical Salary Scale & Rate Revisions (From Excel Columns Z, AA, AB, AC, AD)
                 </h3>
               </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
-                  <thead style={{ background: '#1e293b', color: '#f8fafc' }}>
+              <div className="table-responsive-wrapper" style={{ border: 'none', borderRadius: 0 }}>
+                <table className="data-table">
+                  <thead>
                     <tr>
-                      <th style={{ padding: '0.75rem 1rem' }}>MONTH</th>
-                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>PER DAY RATE (₹)</th>
-                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>PER HOUR RATE (₹)</th>
-                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>BASE SALARY (₹)</th>
-                      <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>ACTUAL SALARY (₹)</th>
+                      <th>MONTH</th>
+                      <th style={{ textAlign: 'right' }}>PER DAY RATE (₹)</th>
+                      <th style={{ textAlign: 'right' }}>PER HOUR RATE (₹)</th>
+                      <th style={{ textAlign: 'right' }}>BASE SALARY (₹)</th>
+                      <th style={{ textAlign: 'right' }}>ACTUAL SALARY (₹)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {currentEmp.salary_history.map((h, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-                        <td style={{ padding: '0.75rem 1rem', fontWeight: '600', color: '#0f172a' }}>{h.month}</td>
-                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: '#334155' }}>₹{h.perDay}</td>
-                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: '#334155' }}>₹{h.perHour}</td>
-                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: '600', color: '#0f172a' }}>₹{h.baseSalary?.toLocaleString()}</td>
-                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: '700', color: '#0369a1' }}>₹{h.actualSalary?.toLocaleString()}</td>
+                      <tr key={i}>
+                        <td style={{ fontWeight: '600', color: 'var(--slate-900)' }}>{h.month}</td>
+                        <td style={{ textAlign: 'right', color: 'var(--slate-700)' }}>₹{h.perDay}</td>
+                        <td style={{ textAlign: 'right', color: 'var(--slate-700)' }}>₹{h.perHour}</td>
+                        <td style={{ textAlign: 'right', fontWeight: '600' }}>₹{h.baseSalary?.toLocaleString()}</td>
+                        <td style={{ textAlign: 'right', fontWeight: '700', color: 'var(--primary-700)' }}>₹{h.actualSalary?.toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1140,8 +865,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
           employee={currentEmp}
           isOpen={isEditModalOpen}
           onClose={() => setIsEditModalOpen(false)}
-          onUpdated={async (updated) => {
-            // Refresh employee data & calculations
+          onUpdated={async () => {
             const res = await attendanceApi.getEmployeeSheet(selectedEmployeeCode, { month: selectedMonth });
             setSheetData(res.data);
           }}

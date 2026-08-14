@@ -136,110 +136,101 @@ export const MasterDataPage = ({ onNavigateToEmployeeAttendance }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Top Action Banner Card */}
+      {/* Top Action Banner Card - Clean Light Theme */}
       <div 
         className="card"
         style={{
-          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-          color: '#ffffff',
-          borderColor: '#334155'
+          padding: '1.25rem 1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '1.25rem'
         }}
       >
-        <div 
-          style={{
-            padding: '1.5rem 1.75rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '1.25rem'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-            <div 
-              style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '12px',
-                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#ffffff',
-                boxShadow: '0 4px 12px rgba(2, 132, 199, 0.4)'
-              }}
-            >
-              <FileSpreadsheet size={24} />
-            </div>
-            <div>
-              <h2 style={{ color: '#ffffff', fontSize: '1.25rem', fontWeight: '700', margin: 0 }}>
-                Employee Master Data & Rules Center
-              </h2>
-              <p style={{ color: '#94a3b8', fontSize: '0.8125rem', marginTop: '0.2rem', marginBottom: 0 }}>
-                Maintain employee master profiles, shift timings, individual salary rates, late/overtime rules, and bond conditions.
-              </p>
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div 
+            style={{
+              width: '44px',
+              height: '44px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+              boxShadow: '0 4px 10px rgba(2, 132, 199, 0.25)',
+              flexShrink: 0
+            }}
+          >
+            <FileSpreadsheet size={22} />
           </div>
+          <div>
+            <h2 style={{ color: 'var(--slate-900)', fontSize: '1.15rem', fontWeight: '700', margin: 0 }}>
+              Employee Master Data & Rules Center
+            </h2>
+            <p style={{ color: 'var(--slate-500)', fontSize: '0.8125rem', marginTop: '0.15rem', marginBottom: 0 }}>
+              Maintain employee master profiles, shift timings, individual salary rates, late/overtime rules, and bond conditions.
+            </p>
+          </div>
+        </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={handleImportSampleWorkbook}
-              disabled={importingWorkbook}
-              style={{ background: '#0369a1', color: '#ffffff', borderColor: '#0284c7' }}
-              title="Import all 46 employee profiles and attendance sheets from MAY - 26.xlsx"
-            >
-              {importingWorkbook ? (
-                <>
-                  <RefreshCw size={15} className="spin" />
-                  Syncing MAY - 26.xlsx...
-                </>
-              ) : (
-                <>
-                  <Upload size={15} />
-                  Sync Full MAY - 26.xlsx
-                </>
-              )}
-            </button>
-
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={handleImportSampleDirect}
-              disabled={importingSample}
-              style={{ background: '#334155', color: '#f8fafc', borderColor: '#475569' }}
-            >
-              {importingSample ? (
-                <>
-                  <RefreshCw size={15} className="spin" />
-                  Loading...
-                </>
-              ) : (
-                <>
-                  <FileText size={15} color="#38bdf8" />
-                  Load MD MASTER.csv
-                </>
-              )}
-            </button>
-
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={() => setIsImportModalOpen(true)}
-            >
-              <UploadCloud size={15} />
-              Upload File
-            </button>
-
-            {employees.length > 0 && (
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={handleClearData}
-                style={{ background: 'transparent', color: '#fda4af', borderColor: 'rgba(244, 63, 94, 0.3)' }}
-                title="Clear all master data"
-              >
-                <Trash2 size={15} />
-              </button>
+        <div style={{ display: 'flex', gap: '0.625rem', flexWrap: 'wrap' }}>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={handleImportSampleWorkbook}
+            disabled={importingWorkbook}
+            title="Import all 46 employee profiles and attendance sheets from MAY - 26.xlsx"
+          >
+            {importingWorkbook ? (
+              <>
+                <RefreshCw size={15} className="spin" />
+                Syncing MAY - 26.xlsx...
+              </>
+            ) : (
+              <>
+                <Upload size={15} />
+                Sync Full MAY - 26.xlsx
+              </>
             )}
-          </div>
+          </button>
+
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={handleImportSampleDirect}
+            disabled={importingSample}
+          >
+            {importingSample ? (
+              <>
+                <RefreshCw size={15} className="spin" />
+                Loading...
+              </>
+            ) : (
+              <>
+                <FileText size={15} color="var(--primary-600)" />
+                Load MD MASTER.csv
+              </>
+            )}
+          </button>
+
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => setIsImportModalOpen(true)}
+          >
+            <UploadCloud size={15} />
+            Upload File
+          </button>
+
+          {employees.length > 0 && (
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={handleClearData}
+              style={{ color: 'var(--danger-text)', borderColor: 'var(--danger-border)' }}
+              title="Clear all master data"
+            >
+              <Trash2 size={15} />
+            </button>
+          )}
         </div>
       </div>
 

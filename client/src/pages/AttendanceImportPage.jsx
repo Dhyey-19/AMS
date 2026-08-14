@@ -113,89 +113,82 @@ export const AttendanceImportPage = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Top Action Banner Card */}
+      {/* Top Action Banner Card - Clean Light Theme */}
       <div 
         className="card"
         style={{
-          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-          color: '#ffffff',
-          borderColor: '#334155'
+          padding: '1.25rem 1.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '1.25rem'
         }}
       >
-        <div 
-          style={{
-            padding: '1.5rem 1.75rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '1.25rem'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-            <div 
-              style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '12px',
-                background: 'linear-gradient(135deg, #059669 0%, #0d9488 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#ffffff',
-                boxShadow: '0 4px 12px rgba(13, 148, 136, 0.4)'
-              }}
-            >
-              <Calendar size={24} />
-            </div>
-            <div>
-              <h2 style={{ color: '#ffffff', fontSize: '1.25rem', fontWeight: '700' }}>
-                Attendance Data Ingestion Center
-              </h2>
-              <p style={{ color: '#94a3b8', fontSize: '0.8125rem', marginTop: '0.2rem' }}>
-                Upload biometric attendance CSV/XLSX spreadsheets. Automatic deduplication & overwrite on matching <code>Employee ID + Attendance Date</code>.
-              </p>
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div 
+            style={{
+              width: '44px',
+              height: '44px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, var(--teal-600) 0%, var(--teal-700) 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ffffff',
+              boxShadow: '0 4px 10px rgba(13, 148, 136, 0.25)',
+              flexShrink: 0
+            }}
+          >
+            <Calendar size={22} />
           </div>
+          <div>
+            <h2 style={{ color: 'var(--slate-900)', fontSize: '1.15rem', fontWeight: '700', margin: 0 }}>
+              Attendance Data Ingestion Center
+            </h2>
+            <p style={{ color: 'var(--slate-500)', fontSize: '0.8125rem', marginTop: '0.15rem', marginBottom: 0 }}>
+              Upload biometric attendance CSV/XLSX spreadsheets. Automatic deduplication on <code>Employee ID + Date</code>.
+            </p>
+          </div>
+        </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <button
-              className="btn btn-success btn-sm"
-              onClick={handleImportMayDirect}
-              disabled={importingMay}
-            >
-              {importingMay ? (
-                <>
-                  <RefreshCw size={15} className="animate-pulse" />
-                  Loading MD MAY...
-                </>
-              ) : (
-                <>
-                  <FileText size={15} />
-                  Load MD MAY.csv (Primary)
-                </>
-              )}
-            </button>
-
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={() => setIsImportModalOpen(true)}
-            >
-              <UploadCloud size={15} />
-              Upload Attendance CSV/Excel
-            </button>
-
-            {records.length > 0 && (
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={handleClearAttendance}
-                style={{ background: 'transparent', color: '#fda4af', borderColor: 'rgba(244, 63, 94, 0.3)' }}
-                title="Clear all attendance records"
-              >
-                <Trash2 size={15} />
-              </button>
+        <div style={{ display: 'flex', gap: '0.625rem', flexWrap: 'wrap' }}>
+          <button
+            className="btn btn-success btn-sm"
+            onClick={handleImportMayDirect}
+            disabled={importingMay}
+          >
+            {importingMay ? (
+              <>
+                <RefreshCw size={15} className="spin" />
+                Loading MD MAY...
+              </>
+            ) : (
+              <>
+                <FileText size={15} />
+                Load MD MAY.csv
+              </>
             )}
-          </div>
+          </button>
+
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => setIsImportModalOpen(true)}
+          >
+            <UploadCloud size={15} />
+            Upload File
+          </button>
+
+          {records.length > 0 && (
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={handleClearAttendance}
+              style={{ color: 'var(--danger-text)', borderColor: 'var(--danger-border)' }}
+              title="Clear all attendance records"
+            >
+              <Trash2 size={15} />
+            </button>
+          )}
         </div>
       </div>
 

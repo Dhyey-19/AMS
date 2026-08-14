@@ -418,8 +418,8 @@ class AttendanceService {
 
       // Summary Total Row
       rows.push([
-        'TOTAL', '', '', '', '', '', summary.totalExpectedWorkHours,
-        '', '', '', '', '', '', summary.totalActualWorkHours,
+        'TOTAL', '', '', '', '', '', summary.totalExpectedWorkFormatted || summary.totalExpectedWorkHours,
+        '', '', '', '', '', '', summary.totalActualWorkFormatted || summary.totalActualWorkHours,
         summary.totalWorkDiffFormatted, summary.totalLateFormatted, summary.totalOvertimeFormatted,
         '', summary.grossEarnedSalary, summary.totalLateDeductions, summary.totalOvertimePay,
         summary.netPayableSalary, summary.totalLeaveDeductions, summary.totalPenalties
@@ -493,8 +493,8 @@ class AttendanceService {
 
     // Summary Row
     wsData.push([
-      'TOTAL', '', '', '', '', '', summary.totalExpectedWorkHours,
-      '', '', '', '', '', '', summary.totalActualWorkHours,
+      'TOTAL', '', '', '', '', '', summary.totalExpectedWorkFormatted || summary.totalExpectedWorkHours,
+      '', '', '', '', '', '', summary.totalActualWorkFormatted || summary.totalActualWorkHours,
       summary.totalWorkDiffFormatted, summary.totalLateFormatted, summary.totalOvertimeFormatted,
       '', summary.grossEarnedSalary, summary.totalLateDeductions, summary.totalOvertimePay,
       summary.netPayableSalary, summary.totalLeaveDeductions, summary.totalPenalties

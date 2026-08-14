@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, 
   Save, 
@@ -22,6 +23,22 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [activeTab, setActiveTab] = useState('work'); // 'work', 'salary', 'rules', 'personal'
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (employee) {
@@ -48,6 +65,8 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
         late_deduction_multiplier: employee.late_deduction_multiplier ?? 0.5,
         overtime_multiplier: employee.overtime_multiplier ?? 2.0,
         overtime_allowed: employee.overtime_allowed !== undefined ? (employee.overtime_allowed ? 1 : 0) : 1,
+        min_overtime_minutes: employee.min_overtime_minutes !== undefined && employee.min_overtime_minutes !== null ? employee.min_overtime_minutes : 0,
+        min_overtime_deduction_minutes: employee.min_overtime_deduction_minutes !== undefined && employee.min_overtime_deduction_minutes !== null ? employee.min_overtime_deduction_minutes : 0,
         special_rules: employee.special_rules || '',
         uid_no: employee.uid_no || '',
         pan_no: employee.pan_no || '',
@@ -68,7 +87,6 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
     }));
   };
 
-  // Auto-calculate rates if salary or hours change
   const handleAutoRateCalc = () => {
     const sal = parseFloat(formData.salary) || 0;
     const hrs = parseFloat(formData.standard_work_hours) || 8;
@@ -100,7 +118,9 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
         late_grace_minutes: parseInt(formData.late_grace_minutes, 10) || 11,
         late_deduction_multiplier: parseFloat(formData.late_deduction_multiplier) || 0.5,
         overtime_multiplier: parseFloat(formData.overtime_multiplier) || 2.0,
-        overtime_allowed: parseInt(formData.overtime_allowed, 10) || 1
+        overtime_allowed: parseInt(formData.overtime_allowed, 10) || 1,
+        min_overtime_minutes: parseInt(formData.min_overtime_minutes, 10) || 0,
+        min_overtime_deduction_minutes: parseInt(formData.min_overtime_deduction_minutes, 10) || 0
       };
 
       const res = await employeeApi.update(employee.employee_code, payload);
@@ -118,41 +138,32 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
     }
   };
 
-  return (
-    <div className="modal-backdrop">
+  const modalElement = (
+    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
       <div 
-        className="modal-container"
-        style={{
-          maxWidth: '750px',
-          width: '95%',
-          maxHeight: '90vh',
-          display: 'flex',
-          flexDirection: 'column',
-          backgroundColor: '#ffffff',
-          borderRadius: '16px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-          overflow: 'hidden'
-        }}
+        className="modal-dialog modal-lg" 
+        onClick={(e) => e.stopPropagation()}
+        style={{ display: 'flex', flexDirection: 'column' }}
       >
-        {/* Modal Header */}
+        {/* Modal Header - Light Professional */}
         <div 
           style={{
             padding: '1.25rem 1.5rem',
-            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-            color: '#ffffff',
+            background: '#ffffff',
+            borderBottom: '1px solid var(--border-color)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+            flexShrink: 0
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
             <div 
               style={{
                 width: '42px',
                 height: '42px',
                 borderRadius: '10px',
-                background: 'linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%)',
+                background: 'linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -164,41 +175,33 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
               {formData.employee_name?.charAt(0) || 'E'}
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '700', color: '#f8fafc' }}>
+              <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: '700', color: 'var(--slate-900)' }}>
                 Edit Employee Master & Rules
               </h3>
-              <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--slate-500)' }}>
                 Employee #{formData.employee_code} • {formData.employee_name}
               </p>
             </div>
           </div>
           <button 
+            type="button"
             onClick={onClose}
-            style={{
-              background: 'rgba(255, 255, 255, 0.1)',
-              border: 'none',
-              borderRadius: '8px',
-              width: '32px',
-              height: '32px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#cbd5e1',
-              cursor: 'pointer',
-              transition: 'background 0.2s'
-            }}
+            className="modal-close-btn"
+            aria-label="Close"
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
 
-        {/* Tab Navigation */}
+        {/* Tab Navigation - Light Theme */}
         <div 
           style={{
             display: 'flex',
-            borderBottom: '1px solid #e2e8f0',
-            background: '#f8fafc',
-            padding: '0.5rem 1rem 0'
+            borderBottom: '1px solid var(--border-color)',
+            background: 'var(--slate-50)',
+            padding: '0.35rem 1rem 0',
+            flexShrink: 0,
+            overflowX: 'auto'
           }}
         >
           {[
@@ -218,20 +221,21 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.4rem',
-                  padding: '0.65rem 1rem',
-                  fontSize: '0.875rem',
-                  fontWeight: isActive ? '600' : '500',
-                  color: isActive ? '#0284c7' : '#64748b',
+                  padding: '0.6rem 0.875rem',
+                  fontSize: '0.85rem',
+                  fontWeight: isActive ? '700' : '500',
+                  color: isActive ? 'var(--primary-700)' : 'var(--slate-600)',
                   background: isActive ? '#ffffff' : 'transparent',
-                  border: 'none',
+                  border: '1px solid transparent',
+                  borderBottomColor: isActive ? '#ffffff' : 'transparent',
                   borderTopLeftRadius: '8px',
                   borderTopRightRadius: '8px',
-                  borderBottom: isActive ? '2px solid #0284c7' : '2px solid transparent',
                   cursor: 'pointer',
-                  marginBottom: '-1px'
+                  marginBottom: '-1px',
+                  whiteSpace: 'nowrap'
                 }}
               >
-                <Icon size={16} />
+                <Icon size={15} color={isActive ? 'var(--primary-600)' : 'var(--slate-400)'} />
                 <span>{tab.label}</span>
               </button>
             );
@@ -245,16 +249,16 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
               margin: '1rem 1.5rem 0',
               padding: '0.75rem 1rem',
               borderRadius: '8px',
-              backgroundColor: '#fff1f2',
-              border: '1px solid #fecdd3',
-              color: '#9f1239',
+              backgroundColor: 'var(--danger-bg)',
+              border: '1px solid var(--danger-border)',
+              color: 'var(--danger-text)',
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
-              fontSize: '0.875rem'
+              fontSize: '0.85rem'
             }}
           >
-            <AlertCircle size={18} />
+            <AlertCircle size={16} />
             <span>{error}</span>
           </div>
         )}
@@ -265,23 +269,24 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
               margin: '1rem 1.5rem 0',
               padding: '0.75rem 1rem',
               borderRadius: '8px',
-              backgroundColor: '#ecfdf5',
-              border: '1px solid #a7f3d0',
-              color: '#065f46',
+              backgroundColor: 'var(--success-bg)',
+              border: '1px solid var(--success-border)',
+              color: 'var(--success-text)',
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem',
-              fontSize: '0.875rem'
+              fontSize: '0.85rem'
             }}
           >
-            <CheckCircle2 size={18} />
+            <CheckCircle2 size={16} />
             <span>{success}</span>
           </div>
         )}
 
-        {/* Form Body */}
+        {/* Form Body - Fully Scrollable */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           <div 
+            className="modal-body"
             style={{
               padding: '1.25rem 1.5rem',
               overflowY: 'auto',
@@ -294,23 +299,13 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
             {/* TAB 1: Work & Shift Timings */}
             {activeTab === 'work' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div 
-                  style={{
-                    fontSize: '0.8rem',
-                    fontWeight: '600',
-                    textTransform: 'uppercase',
-                    color: '#64748b',
-                    letterSpacing: '0.05em'
-                  }}
-                >
+                <div style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--slate-500)', letterSpacing: '0.04em' }}>
                   Standard Shift Schedule
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.875rem' }}>
-                      Standard In Time (24h)
-                    </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Standard In Time (24h)</label>
                     <input 
                       type="text" 
                       name="standard_in_time"
@@ -318,15 +313,12 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                       onChange={handleChange}
                       placeholder="e.g. 08:00 or 09:30"
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
                     />
-                    <small style={{ color: '#64748b', fontSize: '0.75rem' }}>Format: HH:MM (e.g. 08:00, 09:30)</small>
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Format: HH:MM (e.g. 08:00, 09:30)</small>
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.875rem' }}>
-                      Standard Out Time (24h)
-                    </label>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Standard Out Time (24h)</label>
                     <input 
                       type="text" 
                       name="standard_out_time"
@@ -334,17 +326,14 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                       onChange={handleChange}
                       placeholder="e.g. 20:00 or 14:00"
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
                     />
-                    <small style={{ color: '#64748b', fontSize: '0.75rem' }}>Format: HH:MM (e.g. 20:00, 18:00)</small>
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Format: HH:MM (e.g. 20:00, 18:00)</small>
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.875rem' }}>
-                      Standard Daily Work Hours
-                    </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Standard Daily Work Hours</label>
                     <input 
                       type="number" 
                       step="0.1"
@@ -353,15 +342,12 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                       onChange={handleChange}
                       placeholder="e.g. 12, 9, 8.5, 6, 4"
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
                     />
-                    <small style={{ color: '#64748b', fontSize: '0.75rem' }}>Expected working hours per working day</small>
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Expected work hours per duty day</small>
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.875rem' }}>
-                      Standard Break Time (Minutes)
-                    </label>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Standard Break Time (Minutes)</label>
                     <input 
                       type="number" 
                       name="standard_break_minutes"
@@ -369,24 +355,23 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                       onChange={handleChange}
                       placeholder="e.g. 0, 30, 60, 120"
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
                     />
-                    <small style={{ color: '#64748b', fontSize: '0.75rem' }}>e.g. 0 min, 30 min, 60 min (1 hr), 120 min (2 hrs)</small>
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>e.g. 0 min, 30 min, 60 min, 120 min</small>
                   </div>
                 </div>
 
                 <div 
                   style={{
                     padding: '0.85rem 1rem',
-                    background: '#f0f9ff',
-                    border: '1px solid #bae6fd',
+                    background: 'var(--primary-50)',
+                    border: '1px solid var(--primary-200)',
                     borderRadius: '8px',
                     fontSize: '0.825rem',
-                    color: '#0369a1',
+                    color: 'var(--primary-800)',
                     lineHeight: '1.4'
                   }}
                 >
-                  💡 <strong>Dynamic Calculation Note:</strong> AMS uses these individual shift timings to calculate actual work hours, expected hours, deficit/surplus differences, late arrivals, and early departures dynamically for every day.
+                  💡 <strong>Dynamic Calculation Note:</strong> AMS uses these individual shift timings to calculate actual work hours, expected hours, deficit/surplus differences, late arrivals, and early departures dynamically.
                 </div>
               </div>
             )}
@@ -394,44 +379,22 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
             {/* TAB 2: Salary & Rates */}
             {activeTab === 'salary' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span 
-                    style={{
-                      fontSize: '0.8rem',
-                      fontWeight: '600',
-                      textTransform: 'uppercase',
-                      color: '#64748b',
-                      letterSpacing: '0.05em'
-                    }}
-                  >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--slate-500)', letterSpacing: '0.04em' }}>
                     Salary Structure & Calculation Basis
                   </span>
                   <button
                     type="button"
                     onClick={handleAutoRateCalc}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.3rem',
-                      padding: '0.3rem 0.6rem',
-                      fontSize: '0.75rem',
-                      fontWeight: '600',
-                      borderRadius: '6px',
-                      background: '#e0f2fe',
-                      color: '#0369a1',
-                      border: '1px solid #bae6fd',
-                      cursor: 'pointer'
-                    }}
+                    className="btn btn-outline-primary btn-sm"
                   >
                     <Sparkles size={13} /> Auto-Compute Rates
                   </button>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1rem' }}>
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.875rem' }}>
-                      Base Monthly Salary (₹)
-                    </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Base Monthly Salary (₹)</label>
                     <input 
                       type="number" 
                       name="salary"
@@ -439,20 +402,17 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                       onChange={handleChange}
                       placeholder="e.g. 12000, 22000, 35000"
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%', fontWeight: '600', fontSize: '1rem', color: '#0f172a' }}
+                      style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--slate-900)' }}
                     />
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.875rem' }}>
-                      Payment Mode
-                    </label>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Payment Mode</label>
                     <select
                       name="payment_mode"
                       value={formData.payment_mode}
                       onChange={handleChange}
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
                     >
                       <option value="Bank">Bank Transfer</option>
                       <option value="Cheque">Cheque (CHQ)</option>
@@ -462,17 +422,14 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.825rem' }}>
-                      Rate Type
-                    </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Rate Type</label>
                     <select
                       name="rate_type"
                       value={formData.rate_type}
                       onChange={handleChange}
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
                     >
                       <option value="hourly">Hourly Rate Basis</option>
                       <option value="daily">Daily Rate Basis</option>
@@ -481,10 +438,8 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                     </select>
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.825rem' }}>
-                      Hourly Rate (₹/hr)
-                    </label>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Hourly Rate (₹/hr)</label>
                     <input 
                       type="number" 
                       step="0.01"
@@ -493,14 +448,11 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                       onChange={handleChange}
                       placeholder="Auto if blank"
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
                     />
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.825rem' }}>
-                      Daily Rate (₹/day)
-                    </label>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Daily Rate (₹/day)</label>
                     <input 
                       type="number" 
                       step="0.01"
@@ -509,7 +461,6 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                       onChange={handleChange}
                       placeholder="Auto if blank"
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
                     />
                   </div>
                 </div>
@@ -519,23 +470,13 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
             {/* TAB 3: Special Rules & Bond */}
             {activeTab === 'rules' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div 
-                  style={{
-                    fontSize: '0.8rem',
-                    fontWeight: '600',
-                    textTransform: 'uppercase',
-                    color: '#64748b',
-                    letterSpacing: '0.05em'
-                  }}
-                >
+                <div style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--slate-500)', letterSpacing: '0.04em' }}>
                   Late Tolerance, Overtime & Bond Conditions
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.825rem' }}>
-                      Late Grace (Mins)
-                    </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Late Grace (Mins)</label>
                     <input 
                       type="number" 
                       name="late_grace_minutes"
@@ -543,14 +484,11 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                       onChange={handleChange}
                       placeholder="Default 11"
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
                     />
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.825rem' }}>
-                      Late Multiplier
-                    </label>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Late Multiplier</label>
                     <input 
                       type="number" 
                       step="0.1"
@@ -559,14 +497,11 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                       onChange={handleChange}
                       placeholder="e.g. 0.5, 1.0"
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
                     />
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.825rem' }}>
-                      Overtime Multiplier
-                    </label>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">OT Multiplier</label>
                     <input 
                       type="number" 
                       step="0.1"
@@ -575,7 +510,30 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                       onChange={handleChange}
                       placeholder="e.g. 2.0, 1.5"
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" title="Minimum overtime duration required to qualify for overtime pay">Min OT (Mins)</label>
+                    <input 
+                      type="number" 
+                      name="min_overtime_minutes"
+                      value={formData.min_overtime_minutes}
+                      onChange={handleChange}
+                      placeholder="e.g. 0, 30, 60"
+                      className="form-control"
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" title="Deduction in minutes applied to qualified overtime duration">OT Deduct (Mins)</label>
+                    <input 
+                      type="number" 
+                      name="min_overtime_deduction_minutes"
+                      value={formData.min_overtime_deduction_minutes}
+                      onChange={handleChange}
+                      placeholder="e.g. 0, 15, 30"
+                      className="form-control"
                     />
                   </div>
                 </div>
@@ -587,17 +545,17 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                     name="overtime_allowed"
                     checked={Boolean(formData.overtime_allowed)}
                     onChange={handleChange}
-                    style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#0284c7' }}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--primary-600)' }}
                   />
-                  <label htmlFor="overtime_allowed" style={{ fontSize: '0.875rem', fontWeight: '500', color: '#1e293b', cursor: 'pointer' }}>
+                  <label htmlFor="overtime_allowed" style={{ fontSize: '0.875rem', fontWeight: '500', color: 'var(--slate-800)', cursor: 'pointer' }}>
                     Allow Overtime compensation for this employee
                   </label>
                 </div>
 
-                <div className="form-group" style={{ marginTop: '0.5rem' }}>
-                  <label className="form-label" style={{ fontWeight: '600', fontSize: '0.875rem', display: 'flex', justifyContent: 'space-between' }}>
+                <div className="form-group" style={{ marginTop: '0.5rem', marginBottom: 0 }}>
+                  <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>Special Rules / Bond Terms / Remarks (Gujarati & English)</span>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 'normal' }}>Maintained in individual Excel sheets</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 'normal' }}>From Excel sheets</span>
                   </label>
                   <textarea 
                     name="special_rules"
@@ -608,12 +566,10 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                     className="form-control"
                     style={{
                       padding: '0.75rem',
-                      borderRadius: '8px',
-                      border: '1px solid #cbd5e1',
-                      width: '100%',
-                      fontSize: '0.9rem',
+                      fontSize: '0.875rem',
                       lineHeight: '1.5',
-                      fontFamily: 'inherit'
+                      fontFamily: 'inherit',
+                      resize: 'vertical'
                     }}
                   />
                 </div>
@@ -623,88 +579,65 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
             {/* TAB 4: Profile Details */}
             {activeTab === 'personal' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div 
-                  style={{
-                    fontSize: '0.8rem',
-                    fontWeight: '600',
-                    textTransform: 'uppercase',
-                    color: '#64748b',
-                    letterSpacing: '0.05em'
-                  }}
-                >
+                <div style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--slate-500)', letterSpacing: '0.04em' }}>
                   Personal & Organizational Information
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.875rem' }}>
-                      Employee Full Name
-                    </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Employee Full Name</label>
                     <input 
                       type="text" 
                       name="employee_name"
                       value={formData.employee_name}
                       onChange={handleChange}
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
                       required
                     />
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.875rem' }}>
-                      Department
-                    </label>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Department</label>
                     <input 
                       type="text" 
                       name="department"
                       value={formData.department}
                       onChange={handleChange}
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
                     />
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.825rem' }}>
-                      Designation
-                    </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Designation</label>
                     <input 
                       type="text" 
                       name="designation"
                       value={formData.designation}
                       onChange={handleChange}
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
                     />
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.825rem' }}>
-                      Date of Joining (DOJ)
-                    </label>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Date of Joining (DOJ)</label>
                     <input 
                       type="date" 
                       name="doj"
                       value={formData.doj}
                       onChange={handleChange}
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
                     />
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.825rem' }}>
-                      Status
-                    </label>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Status</label>
                     <select
                       name="status"
                       value={formData.status}
                       onChange={handleChange}
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
                     >
                       <option value="Working">Working / Active</option>
                       <option value="Resigned">Resigned</option>
@@ -713,17 +646,14 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.825rem' }}>
-                      Gender
-                    </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Gender</label>
                     <select
                       name="gender"
                       value={formData.gender}
                       onChange={handleChange}
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
                     >
                       <option value="Female">Female</option>
                       <option value="Male">Male</option>
@@ -731,31 +661,25 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                     </select>
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.825rem' }}>
-                      PAN / ID No
-                    </label>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">PAN / ID No</label>
                     <input 
                       type="text" 
                       name="pan_no"
                       value={formData.pan_no}
                       onChange={handleChange}
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
                     />
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: '600', fontSize: '0.825rem' }}>
-                      Biometric Device / RFID
-                    </label>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">RFID Card No</label>
                     <input 
                       type="text" 
                       name="rfid"
                       value={formData.rfid}
                       onChange={handleChange}
                       className="form-control"
-                      style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%' }}
                     />
                   </div>
                 </div>
@@ -764,49 +688,18 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
           </div>
 
           {/* Modal Footer */}
-          <div 
-            style={{
-              padding: '1rem 1.5rem',
-              borderTop: '1px solid #e2e8f0',
-              background: '#f8fafc',
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: '0.75rem'
-            }}
-          >
+          <div className="modal-footer">
             <button
               type="button"
               onClick={onClose}
-              style={{
-                padding: '0.65rem 1.25rem',
-                fontSize: '0.875rem',
-                fontWeight: '600',
-                borderRadius: '8px',
-                background: '#ffffff',
-                color: '#475569',
-                border: '1px solid #cbd5e1',
-                cursor: 'pointer'
-              }}
+              className="btn btn-secondary"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              style={{
-                padding: '0.65rem 1.5rem',
-                fontSize: '0.875rem',
-                fontWeight: '600',
-                borderRadius: '8px',
-                background: 'linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%)',
-                color: '#ffffff',
-                border: 'none',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                boxShadow: '0 4px 6px -1px rgba(14, 165, 233, 0.3)'
-              }}
+              className="btn btn-primary"
             >
               <Save size={16} />
               {loading ? 'Saving...' : 'Save Changes'}
@@ -816,4 +709,6 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
       </div>
     </div>
   );
+
+  return createPortal(modalElement, document.body);
 };
