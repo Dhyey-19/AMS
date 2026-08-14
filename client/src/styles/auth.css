@@ -1,0 +1,249 @@
+/* Auth Page Layout */
+.auth-page-container {
+  min-height: 100vh;
+  display: flex;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0c4a6e 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Background Ambient Orbs */
+.auth-page-container::before {
+  content: '';
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.15) 0%, rgba(14, 165, 233, 0) 70%);
+  top: -100px;
+  left: -100px;
+  pointer-events: none;
+}
+
+.auth-page-container::after {
+  content: '';
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(13, 148, 136, 0.12) 0%, rgba(13, 148, 136, 0) 70%);
+  bottom: -150px;
+  right: -100px;
+  pointer-events: none;
+}
+
+.auth-split-wrapper {
+  display: flex;
+  width: 100%;
+  max-width: 1100px;
+  margin: auto;
+  min-height: 620px;
+  background: rgba(30, 41, 59, 0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+
+/* Auth Left Banner */
+.auth-banner-side {
+  flex: 1;
+  background: linear-gradient(145deg, #0369a1 0%, #0f172a 100%);
+  padding: 3.5rem 3rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.banner-hospital-brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.banner-logo-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+
+.banner-title-text h2 {
+  color: #ffffff;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.banner-title-text span {
+  color: #38bdf8;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.banner-main-hero {
+  margin: 2rem 0;
+}
+
+.banner-main-hero h1 {
+  color: #ffffff;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 1rem;
+}
+
+.banner-main-hero p {
+  color: #94a3b8;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.banner-highlights {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  margin-top: 1.5rem;
+}
+
+.highlight-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  color: #e0f2fe;
+}
+
+.highlight-pill-icon {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  display: flex;
+}
+
+.banner-footer {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+/* Auth Form Side */
+.auth-form-side {
+  flex: 1.1;
+  background: #ffffff;
+  padding: 3.5rem 3rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.auth-form-header {
+  margin-bottom: 2rem;
+}
+
+.auth-form-header h2 {
+  font-size: 1.625rem;
+  font-weight: 700;
+  color: var(--slate-900);
+}
+
+.auth-form-header p {
+  color: var(--slate-500);
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.auth-alert-error {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.75rem 1rem;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: var(--danger-text);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  margin-bottom: 1.25rem;
+}
+
+.password-input-wrap {
+  position: relative;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--slate-400);
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.password-toggle-btn:hover {
+  color: var(--slate-600);
+}
+
+/* Quick Fill Demo Credentials Box */
+.demo-credentials-box {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: var(--primary-50);
+  border: 1px dashed var(--primary-300);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.demo-credentials-text {
+  font-size: 0.8125rem;
+  color: var(--primary-900);
+}
+
+.demo-credentials-text strong {
+  color: var(--primary-700);
+}
+
+.auth-toggle-link {
+  margin-top: 1.5rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--slate-500);
+}
+
+.auth-toggle-link a {
+  font-weight: 600;
+  color: var(--primary-600);
+}
+
+@media (max-width: 850px) {
+  .auth-split-wrapper {
+    flex-direction: column;
+    margin: 1rem;
+  }
+  .auth-banner-side {
+    display: none;
+  }
+  .auth-form-side {
+    padding: 2.5rem 1.75rem;
+  }
+}
