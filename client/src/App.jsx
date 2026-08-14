@@ -6,12 +6,21 @@ import { DashboardPage } from './pages/DashboardPage';
 import { MasterDataPage } from './pages/MasterDataPage';
 import { AttendanceImportPage } from './pages/AttendanceImportPage';
 import { AttendanceReportsPage } from './pages/AttendanceReportsPage';
+import { EmployeeAttendancePage } from './pages/EmployeeAttendancePage';
 import { AppLayout } from './components/layout/AppLayout';
 
 const MainApplication = () => {
   const { isAuthenticated, loading } = useAuth();
   const [authView, setAuthView] = useState('login'); // 'login' or 'signup'
-  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'import-master', 'import-attendance', 'reports', 'employees'
+  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'employee-attendance', 'import-master', 'import-attendance', 'reports', 'employees'
+  const [selectedEmployeeForAttendance, setSelectedEmployeeForAttendance] = useState('128');
+
+  const handleOpenEmployeeAttendance = (code) => {
+    if (code) {
+      setSelectedEmployeeForAttendance(code.toString());
+    }
+    setActiveTab('employee-attendance');
+  };
 
   if (loading) {
     return (
@@ -51,19 +60,34 @@ const MainApplication = () => {
           onNavigateToEmployees={() => setActiveTab('employees')}
           onNavigateToAttendanceImport={() => setActiveTab('import-attendance')}
           onNavigateToReports={() => setActiveTab('reports')}
+          onNavigateToEmployeeAttendance={handleOpenEmployeeAttendance}
+        />
+      )}
+      {activeTab === 'employee-attendance' && (
+        <EmployeeAttendancePage 
+          initialEmployeeCode={selectedEmployeeForAttendance}
+          onNavigateToEmployees={() => setActiveTab('employees')}
         />
       )}
       {activeTab === 'import-master' && (
-        <MasterDataPage />
+        <MasterDataPage 
+          onNavigateToEmployeeAttendance={handleOpenEmployeeAttendance}
+        />
       )}
       {activeTab === 'import-attendance' && (
-        <AttendanceImportPage />
+        <AttendanceImportPage 
+          onNavigateToEmployeeAttendance={handleOpenEmployeeAttendance}
+        />
       )}
       {activeTab === 'reports' && (
-        <AttendanceReportsPage />
+        <AttendanceReportsPage 
+          onNavigateToEmployeeAttendance={handleOpenEmployeeAttendance}
+        />
       )}
       {activeTab === 'employees' && (
-        <MasterDataPage />
+        <MasterDataPage 
+          onNavigateToEmployeeAttendance={handleOpenEmployeeAttendance}
+        />
       )}
     </AppLayout>
   );

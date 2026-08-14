@@ -162,6 +162,24 @@ export const DashboardPage = ({
             </div>
             <div className="card-body" style={{ padding: '1rem 1.25rem' }}>
               <div className="quick-actions-grid">
+                {onNavigateToEmployeeAttendance && (
+                  <button
+                    className="quick-action-btn"
+                    onClick={() => onNavigateToEmployeeAttendance('128')}
+                    style={{ background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderColor: '#bae6fd' }}
+                  >
+                    <div className="quick-action-icon" style={{ color: '#0284c7' }}>
+                      <UserCheck size={18} />
+                    </div>
+                    <div>
+                      <div style={{ color: '#0369a1', fontWeight: '700' }}>Employee Attendance Records</div>
+                      <div style={{ fontSize: '0.75rem', color: '#0284c7', fontWeight: 'normal' }}>
+                        View dynamic calculations, shifts, salary & Excel exports
+                      </div>
+                    </div>
+                  </button>
+                )}
+
                 <button
                   className="quick-action-btn"
                   onClick={onNavigateToAttendanceImport}
@@ -333,6 +351,7 @@ export const DashboardPage = ({
         isOpen={!!selectedEmployee}
         onClose={() => setSelectedEmployee(null)}
         employee={selectedEmployee}
+        onOpenAttendanceSheet={onNavigateToEmployeeAttendance}
       />
 
       {/* Master Data Import Modal */}

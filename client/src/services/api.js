@@ -59,6 +59,14 @@ export const employeeApi = {
     const res = await api.get(`/employees/${code}`);
     return res.data;
   },
+  create: async (data) => {
+    const res = await api.post('/employees', data);
+    return res.data;
+  },
+  update: async (code, data) => {
+    const res = await api.put(`/employees/${code}`, data);
+    return res.data;
+  },
   getStats: async () => {
     const res = await api.get('/employees/stats');
     return res.data;
@@ -75,8 +83,20 @@ export const employeeApi = {
     });
     return res.data;
   },
+  importWorkbook: async (formData) => {
+    const res = await api.post('/employees/import-workbook', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return res.data;
+  },
   importSample: async (mode = 'upsert') => {
     const res = await api.post('/employees/import-sample', { mode });
+    return res.data;
+  },
+  importSampleWorkbook: async () => {
+    const res = await api.post('/employees/import-sample-workbook');
     return res.data;
   },
   clear: async () => {
@@ -105,6 +125,17 @@ export const attendanceApi = {
   getMonths: async () => {
     const res = await api.get('/attendance/months');
     return res.data;
+  },
+  getEmployeeSheet: async (code, params = {}) => {
+    const res = await api.get(`/attendance/employee/${code}/sheet`, { params });
+    return res.data;
+  },
+  exportEmployeeSheet: async (code, params = {}) => {
+    const res = await api.get(`/attendance/employee/${code}/export`, {
+      params,
+      responseType: 'blob'
+    });
+    return res;
   },
   getDailyReport: async (params = {}) => {
     const res = await api.get('/attendance/reports/daily', { params });

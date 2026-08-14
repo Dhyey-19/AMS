@@ -15,11 +15,13 @@ router.post('/import-sample', AttendanceController.importSample);
 router.get('/', AttendanceController.getAttendance);
 router.get('/months', AttendanceController.getMonths);
 
+// Employee-Wise Attendance Record & Calculations Sheet
+router.get('/employee/:code/sheet', AttendanceController.getEmployeeSheet);
+router.get('/employee/:code/export', AttendanceController.exportEmployeeSheet);
+
 // Reports endpoints
 router.get('/reports/daily', AttendanceController.getDailyReport);
 router.get('/reports/monthly', AttendanceController.getMonthlyReport);
-router.get('/reports/range', AttendanceController.getRangeReport);
-router.get('/reports/employee/:code', AttendanceController.getEmployeeReport);
 
 // Clear data
 router.delete('/clear', AttendanceController.clearAttendance);

@@ -18,6 +18,18 @@ function getDatabase() {
   return db;
 }
 
+function addColumnIfNotExists(tableName, columnName, columnDef) {
+  try {
+    const pragma = db.prepare(`PRAGMA table_info(${tableName})`).all();
+    const exists = pragma.some(col => col.name.toLowerCase() === columnName.toLowerCase());
+    if (!exists) {
+      db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDef}`);
+    }
+  } catch (err) {
+    console.error(`Error adding column ${columnName} to ${tableName}:`, err.message);
+  }
+}
+
 function initSchema() {
   // Users table
   db.exec(`
@@ -59,6 +71,21 @@ function initSchema() {
       dor TEXT,
       holiday_group TEXT,
       shift_group_code TEXT,
+      salary REAL,
+      standard_in_time TEXT DEFAULT '08:00',
+      standard_out_time TEXT DEFAULT '20:00',
+      standard_break_minutes INTEGER DEFAULT 0,
+      standard_work_hours REAL DEFAULT 12.0,
+      rate_type TEXT DEFAULT 'hourly',
+      hourly_rate REAL,
+      daily_rate REAL,
+      payment_mode TEXT DEFAULT 'Bank',
+      late_grace_minutes INTEGER DEFAULT 11,
+      late_deduction_multiplier REAL DEFAULT 0.5,
+      overtime_multiplier REAL DEFAULT 2.0,
+      overtime_allowed INTEGER DEFAULT 1,
+      special_rules TEXT,
+      salary_history_json TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -67,6 +94,23 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_employees_dept ON employees(department);
     CREATE INDEX IF NOT EXISTS idx_employees_status ON employees(status);
   `);
+
+  // Migration for existing employees tables
+  addColumnIfNotExists('employees', 'salary', 'REAL');
+  addColumnIfNotExists('employees', 'standard_in_time', "TEXT DEFAULT '08:00'");
+  addColumnIfNotExists('employees', 'standard_out_time', "TEXT DEFAULT '20:00'");
+  addColumnIfNotExists('employees', 'standard_break_minutes', 'INTEGER DEFAULT 0');
+  addColumnIfNotExists('employees', 'standard_work_hours', 'REAL DEFAULT 12.0');
+  addColumnIfNotExists('employees', 'rate_type', "TEXT DEFAULT 'hourly'");
+  addColumnIfNotExists('employees', 'hourly_rate', 'REAL');
+  addColumnIfNotExists('employees', 'daily_rate', 'REAL');
+  addColumnIfNotExists('employees', 'payment_mode', "TEXT DEFAULT 'Bank'");
+  addColumnIfNotExists('employees', 'late_grace_minutes', 'INTEGER DEFAULT 11');
+  addColumnIfNotExists('employees', 'late_deduction_multiplier', 'REAL DEFAULT 0.5');
+  addColumnIfNotExists('employees', 'overtime_multiplier', 'REAL DEFAULT 2.0');
+  addColumnIfNotExists('employees', 'overtime_allowed', 'INTEGER DEFAULT 1');
+  addColumnIfNotExists('employees', 'special_rules', 'TEXT');
+  addColumnIfNotExists('employees', 'salary_history_json', 'TEXT');
 
   // Attendance Records table
   db.exec(`
@@ -82,6 +126,8 @@ function initSchema() {
       end_time TEXT,
       in_time TEXT,
       out_time TEXT,
+      break_out TEXT,
+      break_in TEXT,
       late_by TEXT DEFAULT '00:00',
       early_by TEXT DEFAULT '00:00',
       over_time TEXT DEFAULT '00:00',
@@ -93,6 +139,10 @@ function initSchema() {
       late_by_minutes INTEGER DEFAULT 0,
       early_by_minutes INTEGER DEFAULT 0,
       over_time_minutes INTEGER DEFAULT 0,
+      leave_deduction REAL DEFAULT 0,
+      penalty_amount REAL DEFAULT 0,
+      overtime_override_minutes INTEGER DEFAULT 0,
+      remarks TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(employee_code, attendance_date_iso)
@@ -103,6 +153,14 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_attendance_dept ON attendance(department);
     CREATE INDEX IF NOT EXISTS idx_attendance_status ON attendance(status_code);
   `);
+
+  // Migration for existing attendance tables
+  addColumnIfNotExists('attendance', 'break_out', 'TEXT');
+  addColumnIfNotExists('attendance', 'break_in', 'TEXT');
+  addColumnIfNotExists('attendance', 'leave_deduction', 'REAL DEFAULT 0');
+  addColumnIfNotExists('attendance', 'penalty_amount', 'REAL DEFAULT 0');
+  addColumnIfNotExists('attendance', 'overtime_override_minutes', 'INTEGER DEFAULT 0');
+  addColumnIfNotExists('attendance', 'remarks', 'TEXT');
 
   // Import logs table
   db.exec(`

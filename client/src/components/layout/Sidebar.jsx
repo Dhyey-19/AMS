@@ -6,6 +6,7 @@ import {
   LogOut, 
   Hospital,
   Building2,
+  UserCheck,
   X
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -15,6 +16,7 @@ export const Sidebar = ({ activeTab, onSelectTab, isOpen, onClose }) => {
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'employee-attendance', label: 'Employee Attendance', icon: UserCheck },
     { id: 'import-master', label: 'Import Master Data', icon: FileSpreadsheet },
     { id: 'import-attendance', label: 'Import Attendance', icon: FileSpreadsheet },
     { id: 'reports', label: 'Attendance Reports', icon: Building2 },

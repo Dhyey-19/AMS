@@ -197,6 +197,12 @@ export const EmployeeTable = ({
                   <ArrowUpDown size={13} color={sortBy === 'doj' ? '#0284c7' : '#94a3b8'} />
                 </div>
               </th>
+              <th className="sortable" onClick={() => handleHeaderSort('salary')}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                  <span>Salary (₹)</span>
+                  <ArrowUpDown size={13} color={sortBy === 'salary' ? '#0284c7' : '#94a3b8'} />
+                </div>
+              </th>
               <th className="sortable" onClick={() => handleHeaderSort('status')}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                   <span>Status</span>
@@ -209,7 +215,7 @@ export const EmployeeTable = ({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="8" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+                <td colSpan="9" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
                   <div style={{ color: '#0284c7', fontWeight: '600' }} className="animate-pulse">
                     Loading records from database...
                   </div>
@@ -217,7 +223,7 @@ export const EmployeeTable = ({
               </tr>
             ) : employees.length === 0 ? (
               <tr>
-                <td colSpan="8" style={{ textAlign: 'center', padding: '4rem 1rem' }}>
+                <td colSpan="9" style={{ textAlign: 'center', padding: '4rem 1rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
                     <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
                       <Users size={24} />
@@ -269,18 +275,25 @@ export const EmployeeTable = ({
                     </span>
                   </td>
                   <td>
+                    <span style={{ fontSize: '0.8125rem', fontWeight: '600', color: emp.salary ? '#15803d' : '#94a3b8' }}>
+                      {emp.salary ? `₹${Number(emp.salary).toLocaleString()}` : '-'}
+                    </span>
+                  </td>
+                  <td>
                     <StatusBadge status={emp.status} />
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => onSelectEmployee(emp)}
-                      title="View Full Profile"
-                      style={{ padding: '0.35rem 0.65rem' }}
-                    >
-                      <Eye size={14} />
-                      Details
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => onSelectEmployee(emp)}
+                        title="View Full Profile"
+                        style={{ padding: '0.35rem 0.65rem' }}
+                      >
+                        <Eye size={14} />
+                        Profile
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))

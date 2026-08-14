@@ -21,6 +21,7 @@ export const Header = ({ activeTab, onToggleSidebar }) => {
 
   const titles = {
     'dashboard': { title: 'Hospital Dashboard', breadcrumb: 'Overview & Analytics' },
+    'employee-attendance': { title: 'Employee Attendance Record', breadcrumb: 'Individual Attendance, Shifts & Salary Record' },
     'import-master': { title: 'Import Master Data', breadcrumb: 'Staff Roster & Profile Ingestion' },
     'import-attendance': { title: 'Import Attendance', breadcrumb: 'Biometric Punch Records Ingestion' },
     'reports': { title: 'Attendance Reports', breadcrumb: 'Daily, Monthly & Employee Analytics' },

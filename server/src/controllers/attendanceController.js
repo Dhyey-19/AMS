@@ -66,6 +66,58 @@ class AttendanceController {
   }
 
   /**
+   * Single Employee Full Attendance Record & Calculations Sheet
+   */
+  static async getEmployeeSheet(req, res) {
+    try {
+      const { code } = req.params;
+      const { month, startDate, endDate } = req.query;
+
+      const sheetData = AttendanceService.getEmployeeAttendanceSheet(code, {
+        month,
+        startDate,
+        endDate
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: sheetData
+      });
+    } catch (err) {
+      return res.status(404).json({
+        success: false,
+        message: err.message
+      });
+    }
+  }
+
+  /**
+   * Export Single Employee Attendance Record to XLSX or CSV
+   */
+  static async exportEmployeeSheet(req, res) {
+    try {
+      const { code } = req.params;
+      const { month, startDate, endDate, format = 'xlsx' } = req.query;
+
+      const { buffer, filename, mimeType } = AttendanceService.exportEmployeeAttendance(code, {
+        month,
+        startDate,
+        endDate,
+        format
+      });
+
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(buffer);
+    } catch (err) {
+      return res.status(500).json({
+        success: false,
+        message: err.message || 'Failed to export employee attendance'
+      });
+    }
+  }
+
+  /**
    * Query & Filter Attendance Records
    */
   static async getAttendance(req, res) {
@@ -135,50 +187,6 @@ class AttendanceController {
     try {
       const { month, department } = req.query;
       const report = AttendanceService.getMonthlySummaryReport(month, department);
-      return res.status(200).json({
-        success: true,
-        data: report
-      });
-    } catch (err) {
-      return res.status(500).json({
-        success: false,
-        message: err.message
-      });
-    }
-  }
-
-  /**
-   * Single Employee Attendance Report
-   */
-  static async getEmployeeReport(req, res) {
-    try {
-      const { code } = req.params;
-      const { startDate, endDate } = req.query;
-      const report = AttendanceService.getEmployeeReport(code, startDate, endDate);
-      return res.status(200).json({
-        success: true,
-        data: report
-      });
-    } catch (err) {
-      return res.status(500).json({
-        success: false,
-        message: err.message
-      });
-    }
-  }
-
-  /**
-   * Date Range Summary Report
-   */
-  static async getRangeReport(req, res) {
-    try {
-      const { startDate, endDate, department, employeeCode } = req.query;
-      const report = AttendanceService.getDateRangeSummaryReport({
-        startDate,
-        endDate,
-        department,
-        employeeCode
-      });
       return res.status(200).json({
         success: true,
         data: report

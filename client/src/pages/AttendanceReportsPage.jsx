@@ -19,7 +19,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-export const AttendanceReportsPage = () => {
+export const AttendanceReportsPage = ({ onNavigateToEmployeeAttendance }) => {
   const [activeReportTab, setActiveReportTab] = useState('monthly'); // 'monthly', 'daily', 'employee', 'range'
   const [months, setMonths] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -420,7 +420,29 @@ export const AttendanceReportsPage = () => {
                       return (
                         <tr key={emp.employee_code}>
                           <td><span className="emp-code-pill">{emp.employee_code}</span></td>
-                          <td><div style={{ fontWeight: '600', color: '#0f172a' }}>{emp.employee_name}</div></td>
+                          <td>
+                            {onNavigateToEmployeeAttendance ? (
+                              <button
+                                type="button"
+                                onClick={() => onNavigateToEmployeeAttendance(emp.employee_code)}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  padding: 0,
+                                  fontWeight: '600',
+                                  color: '#0284c7',
+                                  textAlign: 'left',
+                                  cursor: 'pointer',
+                                  textDecoration: 'underline'
+                                }}
+                                title="View Complete Employee Attendance Record"
+                              >
+                                {emp.employee_name}
+                              </button>
+                            ) : (
+                              <div style={{ fontWeight: '600', color: '#0f172a' }}>{emp.employee_name}</div>
+                            )}
+                          </td>
                           <td><DepartmentBadge department={emp.department} /></td>
                           <td><span style={{ fontSize: '0.8125rem', color: '#475569' }}>{emp.designation || '-'}</span></td>
                           <td style={{ textAlign: 'center', fontWeight: '600' }}>{emp.totalDays}</td>
@@ -658,10 +680,21 @@ export const AttendanceReportsPage = () => {
                 </div>
               </div>
 
-              <button className="btn btn-secondary btn-sm" onClick={exportEmployeeCSV}>
-                <Download size={15} />
-                Export Staff History
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {onNavigateToEmployeeAttendance && (
+                  <button 
+                    className="btn btn-primary btn-sm" 
+                    onClick={() => onNavigateToEmployeeAttendance(selectedEmployeeCode)}
+                  >
+                    <FileSpreadsheet size={15} />
+                    Open Full Digital Sheet
+                  </button>
+                )}
+                <button className="btn btn-secondary btn-sm" onClick={exportEmployeeCSV}>
+                  <Download size={15} />
+                  Export Staff History
+                </button>
+              </div>
             </div>
           </div>
 

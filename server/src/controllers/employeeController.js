@@ -33,7 +33,6 @@ class EmployeeController {
         message: err.message || 'Failed to import Master Data'
       });
     } finally {
-      // Clean up uploaded temp file
       if (filePath && fs.existsSync(filePath)) {
         try {
           fs.unlinkSync(filePath);
@@ -41,6 +40,67 @@ class EmployeeController {
           console.error('Failed to remove temp upload file:', e);
         }
       }
+    }
+  }
+
+  /**
+   * Upload & Import Full Multi-Sheet Workbook (e.g. MAY - 26.xlsx)
+   */
+  static async importWorkbookFile(req, res) {
+    let filePath = null;
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please upload an Excel workbook (.xlsx)'
+        });
+      }
+
+      filePath = req.file.path;
+      const originalFilename = req.file.originalname;
+      const importedBy = req.user ? req.user.username : 'Admin';
+
+      const result = await EmployeeService.importWorkbook(filePath, originalFilename, importedBy);
+
+      return res.status(200).json({
+        success: true,
+        message: `Workbook processed: ${result.employeesUpserted} employee profiles updated, ${result.attendanceInserted} attendance records created, ${result.attendanceUpdated} updated.`,
+        data: result
+      });
+    } catch (err) {
+      return res.status(500).json({
+        success: false,
+        message: err.message || 'Failed to import Excel workbook'
+      });
+    } finally {
+      if (filePath && fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (e) {
+          console.error('Failed to remove temp upload file:', e);
+        }
+      }
+    }
+  }
+
+  /**
+   * Import sample multi-sheet workbook from `excel files/MAY - 26.xlsx`
+   */
+  static async importSampleWorkbook(req, res) {
+    try {
+      const importedBy = req.user ? req.user.username : 'Admin';
+      const result = await EmployeeService.importSampleWorkbook(importedBy);
+
+      return res.status(200).json({
+        success: true,
+        message: `MAY - 26.xlsx imported successfully: ${result.employeesUpserted} employee profiles synced, ${result.attendanceInserted + result.attendanceUpdated} attendance records updated across ${result.totalSheets} sheets.`,
+        data: result
+      });
+    } catch (err) {
+      return res.status(500).json({
+        success: false,
+        message: err.message || 'Failed to import sample workbook'
+      });
     }
   }
 
@@ -116,6 +176,45 @@ class EmployeeController {
       });
     } catch (err) {
       return res.status(500).json({
+        success: false,
+        message: err.message
+      });
+    }
+  }
+
+  /**
+   * Create a new employee
+   */
+  static async createEmployee(req, res) {
+    try {
+      const newEmployee = EmployeeService.createEmployee(req.body);
+      return res.status(201).json({
+        success: true,
+        message: `Employee ${newEmployee.employee_name} created successfully`,
+        data: newEmployee
+      });
+    } catch (err) {
+      return res.status(400).json({
+        success: false,
+        message: err.message
+      });
+    }
+  }
+
+  /**
+   * Update employee master & attendance rules
+   */
+  static async updateEmployee(req, res) {
+    try {
+      const { code } = req.params;
+      const updated = EmployeeService.updateEmployee(code, req.body);
+      return res.status(200).json({
+        success: true,
+        message: `Employee ${updated.employee_name} updated successfully`,
+        data: updated
+      });
+    } catch (err) {
+      return res.status(400).json({
         success: false,
         message: err.message
       });

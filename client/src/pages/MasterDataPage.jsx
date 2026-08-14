@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { employeeApi } from '../services/api';
 import { EmployeeTable } from '../components/employees/EmployeeTable';
 import { EmployeeDetailsModal } from '../components/employees/EmployeeDetailsModal';
+import { EditEmployeeMasterModal } from '../components/employees/EditEmployeeMasterModal';
 import { MasterDataImportModal } from '../components/employees/MasterDataImportModal';
 import { Toast } from '../components/common/Toast';
 import { 
@@ -11,10 +12,12 @@ import {
   Users, 
   CheckCircle2, 
   RefreshCw,
-  Trash2
+  Trash2,
+  CalendarCheck,
+  Upload
 } from 'lucide-react';
 
-export const MasterDataPage = () => {
+export const MasterDataPage = ({ onNavigateToEmployeeAttendance }) => {
   const [employees, setEmployees] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 15, total: 0, totalPages: 1 });
   const [departments, setDepartments] = useState([]);
@@ -26,9 +29,11 @@ export const MasterDataPage = () => {
   const [sortOrder, setSortOrder] = useState('asc');
   const [loading, setLoading] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [editingEmployee, setEditingEmployee] = useState(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [toast, setToast] = useState({ message: '', type: 'success' });
   const [importingSample, setImportingSample] = useState(false);
+  const [importingWorkbook, setImportingWorkbook] = useState(false);
 
   const fetchEmployees = useCallback(async (page = 1) => {
     try {
@@ -67,7 +72,6 @@ export const MasterDataPage = () => {
   }, []);
 
   useEffect(() => {
-    // Debounce search/filter queries
     const timer = setTimeout(() => {
       fetchEmployees(1);
     }, 250);
@@ -88,7 +92,7 @@ export const MasterDataPage = () => {
       setImportingSample(true);
       const res = await employeeApi.importSample('upsert');
       setToast({
-        message: `Sample imported: ${res.data.inserted} inserted, ${res.data.updated} updated, 0 duplicates!`,
+        message: `Master data imported: ${res.data.inserted} inserted, ${res.data.updated} updated!`,
         type: 'success'
       });
       fetchEmployees(1);
@@ -97,6 +101,23 @@ export const MasterDataPage = () => {
       setToast({ message: err.message || 'Sample import failed', type: 'error' });
     } finally {
       setImportingSample(false);
+    }
+  };
+
+  const handleImportSampleWorkbook = async () => {
+    try {
+      setImportingWorkbook(true);
+      const res = await employeeApi.importSampleWorkbook();
+      setToast({
+        message: `MAY - 26.xlsx synced: ${res.data.employeesUpserted} profiles and ${res.data.attendanceInserted + res.data.attendanceUpdated} attendance records updated!`,
+        type: 'success'
+      });
+      fetchEmployees(1);
+      fetchDepartments();
+    } catch (err) {
+      setToast({ message: err.message || 'Workbook import failed', type: 'error' });
+    } finally {
+      setImportingWorkbook(false);
     }
   };
 
@@ -151,16 +172,36 @@ export const MasterDataPage = () => {
               <FileSpreadsheet size={24} />
             </div>
             <div>
-              <h2 style={{ color: '#ffffff', fontSize: '1.25rem', fontWeight: '700' }}>
-                Master Employee Data Center
+              <h2 style={{ color: '#ffffff', fontSize: '1.25rem', fontWeight: '700', margin: 0 }}>
+                Employee Master Data & Rules Center
               </h2>
-              <p style={{ color: '#94a3b8', fontSize: '0.8125rem', marginTop: '0.2rem' }}>
-                Import staff roster from <code>MD MASTER.csv</code> or custom Excel/CSV spreadsheets. Automatic duplicate detection based on <code>EmployeeCode</code>.
+              <p style={{ color: '#94a3b8', fontSize: '0.8125rem', marginTop: '0.2rem', marginBottom: 0 }}>
+                Maintain employee master profiles, shift timings, individual salary rates, late/overtime rules, and bond conditions.
               </p>
             </div>
           </div>
 
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={handleImportSampleWorkbook}
+              disabled={importingWorkbook}
+              style={{ background: '#0369a1', color: '#ffffff', borderColor: '#0284c7' }}
+              title="Import all 46 employee profiles and attendance sheets from MAY - 26.xlsx"
+            >
+              {importingWorkbook ? (
+                <>
+                  <RefreshCw size={15} className="spin" />
+                  Syncing MAY - 26.xlsx...
+                </>
+              ) : (
+                <>
+                  <Upload size={15} />
+                  Sync Full MAY - 26.xlsx
+                </>
+              )}
+            </button>
+
             <button
               className="btn btn-secondary btn-sm"
               onClick={handleImportSampleDirect}
@@ -169,13 +210,13 @@ export const MasterDataPage = () => {
             >
               {importingSample ? (
                 <>
-                  <RefreshCw size={15} className="animate-pulse" />
-                  Loading Sample...
+                  <RefreshCw size={15} className="spin" />
+                  Loading...
                 </>
               ) : (
                 <>
                   <FileText size={15} color="#38bdf8" />
-                  Load Sample (MD MASTER.csv)
+                  Load MD MASTER.csv
                 </>
               )}
             </button>
@@ -185,7 +226,7 @@ export const MasterDataPage = () => {
               onClick={() => setIsImportModalOpen(true)}
             >
               <UploadCloud size={15} />
-              Upload CSV / Excel
+              Upload File
             </button>
 
             {employees.length > 0 && (
@@ -193,7 +234,7 @@ export const MasterDataPage = () => {
                 className="btn btn-secondary btn-sm"
                 onClick={handleClearData}
                 style={{ background: 'transparent', color: '#fda4af', borderColor: 'rgba(244, 63, 94, 0.3)' }}
-                title="Clear all records"
+                title="Clear all master data"
               >
                 <Trash2 size={15} />
               </button>
@@ -225,11 +266,28 @@ export const MasterDataPage = () => {
       />
 
       {/* Employee Details Modal */}
-      <EmployeeDetailsModal
-        isOpen={!!selectedEmployee}
-        onClose={() => setSelectedEmployee(null)}
-        employee={selectedEmployee}
-      />
+      {selectedEmployee && (
+        <EmployeeDetailsModal
+          isOpen={!!selectedEmployee}
+          onClose={() => setSelectedEmployee(null)}
+          employee={selectedEmployee}
+          onOpenAttendanceSheet={onNavigateToEmployeeAttendance}
+          onEditMaster={(emp) => setEditingEmployee(emp)}
+        />
+      )}
+
+      {/* Edit Employee Master Modal */}
+      {editingEmployee && (
+        <EditEmployeeMasterModal
+          isOpen={!!editingEmployee}
+          onClose={() => setEditingEmployee(null)}
+          employee={editingEmployee}
+          onUpdated={() => {
+            fetchEmployees(pagination.page);
+            fetchDepartments();
+          }}
+        />
+      )}
 
       {/* Master Data Import Modal */}
       <MasterDataImportModal
