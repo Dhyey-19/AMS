@@ -307,18 +307,14 @@ class CalculationEngine {
 
     const actualBreakMins = totalBreakMins;
 
-    // NOTE 2: COUNT ACTUAL BREAK HOURS:
-    // IF (BREAKOUT - BREAKIN) <= MASTER.BREAKHOURS THEN MASTER.BREAKHOURS ELSE (BREAKOUT - BREAKIN)
-    let effectiveBreakMins = 0;
-    if (actualBreakMins <= stdBreakMins) {
-      effectiveBreakMins = stdBreakMins;
-    } else {
-      effectiveBreakMins = actualBreakMins;
-    }
+    // FORMULA FOR EFF BREAK:
+    // EFF BREAK = BREAK IN - BREAK OUT (Punched Break Duration)
+    const effectiveBreakMins = actualBreakMins;
 
-    // 1) 4 Different Duration Calculations using 11-Minute Threshold:
-    // - Late IN: Actual IN >= Scheduled IN + 11 min
-    // - Late OUT: Actual OUT >= Scheduled OUT + 11 min
+    // 1) 4 Different Duration Calculations using 11-Minute Threshold and 10-Minute Late OUT Capping:
+    // EXCEL FORMULA: =IF((H3*1440)>=((C3*1440)+11),IF((I3*1440)>=((D3*1440)+11),((D3+TIME(0,10,0))-H3),I3-H3),IF((I3*1440)>=((D3*1440)+11),((D3+TIME(0,10,0))-C3),I3-C3))
+    // - Late IN condition: Actual IN (H3) >= Scheduled IN (C3) + 11 min
+    // - Late OUT condition: Actual OUT (I3) >= Scheduled OUT (D3) + 11 min
     let isLateIn = false;
     let isLateOut = false;
     let calcMode = 'Normal';
@@ -332,33 +328,40 @@ class CalculationEngine {
     }
 
     if (actualInMins > 0 && actualOutMins > 0) {
-      if (!isLateIn && !isLateOut) {
-        // Case 1: Normal -> A.OUT - Scheduled IN
-        calcMode = 'Normal';
-        rawDurationMins = Math.max(0, actualOutMins - stdInMins);
-      } else if (isLateIn && isLateOut) {
-        // Case 2: Both late -> A.OUT - A.IN
-        calcMode = 'Both late';
-        rawDurationMins = Math.max(0, actualOutMins - actualInMins);
-      } else if (isLateIn && !isLateOut) {
-        // Case 3: Late IN only -> A.OUT - A.IN
-        calcMode = 'Late IN only';
-        rawDurationMins = Math.max(0, actualOutMins - actualInMins);
-      } else if (!isLateIn && isLateOut) {
-        // Case 4: Late OUT only -> A.OUT - Scheduled IN
-        calcMode = 'Late OUT only';
-        rawDurationMins = Math.max(0, actualOutMins - stdInMins);
+      if (isLateIn) {
+        if (isLateOut) {
+          // Branch 1: Both late -> (Scheduled OUT + 10m) - Actual IN
+          calcMode = 'Both late';
+          rawDurationMins = Math.max(0, (stdOutMins + 10) - actualInMins);
+        } else {
+          // Branch 2: Late IN only -> Actual OUT - Actual IN
+          calcMode = 'Late IN only';
+          rawDurationMins = Math.max(0, actualOutMins - actualInMins);
+        }
+      } else {
+        if (isLateOut) {
+          // Branch 3: Late OUT only -> (Scheduled OUT + 10m) - Scheduled IN
+          calcMode = 'Late OUT only';
+          rawDurationMins = Math.max(0, (stdOutMins + 10) - stdInMins);
+        } else {
+          // Branch 4: Normal -> Actual OUT - Scheduled IN
+          calcMode = 'Normal';
+          rawDurationMins = Math.max(0, actualOutMins - stdInMins);
+        }
       }
     } else if (actualInMins > 0 && actualOutMins === 0) {
       rawDurationMins = 0;
     }
 
-    // Actual Work Minutes: Duration minus Effective Break Hours
+    // FORMULA FOR ACTUAL WORK:
+    // IF (STD BREAK <= EFF. BREAK) THEN DURATION - EFF. BREAK ELSE DURATION - STD BREAK
+    const breakDeductionMins = (stdBreakMins <= effectiveBreakMins) ? effectiveBreakMins : stdBreakMins;
+
     let actualWorkMins = 0;
     if (rawDurationMins > 0) {
-      actualWorkMins = Math.max(0, rawDurationMins - effectiveBreakMins);
+      actualWorkMins = Math.max(0, rawDurationMins - breakDeductionMins);
     } else if (actualInMins > 0 && actualOutMins > 0) {
-      actualWorkMins = Math.max(0, (actualOutMins - actualInMins) - effectiveBreakMins);
+      actualWorkMins = Math.max(0, (actualOutMins - actualInMins) - breakDeductionMins);
     } else {
       if (statusCode === 'P' || statusCode === 'WOP') {
         actualWorkMins = schedWorkMins;

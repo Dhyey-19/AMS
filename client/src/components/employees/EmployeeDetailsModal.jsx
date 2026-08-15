@@ -27,6 +27,28 @@ export const EmployeeDetailsModal = ({ isOpen, onClose, employee, onOpenAttendan
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   };
 
+  const formatBreakToHHMM = (val) => {
+    if (val === null || val === undefined || val === '') return '00:00';
+    if (typeof val === 'string' && val.includes(':')) {
+      const parts = val.split(':');
+      const h = parseInt(parts[0], 10) || 0;
+      const m = parseInt(parts[1], 10) || 0;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+    const num = parseFloat(val);
+    if (isNaN(num)) return '00:00';
+    if (num <= 12 && String(val).includes('.')) {
+      const totalMins = Math.round(num * 60);
+      const h = Math.floor(totalMins / 60);
+      const m = Math.round(totalMins % 60);
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+    const totalMins = Math.round(num);
+    const h = Math.floor(totalMins / 60);
+    const m = Math.round(totalMins % 60);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -128,7 +150,7 @@ export const EmployeeDetailsModal = ({ isOpen, onClose, employee, onOpenAttendan
             </div>
             <div className="detail-item">
               <span className="detail-item-label">Standard Break</span>
-              <span className="detail-item-value">{employee.standard_break_minutes || 0} mins</span>
+              <span className="detail-item-value" style={{ fontWeight: '600', color: 'var(--slate-800)' }}>{formatBreakToHHMM(employee.standard_break_time || employee.standard_break_minutes || 0)}</span>
             </div>
             <div className="detail-item">
               <span className="detail-item-label">Late Grace Window</span>

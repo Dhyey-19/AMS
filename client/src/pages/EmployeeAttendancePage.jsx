@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   User, 
   Calendar, 
@@ -16,7 +16,8 @@ import {
   ShieldAlert, 
   FileText,
   Upload,
-  Sparkles
+  Sparkles,
+  Users
 } from 'lucide-react';
 import { employeeApi, attendanceApi } from '../services/api';
 import { EditEmployeeMasterModal } from '../components/employees/EditEmployeeMasterModal';
@@ -30,13 +31,37 @@ const formatHoursToHHMM = (hrs) => {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
 
+const formatBreakToHHMM = (val) => {
+  if (val === null || val === undefined || val === '') return '00:00';
+  if (typeof val === 'string' && val.includes(':')) {
+    const parts = val.split(':');
+    const h = parseInt(parts[0], 10) || 0;
+    const m = parseInt(parts[1], 10) || 0;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+  const num = parseFloat(val);
+  if (isNaN(num)) return '00:00';
+  if (num <= 12 && String(val).includes('.')) {
+    const totalMins = Math.round(num * 60);
+    const h = Math.floor(totalMins / 60);
+    const m = Math.round(totalMins % 60);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+  const totalMins = Math.round(num);
+  const h = Math.floor(totalMins / 60);
+  const m = Math.round(totalMins % 60);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+
 export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmployees }) => {
   const [employees, setEmployees] = useState([]);
   const [selectedEmployeeCode, setSelectedEmployeeCode] = useState(initialEmployeeCode || '');
   const [selectedMonth, setSelectedMonth] = useState('2026-05');
   const [availableMonths, setAvailableMonths] = useState(['2026-05', '2026-04', '2026-06', '2026-07', '2026-08']);
   const [searchQuery, setSearchQuery] = useState('');
+  const [dropdownStatusFilter, setDropdownStatusFilter] = useState('All');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
   const [sheetData, setSheetData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -50,12 +75,27 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
   const [activeSubTab, setActiveSubTab] = useState('attendance'); // 'attendance', 'salary-history'
   const [importMessage, setImportMessage] = useState(null);
 
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isDropdownOpen]);
+
   // 1. Fetch Employee List and Available Months on load
   useEffect(() => {
     const initPage = async () => {
       try {
         const [empRes, monthsRes] = await Promise.all([
-          employeeApi.getAll({ limit: 200, sortBy: 'employee_code', sortOrder: 'asc' }),
+          employeeApi.getAll({ limit: 1000, sortBy: 'employee_code', sortOrder: 'asc' }),
           attendanceApi.getMonths()
         ]);
 
@@ -136,13 +176,22 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
     }
   };
 
+  const workingCount = employees.filter(e => e.status === 'Working').length;
+  const resignedCount = employees.filter(e => e.status === 'Resigned').length;
 
+  const filteredEmployees = employees.filter(e => {
+    const matchesSearch = 
+      e.employee_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      e.employee_code?.toString().includes(searchQuery) ||
+      (e.department && e.department.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (e.status && e.status.toLowerCase().includes(searchQuery.toLowerCase()));
 
-  const filteredEmployees = employees.filter(e => 
-    e.employee_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    e.employee_code.toString().includes(searchQuery) ||
-    (e.department && e.department.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+    const matchesStatus = 
+      dropdownStatusFilter === 'All' || 
+      e.status?.toLowerCase() === dropdownStatusFilter.toLowerCase();
+
+    return matchesSearch && matchesStatus;
+  });
 
   const currentEmp = sheetData?.employee;
   const summary = sheetData?.summary;
@@ -164,7 +213,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
       >
         {/* Left: Employee Search & Switcher Dropdown */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, minWidth: '280px', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative', width: '100%', maxWidth: '380px' }}>
+          <div style={{ position: 'relative', width: '100%', maxWidth: '420px' }} ref={dropdownRef}>
             <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--slate-500)', textTransform: 'uppercase', marginBottom: '0.25rem', display: 'block' }}>
               Select Employee Profile
             </label>
@@ -183,13 +232,15 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                 boxShadow: isDropdownOpen ? '0 0 0 3px rgba(2, 132, 199, 0.12)' : 'none'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', overflow: 'hidden' }}>
                 <div 
                   style={{
-                    width: '30px',
-                    height: '30px',
+                    width: '32px',
+                    height: '32px',
                     borderRadius: '8px',
-                    background: 'linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%)',
+                    background: currentEmp?.status === 'Resigned'
+                      ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+                      : 'linear-gradient(135deg, var(--primary-600) 0%, var(--primary-700) 100%)',
                     color: '#ffffff',
                     display: 'flex',
                     alignItems: 'center',
@@ -202,15 +253,34 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                   {currentEmp?.employee_name?.charAt(0) || 'E'}
                 </div>
                 <div style={{ overflow: 'hidden' }}>
-                  <div style={{ fontWeight: '600', fontSize: '0.875rem', color: 'var(--slate-900)', lineHeight: '1.2', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                    {currentEmp?.employee_name || 'Select Employee...'}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: '700', fontSize: '0.875rem', color: 'var(--slate-900)', lineHeight: '1.2', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                      {currentEmp?.employee_name || 'Select Employee...'}
+                    </span>
+                    {currentEmp?.status && (
+                      <span 
+                        className={`badge ${currentEmp.status === 'Working' ? 'badge-working' : 'badge-resigned'}`}
+                        style={{ fontSize: '0.675rem', padding: '0.1rem 0.4rem', lineHeight: '1' }}
+                      >
+                        <span className="badge-dot" style={{ width: '5px', height: '5px' }}></span>
+                        {currentEmp.status}
+                      </span>
+                    )}
                   </div>
-                  <div style={{ fontSize: '0.725rem', color: 'var(--slate-500)' }}>
-                    Code: #{currentEmp?.employee_code || ''} • {currentEmp?.department || 'General'}
+                  <div style={{ fontSize: '0.725rem', color: 'var(--slate-500)', marginTop: '0.1rem' }}>
+                    Code: #{currentEmp?.employee_code || ''} • {currentEmp?.department || 'General'} • {currentEmp?.designation || 'Staff'}
                   </div>
                 </div>
               </div>
-              <ChevronDown size={16} style={{ color: 'var(--slate-500)', flexShrink: 0 }} />
+              <ChevronDown 
+                size={16} 
+                style={{ 
+                  color: 'var(--slate-500)', 
+                  flexShrink: 0, 
+                  transform: isDropdownOpen ? 'rotate(180deg)' : 'none', 
+                  transition: 'transform 0.2s' 
+                }} 
+              />
             </div>
 
             {/* Dropdown Menu */}
@@ -227,61 +297,154 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                   borderRadius: 'var(--radius-md)',
                   boxShadow: 'var(--shadow-xl)',
                   zIndex: 50,
-                  maxHeight: '320px',
+                  maxHeight: '360px',
                   overflow: 'hidden',
                   display: 'flex',
                   flexDirection: 'column'
                 }}
               >
-                <div style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color-light)', background: 'var(--slate-50)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.6rem', background: '#ffffff', border: '1px solid var(--slate-200)', borderRadius: '6px' }}>
+                {/* Search & Status Filter Tabs Header */}
+                <div style={{ padding: '0.5rem 0.6rem 0.4rem 0.6rem', borderBottom: '1px solid var(--border-color-light)', background: 'var(--slate-50)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.6rem', background: '#ffffff', border: '1px solid var(--slate-200)', borderRadius: '6px', marginBottom: '0.4rem' }}>
                     <Search size={15} style={{ color: 'var(--slate-400)' }} />
                     <input 
                       type="text"
-                      placeholder="Search employee by name, code, dept..."
+                      placeholder="Search employee by name, code, dept, status..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '0.8125rem' }}
                       autoFocus
                     />
                   </div>
+
+                  {/* Status Filter Tabs */}
+                  <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto' }}>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setDropdownStatusFilter('All'); }}
+                      style={{
+                        fontSize: '0.7rem',
+                        fontWeight: '700',
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '999px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: dropdownStatusFilter === 'All' ? 'var(--slate-800)' : 'var(--slate-200)',
+                        color: dropdownStatusFilter === 'All' ? '#ffffff' : 'var(--slate-700)',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      All ({employees.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setDropdownStatusFilter('Working'); }}
+                      style={{
+                        fontSize: '0.7rem',
+                        fontWeight: '700',
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '999px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: dropdownStatusFilter === 'Working' ? '#059669' : '#ecfdf5',
+                        color: dropdownStatusFilter === 'Working' ? '#ffffff' : '#065f46',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      Working ({workingCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setDropdownStatusFilter('Resigned'); }}
+                      style={{
+                        fontSize: '0.7rem',
+                        fontWeight: '700',
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '999px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: dropdownStatusFilter === 'Resigned' ? '#e11d48' : '#fff1f2',
+                        color: dropdownStatusFilter === 'Resigned' ? '#ffffff' : '#9f1239',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      Resigned ({resignedCount})
+                    </button>
+                  </div>
                 </div>
+
+                {/* Employee List Items */}
                 <div style={{ overflowY: 'auto', flex: 1 }}>
-                  {filteredEmployees.map((emp) => {
-                    const isSelected = emp.employee_code === selectedEmployeeCode;
-                    return (
-                      <div
-                        key={emp.employee_code}
-                        onClick={() => {
-                          setSelectedEmployeeCode(emp.employee_code);
-                          setIsDropdownOpen(false);
-                          setSearchQuery('');
-                        }}
-                        style={{
-                          padding: '0.6rem 0.875rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          backgroundColor: isSelected ? 'var(--primary-50)' : 'transparent',
-                          borderLeft: isSelected ? '3px solid var(--primary-600)' : '3px solid transparent',
-                          cursor: 'pointer',
-                          transition: 'background 0.15s'
-                        }}
-                        onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--slate-50)'; }}
-                        onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
-                      >
-                        <div>
-                          <div style={{ fontWeight: isSelected ? '700' : '500', fontSize: '0.85rem', color: isSelected ? 'var(--primary-700)' : 'var(--slate-900)' }}>
-                            {emp.employee_name}
+                  {filteredEmployees.length === 0 ? (
+                    <div style={{ padding: '1.25rem', textAlign: 'center', color: 'var(--slate-400)', fontSize: '0.8125rem' }}>
+                      No employees match your search.
+                    </div>
+                  ) : (
+                    filteredEmployees.map((emp) => {
+                      const isSelected = emp.employee_code === selectedEmployeeCode;
+                      const isResigned = emp.status === 'Resigned';
+                      return (
+                        <div
+                          key={emp.employee_code}
+                          onClick={() => {
+                            setSelectedEmployeeCode(emp.employee_code);
+                            setIsDropdownOpen(false);
+                            setSearchQuery('');
+                          }}
+                          style={{
+                            padding: '0.6rem 0.875rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            backgroundColor: isSelected ? 'var(--primary-50)' : 'transparent',
+                            borderLeft: isSelected ? '3px solid var(--primary-600)' : '3px solid transparent',
+                            cursor: 'pointer',
+                            transition: 'background 0.15s'
+                          }}
+                          onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--slate-50)'; }}
+                          onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flex: 1, minWidth: 0 }}>
+                            <div 
+                              style={{
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '6px',
+                                background: isResigned ? '#fee2e2' : '#e0f2fe',
+                                color: isResigned ? '#b91c1c' : '#0369a1',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: '700',
+                                fontSize: '0.775rem',
+                                flexShrink: 0
+                              }}
+                            >
+                              {emp.employee_name?.charAt(0) || 'E'}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: isSelected ? '700' : '600', fontSize: '0.85rem', color: isSelected ? 'var(--primary-700)' : 'var(--slate-900)' }}>
+                                  {emp.employee_name}
+                                </span>
+                                <span 
+                                  className={`badge ${emp.status === 'Working' ? 'badge-working' : 'badge-resigned'}`}
+                                  style={{ fontSize: '0.65rem', padding: '0.05rem 0.35rem' }}
+                                >
+                                  <span className="badge-dot" style={{ width: '4px', height: '4px' }}></span>
+                                  {emp.status || 'Working'}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '0.725rem', color: 'var(--slate-500)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                #{emp.employee_code} • {emp.department || 'General'} • {emp.designation || 'Staff'} {emp.salary ? `• ₹${emp.salary}` : ''}
+                              </div>
+                            </div>
                           </div>
-                          <div style={{ fontSize: '0.725rem', color: 'var(--slate-500)' }}>
-                            #{emp.employee_code} • {emp.designation || emp.department || 'Staff'} {emp.salary ? `• ₹${emp.salary}` : ''}
-                          </div>
+                          {isSelected && <CheckCircle2 size={15} style={{ color: 'var(--primary-600)', flexShrink: 0, marginLeft: '0.5rem' }} />}
                         </div>
-                        {isSelected && <CheckCircle2 size={15} style={{ color: 'var(--primary-600)' }} />}
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               </div>
             )}
@@ -445,7 +608,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem', fontSize: '0.8125rem' }}>
                   <div><span style={{ color: 'var(--slate-500)' }}>Shift:</span> <strong>{currentEmp?.standard_in_time} - {currentEmp?.standard_out_time}</strong></div>
                   <div><span style={{ color: 'var(--slate-500)' }}>Daily Target:</span> <strong>{formatHoursToHHMM(currentEmp?.standard_work_hours)} hrs/d</strong></div>
-                  <div><span style={{ color: 'var(--slate-500)' }}>Master Break:</span> <strong>{currentEmp?.standard_break_minutes || 0}m</strong></div>
+                  <div><span style={{ color: 'var(--slate-500)' }}>Master Break:</span> <strong style={{ color: 'var(--primary-700)' }}>{formatBreakToHHMM(currentEmp?.standard_break_time || currentEmp?.standard_break_minutes || 0)}</strong></div>
                   <div><span style={{ color: 'var(--slate-500)' }}>Grace Window:</span> <strong>{currentEmp?.late_grace_minutes || 11}m</strong></div>
                   <div><span style={{ color: 'var(--slate-500)' }}>WOP Days:</span> <strong style={{ color: '#0284c7' }}>{currentEmp?.wop || 0}d</strong></div>
                   <div><span style={{ color: 'var(--slate-500)' }}>YPL Leaves:</span> <strong style={{ color: '#059669' }}>{currentEmp?.ypl || 0}d</strong></div>
@@ -672,14 +835,16 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                       <th>CALC MODE</th>
                       <th>SCHED IN</th>
                       <th>SCHED OUT</th>
-                      <th>TARGET</th>
+                      <th title="Target Shift Duration = Sched Out - Sched In">TARGET</th>
+                      <th title="Standard Master Break Time">STD BREAK</th>
+                      <th title="Scheduled Daily Work Time = Target - Std Break">WORK TIME</th>
                       <th>ACTUAL IN</th>
                       <th>ACTUAL OUT</th>
-                      <th>DURATION</th>
+                      <th title="Duration = IF Late IN >= 11m, (IF Late OUT >= 11m, (Sched OUT + 10m) - Actual IN, Actual OUT - Actual IN), (IF Late OUT >= 11m, (Sched OUT + 10m) - Sched IN, Actual OUT - Sched IN)">DURATION</th>
                       <th>BREAK OUT</th>
                       <th>BREAK IN</th>
-                      <th>EFF. BREAK</th>
-                      <th>ACTUAL WORK</th>
+                      <th title="Effective Break = Break IN - Break OUT">EFF. BREAK</th>
+                      <th title="Actual Work = If (STD BREAK <= EFF. BREAK) Then DURATION - EFF. BREAK Else DURATION - STD BREAK">ACTUAL WORK</th>
                       <th style={{ textAlign: 'center' }}>DIFF (+/-)</th>
                       <th>LATE BY</th>
                       <th>O.T.</th>
@@ -734,10 +899,10 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                               }`}
                               style={{ fontSize: '0.7rem', padding: '0.2rem 0.45rem' }}
                               title={
-                                r.calc_mode === 'Normal' ? 'Normal: A.OUT - Scheduled IN' :
-                                r.calc_mode === 'Both late' ? 'Both late: Scheduled OUT + 10m - A.IN' :
+                                r.calc_mode === 'Normal' ? 'Normal: A.OUT - Sched IN' :
+                                r.calc_mode === 'Both late' ? 'Both late: (Sched OUT + 10m) - A.IN' :
                                 r.calc_mode === 'Late IN only' ? 'Late IN only: A.OUT - A.IN' :
-                                r.calc_mode === 'Late OUT only' ? 'Late OUT only: Scheduled OUT + 10m - Scheduled IN' :
+                                r.calc_mode === 'Late OUT only' ? 'Late OUT only: (Sched OUT + 10m) - Sched IN' :
                                 r.calc_mode
                               }
                             >
@@ -746,18 +911,25 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                           </td>
                           <td style={{ color: 'var(--slate-600)' }}>{r.scheduled_in_time}</td>
                           <td style={{ color: 'var(--slate-600)' }}>{r.scheduled_out_time}</td>
+                          <td style={{ color: 'var(--slate-600)' }}>{r.scheduled_duration_formatted || '12:00'}</td>
+                          <td style={{ color: 'var(--slate-600)' }}>{r.scheduled_break_formatted || '00:00'}</td>
                           <td style={{ fontWeight: '600', color: 'var(--slate-700)' }}>{r.scheduled_work_formatted}</td>
                           <td style={{ fontWeight: isLate ? '700' : 'normal', color: isLate ? 'var(--warning-text)' : 'var(--slate-900)', background: isLate ? 'var(--warning-bg)' : 'transparent' }}>
                             {r.actual_in_time || '—'}
                           </td>
                           <td style={{ color: 'var(--slate-900)' }}>{r.actual_out_time || '—'}</td>
-                          <td style={{ color: 'var(--slate-600)' }}>{r.actual_duration_formatted}</td>
+                          <td style={{ color: 'var(--slate-700)', fontWeight: '600' }}>{r.actual_duration_formatted}</td>
                           <td style={{ color: 'var(--slate-700)' }}>{r.break_out || '—'}</td>
                           <td style={{ color: 'var(--slate-700)' }}>{r.break_in || '—'}</td>
-                          <td style={{ color: r.effective_break_minutes > 0 ? 'var(--primary-700)' : 'var(--slate-400)', fontWeight: r.effective_break_minutes > 0 ? '600' : 'normal' }} title={`Actual: ${r.actual_break_formatted}, Master: ${r.scheduled_break_formatted}`}>
+                          <td style={{ color: r.effective_break_minutes > 0 ? 'var(--primary-700)' : 'var(--slate-400)', fontWeight: r.effective_break_minutes > 0 ? '600' : 'normal' }} title={`Break IN (${r.break_in || '00:00'}) - Break OUT (${r.break_out || '00:00'}) = ${r.effective_break_formatted}`}>
                             {r.effective_break_minutes > 0 ? r.effective_break_formatted : '—'}
                           </td>
-                          <td style={{ fontWeight: '700', color: 'var(--slate-900)' }}>{r.actual_work_formatted}</td>
+                          <td 
+                            style={{ fontWeight: '700', color: 'var(--slate-900)' }}
+                            title={`Actual Work = Duration (${r.actual_duration_formatted}) - Break (${r.scheduled_break_minutes <= r.effective_break_minutes ? r.effective_break_formatted : r.scheduled_break_formatted}) = ${r.actual_work_formatted}`}
+                          >
+                            {r.actual_work_formatted}
+                          </td>
                           <td style={{ textAlign: 'center' }}>
                             <span style={{ fontWeight: '700', color: r.work_diff_minutes > 0 ? 'var(--success-text)' : (r.work_diff_minutes < 0 ? 'var(--danger-text)' : 'var(--slate-500)') }}>
                               {r.work_diff_formatted}
@@ -803,6 +975,8 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                     <tr>
                       <td>TOTAL</td>
                       <td style={{ textAlign: 'center' }}>{summary?.presentDays}P/{summary?.absentDays}A</td>
+                      <td>—</td>
+                      <td>—</td>
                       <td>—</td>
                       <td>—</td>
                       <td>—</td>

@@ -822,6 +822,93 @@ class AttendanceService {
   }
 
   /**
+   * Batch delete attendance records by array of IDs or matching filters
+   */
+  static deleteBatchAttendance(options) {
+    const db = getDatabase();
+
+    let ids = [];
+    let selectAllMatching = false;
+    let filters = {};
+
+    if (Array.isArray(options)) {
+      ids = options;
+    } else if (options && typeof options === 'object') {
+      ids = options.ids || [];
+      selectAllMatching = !!options.selectAllMatching;
+      filters = options.filters || {};
+    }
+
+    if (selectAllMatching) {
+      const { search = '', employeeCode = '', department = '', statusCode = '', startDate = '', endDate = '' } = filters;
+      const conditions = [];
+      const params = [];
+
+      if (search && search.trim() !== '') {
+        const term = `%${search.trim()}%`;
+        conditions.push(`(
+          employee_code LIKE ? OR 
+          employee_name LIKE ? OR 
+          department LIKE ? OR 
+          designation LIKE ? OR
+          shift_name LIKE ?
+        )`);
+        params.push(term, term, term, term, term);
+      }
+
+      if (employeeCode && employeeCode.trim() !== '' && employeeCode !== 'All') {
+        conditions.push('employee_code = ?');
+        params.push(employeeCode.trim());
+      }
+
+      if (department && department.trim() !== '' && department !== 'All') {
+        conditions.push('department = ?');
+        params.push(department.trim());
+      }
+
+      if (statusCode && statusCode.trim() !== '' && statusCode !== 'All') {
+        conditions.push('status_code = ?');
+        params.push(statusCode.trim().toUpperCase());
+      }
+
+      if (startDate && startDate.trim() !== '') {
+        conditions.push('attendance_date_iso >= ?');
+        params.push(startDate.trim());
+      }
+
+      if (endDate && endDate.trim() !== '') {
+        conditions.push('attendance_date_iso <= ?');
+        params.push(endDate.trim());
+      }
+
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      const deleteSql = `DELETE FROM attendance ${whereClause}`;
+      const info = db.prepare(deleteSql).run(...params);
+      return { success: true, deletedCount: info.changes };
+    }
+
+    const cleanIds = ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+    if (cleanIds.length === 0) {
+      return { success: true, deletedCount: 0 };
+    }
+
+    const deleteTx = db.transaction((idList) => {
+      let totalDeleted = 0;
+      const chunkSize = 500;
+      for (let i = 0; i < idList.length; i += chunkSize) {
+        const chunk = idList.slice(i, i + chunkSize);
+        const placeholders = chunk.map(() => '?').join(',');
+        const info = db.prepare(`DELETE FROM attendance WHERE id IN (${placeholders})`).run(...chunk);
+        totalDeleted += info.changes;
+      }
+      return totalDeleted;
+    });
+
+    const deletedCount = deleteTx(cleanIds);
+    return { success: true, deletedCount };
+  }
+
+  /**
    * Clear attendance records
    */
   static clearAttendance() {

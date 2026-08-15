@@ -27,6 +27,7 @@ export const EmployeeTable = ({
   sortOrder,
   onSort,
   onPageChange,
+  onLimitChange,
   onSelectEmployee,
   onOpenImportModal,
   loading = false
@@ -312,7 +313,12 @@ export const EmployeeTable = ({
       </div>
 
       {/* Pagination Bar */}
-      <Pagination pagination={pagination} onPageChange={onPageChange} />
+      <Pagination 
+        pagination={pagination} 
+        onPageChange={onPageChange} 
+        onLimitChange={onLimitChange}
+        pageSizeOptions={[20, 50, 100, 200]}
+      />
     </div>
   );
 };

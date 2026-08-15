@@ -8,12 +8,13 @@ import { Toast } from '../components/common/Toast';
 import { 
   FileSpreadsheet, 
   UploadCloud, 
-  Trash2
+  Trash2,
+  Users
 } from 'lucide-react';
 
 export const MasterDataPage = ({ onNavigateToEmployeeAttendance }) => {
   const [employees, setEmployees] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, limit: 15, total: 0, totalPages: 1 });
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
   const [departments, setDepartments] = useState([]);
   const [search, setSearch] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('All');
@@ -27,21 +28,22 @@ export const MasterDataPage = ({ onNavigateToEmployeeAttendance }) => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [toast, setToast] = useState({ message: '', type: 'success' });
 
-  const fetchEmployees = useCallback(async (page = 1) => {
+  const fetchEmployees = useCallback(async (page = 1, customLimit = null) => {
     try {
       setLoading(true);
+      const activeLimit = customLimit || pagination.limit || 20;
       const res = await employeeApi.getAll({
         search,
         department: selectedDepartment,
         status: selectedStatus,
         gender: selectedGender,
         page,
-        limit: pagination.limit,
+        limit: activeLimit,
         sortBy,
         sortOrder
       });
       setEmployees(res.data || []);
-      setPagination(res.pagination || { page: 1, limit: 15, total: 0, totalPages: 1 });
+      setPagination(res.pagination || { page: 1, limit: activeLimit, total: 0, totalPages: 1 });
     } catch (err) {
       console.error('Failed to fetch employees:', err);
       setToast({ message: 'Failed to load employee records', type: 'error' });
@@ -74,30 +76,35 @@ export const MasterDataPage = ({ onNavigateToEmployeeAttendance }) => {
     fetchEmployees(newPage);
   };
 
-  const handleSort = (column, direction) => {
-    setSortBy(column);
-    setSortOrder(direction);
+  const handleLimitChange = (newLimit) => {
+    setPagination(prev => ({ ...prev, limit: newLimit, page: 1 }));
+    fetchEmployees(1, newLimit);
   };
 
-  const handleClearData = async () => {
-    if (window.confirm('Are you sure you want to clear all imported master data?')) {
+  const handleSort = (columnKey, dir) => {
+    setSortBy(columnKey);
+    setSortOrder(dir);
+  };
+
+  const handleClearMasterData = async () => {
+    if (window.confirm('WARNING: Are you sure you want to clear ALL employee master data? This will reset all staff profiles.')) {
       try {
         await employeeApi.clear();
-        setToast({ message: 'Employee master data cleared successfully', type: 'info' });
+        setToast({ message: 'All employee records cleared', type: 'info' });
         fetchEmployees(1);
         fetchDepartments();
       } catch (err) {
-        setToast({ message: 'Failed to clear data', type: 'error' });
+        setToast({ message: 'Failed to clear master data', type: 'error' });
       }
     }
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Top Action Banner Card - Clean Light Theme */}
+      {/* Top Banner / Actions Card */}
       <div 
-        className="card"
-        style={{
+        className="card" 
+        style={{ 
           padding: '1.25rem 1.5rem',
           display: 'flex',
           alignItems: 'center',
@@ -121,14 +128,14 @@ export const MasterDataPage = ({ onNavigateToEmployeeAttendance }) => {
               flexShrink: 0
             }}
           >
-            <FileSpreadsheet size={22} />
+            <Users size={22} />
           </div>
           <div>
             <h2 style={{ color: 'var(--slate-900)', fontSize: '1.15rem', fontWeight: '700', margin: 0 }}>
-              Employee Master Data & Rules Center
+              Hospital Employees Master Directory
             </h2>
             <p style={{ color: 'var(--slate-500)', fontSize: '0.8125rem', marginTop: '0.15rem', marginBottom: 0 }}>
-              Maintain employee master profiles, shift timings, individual salary rates, late/overtime rules, and bond conditions.
+              Manage staff profiles, departmental shifts, grace periods, salary baselines, and individual attendance rules.
             </p>
           </div>
         </div>
@@ -139,13 +146,13 @@ export const MasterDataPage = ({ onNavigateToEmployeeAttendance }) => {
             onClick={() => setIsImportModalOpen(true)}
           >
             <UploadCloud size={15} />
-            Upload File / Workbook
+            Import Master Data
           </button>
 
           {employees.length > 0 && (
             <button
               className="btn btn-secondary btn-sm"
-              onClick={handleClearData}
+              onClick={handleClearMasterData}
               style={{ color: 'var(--danger-text)', borderColor: 'var(--danger-border)' }}
               title="Clear all master data"
             >
@@ -173,6 +180,7 @@ export const MasterDataPage = ({ onNavigateToEmployeeAttendance }) => {
         sortOrder={sortOrder}
         onSort={handleSort}
         onPageChange={handlePageChange}
+        onLimitChange={handleLimitChange}
         onSelectEmployee={(emp) => setSelectedEmployee(emp)}
         onOpenImportModal={() => setIsImportModalOpen(true)}
         loading={loading}

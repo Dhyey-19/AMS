@@ -225,6 +225,41 @@ class AttendanceController {
   }
 
   /**
+   * Delete batch of attendance records by array of IDs or matching filters
+   */
+  static async deleteBatch(req, res) {
+    try {
+      let { ids, selectAllMatching, filters } = req.body || {};
+
+      // Handle cases where the whole object was passed in ids
+      if (ids && typeof ids === 'object' && !Array.isArray(ids)) {
+        selectAllMatching = ids.selectAllMatching !== undefined ? ids.selectAllMatching : selectAllMatching;
+        filters = ids.filters || filters;
+        ids = ids.ids;
+      }
+
+      if (!selectAllMatching && (!ids || !Array.isArray(ids) || ids.length === 0)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please provide an array of attendance record IDs to delete or specify selectAllMatching'
+        });
+      }
+
+      const result = AttendanceService.deleteBatchAttendance({ ids, selectAllMatching, filters });
+      return res.status(200).json({
+        success: true,
+        message: `Successfully deleted ${result.deletedCount} attendance record(s)`,
+        deletedCount: result.deletedCount
+      });
+    } catch (err) {
+      return res.status(500).json({
+        success: false,
+        message: err.message || 'Failed to delete attendance records'
+      });
+    }
+  }
+
+  /**
    * Clear all attendance data
    */
   static async clearAttendance(req, res) {

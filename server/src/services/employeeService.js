@@ -58,6 +58,26 @@ class EmployeeService {
   }
 
   /**
+   * Helper to parse break time in either "HH:MM" (e.g. "01:00", "00:30") or minutes (e.g. 60)
+   */
+  static parseBreakTimeToMinutes(val) {
+    if (val === null || val === undefined || val === '') return 0;
+    if (typeof val === 'string' && val.includes(':')) {
+      const parts = val.split(':');
+      const h = parseInt(parts[0], 10) || 0;
+      const m = parseInt(parts[1], 10) || 0;
+      return h * 60 + m;
+    }
+    const num = parseFloat(val);
+    if (isNaN(num)) return 0;
+    // If decimal <= 12 and has decimal point (like 0.5, 1.0, 1.5, 2.0), treat as hours
+    if (num <= 12 && String(val).includes('.')) {
+      return Math.round(num * 60);
+    }
+    return Math.round(num);
+  }
+
+  /**
    * Parse either a CSV or XLSX file into an array of objects
    */
   static async parseFile(filePath) {
@@ -100,7 +120,8 @@ class EmployeeService {
     const salary = normalized['salary'] ? parseFloat(normalized['salary']) : null;
     const stdIn = CalculationEngine.formatTimeString(normalized['standardintime'] || normalized['intime'] || normalized['standardin'] || '08:00') || '08:00';
     const stdOut = CalculationEngine.formatTimeString(normalized['standardouttime'] || normalized['outtime'] || normalized['standardout'] || '20:00') || '20:00';
-    const stdBreak = normalized['standardbreakminutes'] ? parseInt(normalized['standardbreakminutes'], 10) : 0;
+    const rawBreak = normalized['standardbreaktime'] || normalized['standardbreakminutes'] || normalized['breaktime'] || normalized['breakhours'] || normalized['breakminutes'] || normalized['break'] || 0;
+    const stdBreak = this.parseBreakTimeToMinutes(rawBreak);
     
     let stdHours = 12.0;
     if (normalized['standardworkhours']) {
@@ -873,7 +894,7 @@ class EmployeeService {
       incentive: incentive,
       standard_in_time: data.standard_in_time || '08:00',
       standard_out_time: data.standard_out_time || '20:00',
-      standard_break_minutes: parseInt(data.standard_break_minutes, 10) || 0,
+      standard_break_minutes: this.parseBreakTimeToMinutes(data.standard_break_time !== undefined ? data.standard_break_time : data.standard_break_minutes),
       standard_work_hours: stdHours,
       payment_mode: data.payment_mode || 'Bank',
       late_grace_minutes: parseInt(data.late_grace_minutes, 10) || 11,

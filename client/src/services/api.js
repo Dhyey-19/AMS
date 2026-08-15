@@ -145,6 +145,11 @@ export const attendanceApi = {
     const res = await api.get('/attendance/reports/range', { params });
     return res.data;
   },
+  deleteBatch: async (payload) => {
+    const body = Array.isArray(payload) ? { ids: payload } : (payload || {});
+    const res = await api.post('/attendance/delete-batch', body);
+    return res.data;
+  },
   clear: async () => {
     const res = await api.delete('/attendance/clear');
     return res.data;

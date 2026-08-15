@@ -23,7 +23,8 @@ router.put('/employee/:code/date/:dateIso', AttendanceController.updateRecord);
 router.get('/reports/daily', AttendanceController.getDailyReport);
 router.get('/reports/monthly', AttendanceController.getMonthlyReport);
 
-// Clear data
+// Delete batch & clear data
+router.post('/delete-batch', AttendanceController.deleteBatch);
 router.delete('/clear', AttendanceController.clearAttendance);
 
 module.exports = router;

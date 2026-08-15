@@ -11,7 +11,7 @@ import {
 
 export const AttendanceImportPage = () => {
   const [records, setRecords] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, limit: 15, total: 0, totalPages: 1 });
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 });
   const [departments, setDepartments] = useState([]);
   const [search, setSearch] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState('All');
@@ -24,9 +24,10 @@ export const AttendanceImportPage = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [toast, setToast] = useState({ message: '', type: 'success' });
 
-  const fetchAttendance = useCallback(async (page = 1) => {
+  const fetchAttendance = useCallback(async (page = 1, customLimit = null) => {
     try {
       setLoading(true);
+      const activeLimit = customLimit || pagination.limit || 20;
       const res = await attendanceApi.getAll({
         search,
         department: selectedDepartment,
@@ -34,12 +35,12 @@ export const AttendanceImportPage = () => {
         startDate,
         endDate,
         page,
-        limit: pagination.limit,
+        limit: activeLimit,
         sortBy,
         sortOrder
       });
       setRecords(res.data || []);
-      setPagination(res.pagination || { page: 1, limit: 15, total: 0, totalPages: 1 });
+      setPagination(res.pagination || { page: 1, limit: activeLimit, total: 0, totalPages: 1 });
     } catch (err) {
       console.error('Failed to fetch attendance:', err);
       setToast({ message: 'Failed to load attendance logs', type: 'error' });
@@ -70,6 +71,11 @@ export const AttendanceImportPage = () => {
 
   const handlePageChange = (newPage) => {
     fetchAttendance(newPage);
+  };
+
+  const handleLimitChange = (newLimit) => {
+    setPagination(prev => ({ ...prev, limit: newLimit, page: 1 }));
+    fetchAttendance(1, newLimit);
   };
 
   const handleSort = (col, dir) => {
@@ -172,7 +178,12 @@ export const AttendanceImportPage = () => {
         sortOrder={sortOrder}
         onSort={handleSort}
         onPageChange={handlePageChange}
+        onLimitChange={handleLimitChange}
         onOpenImportModal={() => setIsImportModalOpen(true)}
+        onRecordsDeleted={(count) => {
+          fetchAttendance(pagination.page);
+          setToast({ message: `Successfully deleted ${count} attendance record(s)`, type: 'success' });
+        }}
         loading={loading}
       />
 
