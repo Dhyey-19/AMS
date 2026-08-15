@@ -72,13 +72,11 @@ function initSchema() {
       holiday_group TEXT,
       shift_group_code TEXT,
       salary REAL,
+      incentive REAL DEFAULT 0,
       standard_in_time TEXT DEFAULT '08:00',
       standard_out_time TEXT DEFAULT '20:00',
       standard_break_minutes INTEGER DEFAULT 0,
       standard_work_hours REAL DEFAULT 12.0,
-      rate_type TEXT DEFAULT 'hourly',
-      hourly_rate REAL,
-      daily_rate REAL,
       payment_mode TEXT DEFAULT 'Bank',
       late_grace_minutes INTEGER DEFAULT 11,
       late_deduction_multiplier REAL DEFAULT 0.5,
@@ -101,13 +99,11 @@ function initSchema() {
 
   // Migration for existing employees tables
   addColumnIfNotExists('employees', 'salary', 'REAL');
+  addColumnIfNotExists('employees', 'incentive', 'REAL DEFAULT 0');
   addColumnIfNotExists('employees', 'standard_in_time', "TEXT DEFAULT '08:00'");
   addColumnIfNotExists('employees', 'standard_out_time', "TEXT DEFAULT '20:00'");
   addColumnIfNotExists('employees', 'standard_break_minutes', 'INTEGER DEFAULT 0');
   addColumnIfNotExists('employees', 'standard_work_hours', 'REAL DEFAULT 12.0');
-  addColumnIfNotExists('employees', 'rate_type', "TEXT DEFAULT 'hourly'");
-  addColumnIfNotExists('employees', 'hourly_rate', 'REAL');
-  addColumnIfNotExists('employees', 'daily_rate', 'REAL');
   addColumnIfNotExists('employees', 'payment_mode', "TEXT DEFAULT 'Bank'");
   addColumnIfNotExists('employees', 'late_grace_minutes', 'INTEGER DEFAULT 11');
   addColumnIfNotExists('employees', 'late_deduction_multiplier', 'REAL DEFAULT 0.5');

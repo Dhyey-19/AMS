@@ -16,6 +16,21 @@ import {
 } from 'lucide-react';
 import { attendanceApi } from '../../services/api';
 
+const formatTimeToHHMM = (timeStr) => {
+  if (!timeStr) return '';
+  const str = String(timeStr).trim().replace('.', ':');
+  if (str === '-' || str === '—' || str.toLowerCase() === 'null') return '';
+  const parts = str.split(':');
+  if (parts.length >= 2) {
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    if (!isNaN(h) && !isNaN(m)) {
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+  }
+  return str;
+};
+
 export const EditDayAttendanceModal = ({
   isOpen,
   onClose,
@@ -48,10 +63,10 @@ export const EditDayAttendanceModal = ({
     if (record) {
       setFormData({
         status_code: record.status_code || 'P',
-        in_time: record.actual_in_time || record.in_time || '',
-        out_time: record.actual_out_time || record.out_time || '',
-        break_out: record.break_out || '',
-        break_in: record.break_in || '',
+        in_time: formatTimeToHHMM(record.actual_in_time || record.in_time || ''),
+        out_time: formatTimeToHHMM(record.actual_out_time || record.out_time || ''),
+        break_out: formatTimeToHHMM(record.break_out || ''),
+        break_in: formatTimeToHHMM(record.break_in || ''),
         leave_deduction: record.leave_deduction || 0,
         penalty_amount: record.penalty_amount || 0,
         overtime_override_minutes: record.overtime_override_minutes || 0,
@@ -271,14 +286,13 @@ export const EditDayAttendanceModal = ({
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">
                   <Clock size={13} style={{ display: 'inline', marginRight: '4px' }} />
-                  Actual In Time (24h)
+                  Actual In Time (HH:MM)
                 </label>
                 <input 
-                  type="text" 
+                  type="time" 
                   name="in_time"
                   value={formData.in_time || ''}
                   onChange={handleChange}
-                  placeholder="e.g. 08:05 or 09:20"
                   className="form-control"
                 />
                 <small style={{ color: 'var(--slate-400)', fontSize: '0.725rem' }}>Scheduled: {employee?.standard_in_time || '08:00'}</small>
@@ -287,14 +301,13 @@ export const EditDayAttendanceModal = ({
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">
                   <Clock size={13} style={{ display: 'inline', marginRight: '4px' }} />
-                  Actual Out Time (24h)
+                  Actual Out Time (HH:MM)
                 </label>
                 <input 
-                  type="text" 
+                  type="time" 
                   name="out_time"
                   value={formData.out_time || ''}
                   onChange={handleChange}
-                  placeholder="e.g. 20:05 or 19:24"
                   className="form-control"
                 />
                 <small style={{ color: 'var(--slate-400)', fontSize: '0.725rem' }}>Scheduled: {employee?.standard_out_time || '20:00'}</small>
@@ -306,14 +319,13 @@ export const EditDayAttendanceModal = ({
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">
                   <Coffee size={13} style={{ display: 'inline', marginRight: '4px' }} />
-                  Break Out Time (24h)
+                  Break Out Time (HH:MM)
                 </label>
                 <input 
-                  type="text" 
+                  type="time" 
                   name="break_out"
                   value={formData.break_out || ''}
                   onChange={handleChange}
-                  placeholder="e.g. 13:00"
                   className="form-control"
                 />
               </div>
@@ -321,14 +333,13 @@ export const EditDayAttendanceModal = ({
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">
                   <Coffee size={13} style={{ display: 'inline', marginRight: '4px' }} />
-                  Break In Time (24h)
+                  Break In Time (HH:MM)
                 </label>
                 <input 
-                  type="text" 
+                  type="time" 
                   name="break_in"
                   value={formData.break_in || ''}
                   onChange={handleChange}
-                  placeholder="e.g. 14:00 or 13:45"
                   className="form-control"
                 />
               </div>

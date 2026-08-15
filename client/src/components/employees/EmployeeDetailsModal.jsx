@@ -13,6 +13,20 @@ export const EmployeeDetailsModal = ({ isOpen, onClose, employee, onOpenAttendan
     return dateStr;
   };
 
+  const formatHoursToHHMM = (hrs) => {
+    if (hrs === null || hrs === undefined || hrs === '') return '12:00';
+    if (typeof hrs === 'string' && hrs.includes(':')) {
+      const parts = hrs.split(':');
+      const h = parseInt(parts[0], 10) || 0;
+      const m = parseInt(parts[1], 10) || 0;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+    const totalMins = Math.round(parseFloat(hrs) * 60);
+    const h = Math.floor(totalMins / 60);
+    const m = Math.round(totalMins % 60);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -110,7 +124,7 @@ export const EmployeeDetailsModal = ({ isOpen, onClose, employee, onOpenAttendan
             </div>
             <div className="detail-item">
               <span className="detail-item-label">Standard Daily Hours</span>
-              <span className="detail-item-value" style={{ fontWeight: '700', color: '#0284c7' }}>{employee.standard_work_hours || 12} hrs</span>
+              <span className="detail-item-value" style={{ fontWeight: '700', color: '#0284c7' }}>{formatHoursToHHMM(employee.standard_work_hours || 12)} hrs</span>
             </div>
             <div className="detail-item">
               <span className="detail-item-label">Standard Break</span>
@@ -155,7 +169,7 @@ export const EmployeeDetailsModal = ({ isOpen, onClose, employee, onOpenAttendan
         <div>
           <h4 style={{ fontSize: '0.9375rem', fontWeight: '700', color: '#334155', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
             <DollarSign size={16} color="#15803d" />
-            Salary & Rate Specifications
+            Salary & Incentive Specifications
           </h4>
           <div className="detail-info-grid">
             <div className="detail-item">
@@ -165,16 +179,14 @@ export const EmployeeDetailsModal = ({ isOpen, onClose, employee, onOpenAttendan
               </span>
             </div>
             <div className="detail-item">
+              <span className="detail-item-label">Monthly Incentive</span>
+              <span className="detail-item-value" style={{ fontWeight: '600', color: '#0284c7' }}>
+                {employee.incentive ? `₹${Number(employee.incentive).toLocaleString()}` : '₹0'}
+              </span>
+            </div>
+            <div className="detail-item">
               <span className="detail-item-label">Payment Mode</span>
               <span className="detail-item-value">{employee.payment_mode || 'Bank'}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-item-label">Hourly Rate</span>
-              <span className="detail-item-value">{employee.hourly_rate ? `₹${employee.hourly_rate}/hr` : 'Auto Computed'}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-item-label">Daily Rate</span>
-              <span className="detail-item-value">{employee.daily_rate ? `₹${employee.daily_rate}/day` : 'Auto Computed'}</span>
             </div>
           </div>
         </div>

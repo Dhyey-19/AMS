@@ -101,7 +101,17 @@ class EmployeeService {
     const stdIn = CalculationEngine.formatTimeString(normalized['standardintime'] || normalized['intime'] || normalized['standardin'] || '08:00') || '08:00';
     const stdOut = CalculationEngine.formatTimeString(normalized['standardouttime'] || normalized['outtime'] || normalized['standardout'] || '20:00') || '20:00';
     const stdBreak = normalized['standardbreakminutes'] ? parseInt(normalized['standardbreakminutes'], 10) : 0;
-    const stdHours = normalized['standardworkhours'] ? parseFloat(normalized['standardworkhours']) : 12.0;
+    
+    let stdHours = 12.0;
+    if (normalized['standardworkhours']) {
+      stdHours = this.parseWorkHours(normalized['standardworkhours'], 12.0);
+    } else {
+      const inM = CalculationEngine.timeToMinutes(stdIn);
+      const outM = CalculationEngine.timeToMinutes(stdOut);
+      let diff = outM >= inM ? (outM - inM) : (1440 - inM + outM);
+      let workM = Math.max(0, diff - stdBreak);
+      stdHours = workM > 0 ? Number((workM / 60).toFixed(4)) : 12.0;
+    }
 
     return {
       employee_code: employeeCode.toString().trim(),
@@ -128,13 +138,11 @@ class EmployeeService {
       holiday_group: normalized['holidaygroup'] || null,
       shift_group_code: normalized['shiftgroupcode'] || null,
       salary: salary,
+      incentive: normalized['incentive'] ? parseFloat(normalized['incentive']) : 0,
       standard_in_time: stdIn,
       standard_out_time: stdOut,
       standard_break_minutes: stdBreak,
       standard_work_hours: stdHours,
-      rate_type: normalized['ratetype'] || 'hourly',
-      hourly_rate: normalized['hourlyrate'] ? parseFloat(normalized['hourlyrate']) : null,
-      daily_rate: normalized['dailyrate'] ? parseFloat(normalized['dailyrate']) : null,
       payment_mode: normalized['paymentmode'] || 'Bank',
       late_grace_minutes: normalized['lategraceminutes'] ? parseInt(normalized['lategraceminutes'], 10) : 11,
       late_deduction_multiplier: normalized['latedeductionmultiplier'] ? parseFloat(normalized['latedeductionmultiplier']) : 0.5,
@@ -170,8 +178,8 @@ class EmployeeService {
         employment_type, gender, doj, doc, dob,
         rfid, uid_no, pan_no, voter_id_no, status,
         dor, holiday_group, shift_group_code,
-        salary, standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
-        rate_type, hourly_rate, daily_rate, payment_mode,
+        salary, incentive, standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
+        payment_mode,
         late_grace_minutes, late_deduction_multiplier, overtime_multiplier, overtime_allowed,
         min_overtime_minutes, min_overtime_deduction_minutes, special_rules, salary_history_json,
         wop, ypl
@@ -181,8 +189,8 @@ class EmployeeService {
         @employment_type, @gender, @doj, @doc, @dob,
         @rfid, @uid_no, @pan_no, @voter_id_no, @status,
         @dor, @holiday_group, @shift_group_code,
-        @salary, @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
-        @rate_type, @hourly_rate, @daily_rate, @payment_mode,
+        @salary, @incentive, @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
+        @payment_mode,
         @late_grace_minutes, @late_deduction_multiplier, @overtime_multiplier, @overtime_allowed,
         @min_overtime_minutes, @min_overtime_deduction_minutes, @special_rules, @salary_history_json,
         @wop, @ypl
@@ -214,13 +222,11 @@ class EmployeeService {
         holiday_group = @holiday_group,
         shift_group_code = @shift_group_code,
         salary = COALESCE(@salary, salary),
+        incentive = COALESCE(@incentive, incentive),
         standard_in_time = COALESCE(@standard_in_time, standard_in_time),
         standard_out_time = COALESCE(@standard_out_time, standard_out_time),
         standard_break_minutes = COALESCE(@standard_break_minutes, standard_break_minutes),
         standard_work_hours = COALESCE(@standard_work_hours, standard_work_hours),
-        rate_type = COALESCE(@rate_type, rate_type),
-        hourly_rate = COALESCE(@hourly_rate, hourly_rate),
-        daily_rate = COALESCE(@daily_rate, daily_rate),
         payment_mode = COALESCE(@payment_mode, payment_mode),
         late_grace_minutes = COALESCE(@late_grace_minutes, late_grace_minutes),
         late_deduction_multiplier = COALESCE(@late_deduction_multiplier, late_deduction_multiplier),
@@ -323,8 +329,8 @@ class EmployeeService {
         employee_code, employee_name, device_code, company, department,
         location, designation, grade, team, category,
         employment_type, gender, doj, status,
-        salary, standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
-        rate_type, hourly_rate, daily_rate, payment_mode,
+        salary, incentive, standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
+        payment_mode,
         late_grace_minutes, late_deduction_multiplier, overtime_multiplier, overtime_allowed,
         min_overtime_minutes, min_overtime_deduction_minutes, special_rules, salary_history_json,
         wop, ypl
@@ -332,8 +338,8 @@ class EmployeeService {
         @employee_code, @employee_name, @device_code, @company, @department,
         @location, @designation, @grade, @team, @category,
         @employment_type, @gender, @doj, @status,
-        @salary, @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
-        @rate_type, @hourly_rate, @daily_rate, @payment_mode,
+        @salary, @incentive, @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
+        @payment_mode,
         @late_grace_minutes, @late_deduction_multiplier, @overtime_multiplier, @overtime_allowed,
         @min_overtime_minutes, @min_overtime_deduction_minutes, @special_rules, @salary_history_json,
         @wop, @ypl
@@ -344,13 +350,11 @@ class EmployeeService {
         designation = CASE WHEN excluded.designation IS NOT NULL THEN excluded.designation ELSE employees.designation END,
         doj = COALESCE(excluded.doj, employees.doj),
         salary = COALESCE(excluded.salary, employees.salary),
+        incentive = COALESCE(excluded.incentive, employees.incentive),
         standard_in_time = COALESCE(excluded.standard_in_time, employees.standard_in_time),
         standard_out_time = COALESCE(excluded.standard_out_time, employees.standard_out_time),
         standard_break_minutes = COALESCE(excluded.standard_break_minutes, employees.standard_break_minutes),
         standard_work_hours = COALESCE(excluded.standard_work_hours, employees.standard_work_hours),
-        rate_type = COALESCE(excluded.rate_type, employees.rate_type),
-        hourly_rate = COALESCE(excluded.hourly_rate, employees.hourly_rate),
-        daily_rate = COALESCE(excluded.daily_rate, employees.daily_rate),
         payment_mode = COALESCE(excluded.payment_mode, employees.payment_mode),
         special_rules = COALESCE(excluded.special_rules, employees.special_rules),
         salary_history_json = COALESCE(excluded.salary_history_json, employees.salary_history_json),
@@ -536,13 +540,6 @@ class EmployeeService {
 
           const existingDb = existingMap.get(empCode);
 
-          // Rates
-          const rates = CalculationEngine.getEmployeeRates({
-            salary,
-            standard_work_hours: stdHours,
-            rate_type: 'hourly'
-          }, 31);
-
           // Upsert Employee Master
           upsertEmpStmt.run({
             employee_code: empCode,
@@ -560,13 +557,11 @@ class EmployeeService {
             doj: doj || existingDb?.doj || null,
             status: 'Working',
             salary: salary,
+            incentive: existingDb?.incentive || 0,
             standard_in_time: stdIn,
             standard_out_time: stdOut,
             standard_break_minutes: stdBreak,
             standard_work_hours: stdHours,
-            rate_type: 'hourly',
-            hourly_rate: rates.hourlyRate,
-            daily_rate: rates.dailyRate,
             payment_mode: paymentMode,
             late_grace_minutes: 11,
             late_deduction_multiplier: 0.5,
@@ -679,6 +674,21 @@ class EmployeeService {
 
 
   /**
+   * Helper to parse work hours from HH:MM string or float decimal
+   */
+  static parseWorkHours(val, defaultVal = 12.0) {
+    if (val === null || val === undefined || val === '') return defaultVal;
+    if (typeof val === 'string' && val.includes(':')) {
+      const parts = val.split(':').map(Number);
+      const h = parts[0] || 0;
+      const m = parts[1] || 0;
+      return Number((h + m / 60).toFixed(4));
+    }
+    const num = parseFloat(val);
+    return isNaN(num) ? defaultVal : num;
+  }
+
+  /**
    * Update Employee Master Manual Fields
    */
   static updateEmployee(employeeCode, updateData) {
@@ -689,29 +699,14 @@ class EmployeeService {
     }
 
     const stdHours = updateData.standard_work_hours !== undefined
-      ? parseFloat(updateData.standard_work_hours)
+      ? this.parseWorkHours(updateData.standard_work_hours, existing.standard_work_hours || 12.0)
       : existing.standard_work_hours;
     const salary = updateData.salary !== undefined
-      ? parseFloat(updateData.salary)
+      ? (updateData.salary !== null && updateData.salary !== '' ? parseFloat(updateData.salary) : null)
       : existing.salary;
-
-    // Recalculate default rates if not explicitly passed
-    let hourlyRate = updateData.hourly_rate !== undefined
-      ? parseFloat(updateData.hourly_rate)
-      : existing.hourly_rate;
-    let dailyRate = updateData.daily_rate !== undefined
-      ? parseFloat(updateData.daily_rate)
-      : existing.daily_rate;
-
-    if ((!hourlyRate || hourlyRate <= 0) && salary > 0 && stdHours > 0) {
-      const computed = CalculationEngine.getEmployeeRates({
-        salary,
-        standard_work_hours: stdHours,
-        rate_type: updateData.rate_type || existing.rate_type || 'hourly'
-      }, 30);
-      hourlyRate = computed.hourlyRate;
-      dailyRate = computed.dailyRate;
-    }
+    const incentive = updateData.incentive !== undefined
+      ? (updateData.incentive !== null && updateData.incentive !== '' ? parseFloat(updateData.incentive) : 0)
+      : (existing.incentive || 0);
 
     const stmt = db.prepare(`
       UPDATE employees SET
@@ -738,13 +733,11 @@ class EmployeeService {
         holiday_group = COALESCE(@holiday_group, holiday_group),
         shift_group_code = COALESCE(@shift_group_code, shift_group_code),
         salary = @salary,
+        incentive = @incentive,
         standard_in_time = COALESCE(@standard_in_time, standard_in_time),
         standard_out_time = COALESCE(@standard_out_time, standard_out_time),
         standard_break_minutes = COALESCE(@standard_break_minutes, standard_break_minutes),
         standard_work_hours = @standard_work_hours,
-        rate_type = COALESCE(@rate_type, rate_type),
-        hourly_rate = @hourly_rate,
-        daily_rate = @daily_rate,
         payment_mode = COALESCE(@payment_mode, payment_mode),
         late_grace_minutes = COALESCE(@late_grace_minutes, late_grace_minutes),
         late_deduction_multiplier = COALESCE(@late_deduction_multiplier, late_deduction_multiplier),
@@ -785,13 +778,11 @@ class EmployeeService {
       holiday_group: updateData.holiday_group ?? existing.holiday_group,
       shift_group_code: updateData.shift_group_code ?? existing.shift_group_code,
       salary: salary,
+      incentive: incentive,
       standard_in_time: updateData.standard_in_time ?? existing.standard_in_time,
       standard_out_time: updateData.standard_out_time ?? existing.standard_out_time,
       standard_break_minutes: updateData.standard_break_minutes ?? existing.standard_break_minutes,
       standard_work_hours: stdHours,
-      rate_type: updateData.rate_type ?? existing.rate_type,
-      hourly_rate: hourlyRate,
-      daily_rate: dailyRate,
       payment_mode: updateData.payment_mode ?? existing.payment_mode,
       late_grace_minutes: updateData.late_grace_minutes ?? existing.late_grace_minutes,
       late_deduction_multiplier: updateData.late_deduction_multiplier ?? existing.late_deduction_multiplier,
@@ -822,20 +813,11 @@ class EmployeeService {
       throw new Error(`Employee with code ${data.employee_code} already exists`);
     }
 
-    const stdHours = data.standard_work_hours ? parseFloat(data.standard_work_hours) : 12.0;
+    const stdHours = data.standard_work_hours !== undefined
+      ? this.parseWorkHours(data.standard_work_hours, 12.0)
+      : 12.0;
     const salary = data.salary ? parseFloat(data.salary) : null;
-    let hourlyRate = data.hourly_rate ? parseFloat(data.hourly_rate) : null;
-    let dailyRate = data.daily_rate ? parseFloat(data.daily_rate) : null;
-
-    if ((!hourlyRate || hourlyRate <= 0) && salary > 0 && stdHours > 0) {
-      const computed = CalculationEngine.getEmployeeRates({
-        salary,
-        standard_work_hours: stdHours,
-        rate_type: data.rate_type || 'hourly'
-      }, 30);
-      hourlyRate = computed.hourlyRate;
-      dailyRate = computed.dailyRate;
-    }
+    const incentive = data.incentive ? parseFloat(data.incentive) : 0;
 
     const stmt = db.prepare(`
       INSERT INTO employees (
@@ -844,8 +826,8 @@ class EmployeeService {
         employment_type, gender, doj, doc, dob,
         rfid, uid_no, pan_no, voter_id_no, status,
         dor, holiday_group, shift_group_code,
-        salary, standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
-        rate_type, hourly_rate, daily_rate, payment_mode,
+        salary, incentive, standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
+        payment_mode,
         late_grace_minutes, late_deduction_multiplier, overtime_multiplier, overtime_allowed,
         min_overtime_minutes, min_overtime_deduction_minutes, special_rules, salary_history_json,
         wop, ypl
@@ -855,8 +837,8 @@ class EmployeeService {
         @employment_type, @gender, @doj, @doc, @dob,
         @rfid, @uid_no, @pan_no, @voter_id_no, @status,
         @dor, @holiday_group, @shift_group_code,
-        @salary, @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
-        @rate_type, @hourly_rate, @daily_rate, @payment_mode,
+        @salary, @incentive, @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
+        @payment_mode,
         @late_grace_minutes, @late_deduction_multiplier, @overtime_multiplier, @overtime_allowed,
         @min_overtime_minutes, @min_overtime_deduction_minutes, @special_rules, @salary_history_json,
         @wop, @ypl
@@ -888,13 +870,11 @@ class EmployeeService {
       holiday_group: data.holiday_group || null,
       shift_group_code: data.shift_group_code || null,
       salary: salary,
+      incentive: incentive,
       standard_in_time: data.standard_in_time || '08:00',
       standard_out_time: data.standard_out_time || '20:00',
       standard_break_minutes: parseInt(data.standard_break_minutes, 10) || 0,
       standard_work_hours: stdHours,
-      rate_type: data.rate_type || 'hourly',
-      hourly_rate: hourlyRate,
-      daily_rate: dailyRate,
       payment_mode: data.payment_mode || 'Bank',
       late_grace_minutes: parseInt(data.late_grace_minutes, 10) || 11,
       late_deduction_multiplier: parseFloat(data.late_deduction_multiplier) || 0.5,

@@ -44,7 +44,7 @@ export const EmployeeTable = ({
 
     const headers = [
       'EmployeeCode', 'EmployeeName', 'DeviceCode', 'Department', 'Designation',
-      'Gender', 'DOJ', 'Status', 'DOR', 'ShiftGroupCode'
+      'Gender', 'DOJ', 'Salary', 'Incentive', 'Status', 'DOR', 'ShiftGroupCode'
     ];
 
     const rows = employees.map(emp => [
@@ -55,6 +55,8 @@ export const EmployeeTable = ({
       `"${emp.designation || ''}"`,
       `"${emp.gender || ''}"`,
       `"${emp.doj || ''}"`,
+      `"${emp.salary ?? ''}"`,
+      `"${emp.incentive ?? 0}"`,
       `"${emp.status || ''}"`,
       `"${emp.dor || ''}"`,
       `"${emp.shift_group_code || ''}"`

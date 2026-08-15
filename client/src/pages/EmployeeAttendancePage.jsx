@@ -469,9 +469,9 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem', fontSize: '0.8125rem' }}>
                   <div><span style={{ color: 'var(--slate-600)' }}>Base Salary:</span> <strong style={{ color: 'var(--success-text)', fontSize: '0.95rem' }}>₹{currentEmp?.salary?.toLocaleString() || '0'}</strong></div>
-                  <div><span style={{ color: 'var(--slate-600)' }}>Hourly:</span> <strong>₹{summary?.hourlyRate}/hr</strong></div>
+                  <div><span style={{ color: 'var(--slate-600)' }}>Incentive:</span> <strong style={{ color: '#0284c7' }}>₹{currentEmp?.incentive?.toLocaleString() || '0'}</strong></div>
+                  <div><span style={{ color: 'var(--slate-600)' }}>Hourly Rate:</span> <strong>₹{summary?.hourlyRate}/hr</strong></div>
                   <div><span style={{ color: 'var(--slate-600)' }}>Daily Rate:</span> <strong>₹{summary?.dailyRate}/day</strong> ({summary?.calendarDays}d)</div>
-                  <div><span style={{ color: 'var(--slate-600)' }}>Late / OT:</span> <strong>{currentEmp?.late_deduction_multiplier}x / {currentEmp?.is_doctor ? '0x (Doctor)' : `${currentEmp?.overtime_multiplier}x`}</strong></div>
                 </div>
               </div>
             </div>

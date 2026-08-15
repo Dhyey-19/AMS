@@ -17,6 +17,73 @@ import {
 } from 'lucide-react';
 import { employeeApi } from '../../services/api';
 
+const parseTimeToMinutes = (timeStr) => {
+  if (!timeStr) return null;
+  const str = String(timeStr).trim().replace('.', ':');
+  const parts = str.split(':');
+  if (parts.length < 2) return null;
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  if (isNaN(h) || isNaN(m)) return null;
+  return h * 60 + m;
+};
+
+const formatTimeToHHMM = (timeStr) => {
+  if (!timeStr) return '';
+  const str = String(timeStr).trim().replace('.', ':');
+  if (str === '-' || str === '—' || str.toLowerCase() === 'null') return '';
+  const parts = str.split(':');
+  if (parts.length >= 2) {
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    if (!isNaN(h) && !isNaN(m)) {
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+  }
+  return str;
+};
+
+const minutesToHHMM = (totalMins) => {
+  if (totalMins === null || totalMins === undefined || isNaN(totalMins) || totalMins < 0) return '00:00';
+  const h = Math.floor(totalMins / 60);
+  const m = Math.round(totalMins % 60);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+
+const formatHoursToHHMM = (hrs) => {
+  if (hrs === null || hrs === undefined || hrs === '') return '12:00';
+  if (typeof hrs === 'string' && hrs.includes(':')) {
+    const parts = hrs.split(':');
+    const h = parseInt(parts[0], 10) || 0;
+    const m = parseInt(parts[1], 10) || 0;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+  const totalMins = Math.round(parseFloat(hrs) * 60);
+  return minutesToHHMM(totalMins);
+};
+
+const calculateWorkHoursFromShift = (inTime, outTime, breakMins) => {
+  const inM = parseTimeToMinutes(inTime);
+  const outM = parseTimeToMinutes(outTime);
+  if (inM === null || outM === null) return null;
+  const bM = parseInt(breakMins, 10) || 0;
+  let durationMins = outM >= inM ? (outM - inM) : (1440 - inM + outM);
+  let workMins = Math.max(0, durationMins - bM);
+  return minutesToHHMM(workMins);
+};
+
+const parseWorkHoursToDecimal = (val) => {
+  if (val === null || val === undefined || val === '') return 12.0;
+  if (typeof val === 'string' && val.includes(':')) {
+    const parts = val.split(':');
+    const h = parseInt(parts[0], 10) || 0;
+    const m = parseInt(parts[1], 10) || 0;
+    return Number((h + m / 60).toFixed(4));
+  }
+  const num = parseFloat(val);
+  return isNaN(num) ? 12.0 : num;
+};
+
 export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }) => {
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
@@ -42,6 +109,16 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
 
   useEffect(() => {
     if (employee) {
+      const stdIn = formatTimeToHHMM(employee.standard_in_time || '08:00');
+      const stdOut = formatTimeToHHMM(employee.standard_out_time || '20:00');
+      const stdBreak = employee.standard_break_minutes !== undefined && employee.standard_break_minutes !== null ? employee.standard_break_minutes : 0;
+      
+      let workHoursHHMM = formatHoursToHHMM(employee.standard_work_hours);
+      if (!employee.standard_work_hours && stdIn && stdOut) {
+        const computed = calculateWorkHoursFromShift(stdIn, stdOut, stdBreak);
+        if (computed) workHoursHHMM = computed;
+      }
+
       setFormData({
         employee_code: employee.employee_code || '',
         employee_name: employee.employee_name || '',
@@ -53,13 +130,11 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
         gender: employee.gender || 'Not Specified',
         doj: employee.doj || '',
         salary: employee.salary !== null && employee.salary !== undefined ? employee.salary : '',
-        standard_in_time: employee.standard_in_time || '08:00',
-        standard_out_time: employee.standard_out_time || '20:00',
-        standard_break_minutes: employee.standard_break_minutes || 0,
-        standard_work_hours: employee.standard_work_hours || 12.0,
-        rate_type: employee.rate_type || 'hourly',
-        hourly_rate: employee.hourly_rate || '',
-        daily_rate: employee.daily_rate || '',
+        incentive: employee.incentive !== null && employee.incentive !== undefined ? employee.incentive : '',
+        standard_in_time: stdIn,
+        standard_out_time: stdOut,
+        standard_break_minutes: stdBreak,
+        standard_work_hours: workHoursHHMM,
         payment_mode: employee.payment_mode || 'Bank',
         late_grace_minutes: employee.late_grace_minutes || 11,
         late_deduction_multiplier: employee.late_deduction_multiplier ?? 0.5,
@@ -83,24 +158,28 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? (checked ? 1 : 0) : value
-    }));
-  };
+    const val = type === 'checkbox' ? (checked ? 1 : 0) : value;
 
-  const handleAutoRateCalc = () => {
-    const sal = parseFloat(formData.salary) || 0;
-    const hrs = parseFloat(formData.standard_work_hours) || 8;
-    if (sal > 0 && hrs > 0) {
-      const daily = sal / 31;
-      const hourly = daily / hrs;
-      setFormData((prev) => ({
+    setFormData((prev) => {
+      const next = {
         ...prev,
-        daily_rate: Number(daily.toFixed(2)),
-        hourly_rate: Number(hourly.toFixed(2))
-      }));
-    }
+        [name]: val
+      };
+
+      // When In Time, Out Time, or Break Mins change, auto-calculate standard daily work hours
+      if (name === 'standard_in_time' || name === 'standard_out_time' || name === 'standard_break_minutes') {
+        const auto = calculateWorkHoursFromShift(
+          name === 'standard_in_time' ? val : next.standard_in_time,
+          name === 'standard_out_time' ? val : next.standard_out_time,
+          name === 'standard_break_minutes' ? val : next.standard_break_minutes
+        );
+        if (auto) {
+          next.standard_work_hours = auto;
+        }
+      }
+
+      return next;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -113,10 +192,9 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
       const payload = {
         ...formData,
         salary: formData.salary !== '' ? parseFloat(formData.salary) : null,
+        incentive: formData.incentive !== '' ? parseFloat(formData.incentive) : 0,
         standard_break_minutes: parseInt(formData.standard_break_minutes, 10) || 0,
-        standard_work_hours: parseFloat(formData.standard_work_hours) || 8.0,
-        hourly_rate: formData.hourly_rate !== '' ? parseFloat(formData.hourly_rate) : null,
-        daily_rate: formData.daily_rate !== '' ? parseFloat(formData.daily_rate) : null,
+        standard_work_hours: parseWorkHoursToDecimal(formData.standard_work_hours),
         late_grace_minutes: parseInt(formData.late_grace_minutes, 10) || 11,
         late_deduction_multiplier: parseFloat(formData.late_deduction_multiplier) || 0.5,
         overtime_multiplier: parseFloat(formData.overtime_multiplier) || 2.0,
@@ -309,45 +387,67 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Standard In Time (24h)</label>
+                    <label className="form-label">Standard In Time (HH:MM)</label>
                     <input 
-                      type="text" 
+                      type="time" 
                       name="standard_in_time"
-                      value={formData.standard_in_time}
+                      value={formData.standard_in_time || ''}
                       onChange={handleChange}
-                      placeholder="e.g. 08:00 or 09:30"
                       className="form-control"
                     />
-                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Format: HH:MM (e.g. 08:00, 09:30)</small>
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Time: HH:MM (e.g. 08:00, 09:30)</small>
                   </div>
 
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Standard Out Time (24h)</label>
+                    <label className="form-label">Standard Out Time (HH:MM)</label>
                     <input 
-                      type="text" 
+                      type="time" 
                       name="standard_out_time"
-                      value={formData.standard_out_time}
+                      value={formData.standard_out_time || ''}
                       onChange={handleChange}
-                      placeholder="e.g. 20:00 or 14:00"
                       className="form-control"
                     />
-                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Format: HH:MM (e.g. 20:00, 18:00)</small>
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Time: HH:MM (e.g. 20:00, 18:00)</small>
                   </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Standard Daily Work Hours</label>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                      <label className="form-label" style={{ margin: 0 }}>Standard Daily Work Hours (HH:MM)</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const auto = calculateWorkHoursFromShift(formData.standard_in_time, formData.standard_out_time, formData.standard_break_minutes);
+                          if (auto) {
+                            setFormData(prev => ({ ...prev, standard_work_hours: auto }));
+                          }
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--primary-600)',
+                          fontSize: '0.75rem',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          padding: 0
+                        }}
+                        title="Recalculate (Out - In - Break)"
+                      >
+                        Auto-Calculate
+                      </button>
+                    </div>
                     <input 
-                      type="number" 
-                      step="0.1"
+                      type="time" 
                       name="standard_work_hours"
-                      value={formData.standard_work_hours}
+                      value={formData.standard_work_hours || ''}
                       onChange={handleChange}
-                      placeholder="e.g. 12, 9, 8.5, 6, 4"
                       className="form-control"
+                      style={{ fontWeight: '700', color: 'var(--primary-700)', fontSize: '0.95rem' }}
                     />
-                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Expected work hours per duty day</small>
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>
+                      Time: HH:MM • Auto-calculated & Editable
+                    </small>
                   </div>
 
                   <div className="form-group" style={{ marginBottom: 0 }}>
@@ -417,13 +517,6 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                   <span style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--slate-500)', letterSpacing: '0.04em' }}>
                     Salary Structure & Calculation Basis
                   </span>
-                  <button
-                    type="button"
-                    onClick={handleAutoRateCalc}
-                    className="btn btn-outline-primary btn-sm"
-                  >
-                    <Sparkles size={13} /> Auto-Compute Rates
-                  </button>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
@@ -438,6 +531,22 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                       className="form-control"
                       style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--slate-900)' }}
                     />
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Fixed base salary per month</small>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Monthly Incentive (₹)</label>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      name="incentive"
+                      value={formData.incentive}
+                      onChange={handleChange}
+                      placeholder="e.g. 1000, 2500"
+                      className="form-control"
+                      style={{ fontWeight: '600', color: '#0284c7' }}
+                    />
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Additional monthly incentive</small>
                   </div>
 
                   <div className="form-group" style={{ marginBottom: 0 }}>
@@ -453,51 +562,58 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                       <option value="Cash">Cash</option>
                       <option value="TDS / Cheque">TDS / Cheque</option>
                     </select>
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Disbursement channel</small>
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem' }}>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Rate Type</label>
-                    <select
-                      name="rate_type"
-                      value={formData.rate_type}
-                      onChange={handleChange}
-                      className="form-control"
+                {/* Dynamic Rate Formulation Preview */}
+                {(() => {
+                  const base = parseFloat(formData.salary) || 0;
+                  const stdHours = parseWorkHoursToDecimal(formData.standard_work_hours) || 12.0;
+                  const estDailyRate30 = base > 0 ? (base / 30).toFixed(2) : '0.00';
+                  const estDailyRate31 = base > 0 ? (base / 31).toFixed(2) : '0.00';
+                  const estHourlyRate30 = base > 0 && stdHours > 0 ? ((base / 30) / stdHours).toFixed(2) : '0.00';
+                  const estHourlyRate31 = base > 0 && stdHours > 0 ? ((base / 31) / stdHours).toFixed(2) : '0.00';
+
+                  return (
+                    <div 
+                      style={{
+                        padding: '1rem',
+                        background: '#f8fafc',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.5rem'
+                      }}
                     >
-                      <option value="hourly">Hourly Rate Basis</option>
-                      <option value="daily">Daily Rate Basis</option>
-                      <option value="monthly_30">Monthly Divisor (30 Days)</option>
-                      <option value="monthly_31">Monthly Divisor (31 Days)</option>
-                    </select>
-                  </div>
-
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Hourly Rate (₹/hr)</label>
-                    <input 
-                      type="number" 
-                      step="0.01"
-                      name="hourly_rate"
-                      value={formData.hourly_rate}
-                      onChange={handleChange}
-                      placeholder="Auto if blank"
-                      className="form-control"
-                    />
-                  </div>
-
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Daily Rate (₹/day)</label>
-                    <input 
-                      type="number" 
-                      step="0.01"
-                      name="daily_rate"
-                      value={formData.daily_rate}
-                      onChange={handleChange}
-                      placeholder="Auto if blank"
-                      className="form-control"
-                    />
-                  </div>
-                </div>
+                      <div style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--slate-800)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Sparkles size={14} color="var(--primary-600)" /> Dynamic Rate Formulation (Auto-Computed per Month)
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', fontSize: '0.8125rem' }}>
+                        <div style={{ background: '#ffffff', padding: '0.6rem 0.75rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                          <span style={{ color: 'var(--slate-500)', display: 'block', fontSize: '0.75rem' }}>Daily Rate (31-day month)</span>
+                          <strong style={{ color: 'var(--primary-700)', fontSize: '1rem' }}>₹{estDailyRate31}</strong> / day
+                        </div>
+                        <div style={{ background: '#ffffff', padding: '0.6rem 0.75rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                          <span style={{ color: 'var(--slate-500)', display: 'block', fontSize: '0.75rem' }}>Hourly Rate (31-day month)</span>
+                          <strong style={{ color: 'var(--primary-700)', fontSize: '1rem' }}>₹{estHourlyRate31}</strong> / hr
+                        </div>
+                        <div style={{ background: '#ffffff', padding: '0.6rem 0.75rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                          <span style={{ color: 'var(--slate-500)', display: 'block', fontSize: '0.75rem' }}>Daily Rate (30-day month)</span>
+                          <strong style={{ color: 'var(--slate-800)', fontSize: '1rem' }}>₹{estDailyRate30}</strong> / day
+                        </div>
+                        <div style={{ background: '#ffffff', padding: '0.6rem 0.75rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                          <span style={{ color: 'var(--slate-500)', display: 'block', fontSize: '0.75rem' }}>Hourly Rate (30-day month)</span>
+                          <strong style={{ color: 'var(--slate-800)', fontSize: '1rem' }}>₹{estHourlyRate30}</strong> / hr
+                        </div>
+                      </div>
+                      <small style={{ color: 'var(--slate-500)', fontSize: '0.725rem', marginTop: '0.25rem' }}>
+                        Rates are calculated dynamically: <code>Daily Rate = Salary / Days In Month</code> and <code>Hourly Rate = Daily Rate / Standard Work Hours ({formData.standard_work_hours || '12:00'})</code>.
+                      </small>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 

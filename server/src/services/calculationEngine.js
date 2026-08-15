@@ -210,43 +210,53 @@ class CalculationEngine {
   /**
    * Compute dynamic hourly and daily rates for an employee:
    * 1) PER DAY SALARY = SALARY PER MONTH / NO OF DAYS IN A MONTH
-   * 2) PER HOUR SALARY = PER DAY SALARY / ((OUT TIME - IN TIME) - BREAK HOURS)
+   * 2) PER HOUR SALARY = PER DAY SALARY / STANDARD WORKING HOURS FROM MASTER
    */
   static getEmployeeRates(emp, daysInMonth = 30) {
     const baseSalary = parseFloat(emp.salary) || 0;
     
-    // Scheduled Shift Daily Work Hours = (Scheduled OUT - Scheduled IN) - Scheduled Break Hours
-    const stdInMins = this.timeToMinutes(emp.standard_in_time || '08:00');
-    const stdOutMins = this.timeToMinutes(emp.standard_out_time || '20:00');
-    const stdBreakMins = parseInt(emp.standard_break_minutes, 10) || 0;
+    // Standard daily working hours from Master
+    let stdDailyWorkHours = 0;
+    if (emp.standard_work_hours !== undefined && emp.standard_work_hours !== null && emp.standard_work_hours !== '') {
+      if (typeof emp.standard_work_hours === 'string' && emp.standard_work_hours.includes(':')) {
+        const parts = emp.standard_work_hours.split(':').map(Number);
+        stdDailyWorkHours = (parts[0] || 0) + (parts[1] || 0) / 60;
+      } else {
+        stdDailyWorkHours = parseFloat(emp.standard_work_hours) || 0;
+      }
+    }
     
-    let schedDurationMins = stdOutMins > stdInMins ? (stdOutMins - stdInMins) : 0;
-    let schedWorkMins = Math.max(0, schedDurationMins - stdBreakMins);
-    let schedDailyWorkHours = schedWorkMins > 0 ? (schedWorkMins / 60) : (parseFloat(emp.standard_work_hours) || 12.0);
-    if (schedDailyWorkHours <= 0) schedDailyWorkHours = 12.0;
+    // Fallback: If not specified in master, calculate from (Out - In - Break)
+    if (stdDailyWorkHours <= 0) {
+      const stdInMins = this.timeToMinutes(emp.standard_in_time || '08:00');
+      const stdOutMins = this.timeToMinutes(emp.standard_out_time || '20:00');
+      const stdBreakMins = parseInt(emp.standard_break_minutes, 10) || 0;
+      let schedDurationMins = stdOutMins >= stdInMins ? (stdOutMins - stdInMins) : (1440 - stdInMins + stdOutMins);
+      let schedWorkMins = Math.max(0, schedDurationMins - stdBreakMins);
+      stdDailyWorkHours = schedWorkMins > 0 ? (schedWorkMins / 60) : 12.0;
+    }
+    if (stdDailyWorkHours <= 0) stdDailyWorkHours = 12.0;
 
-    let dailyRate = 0;
+    const numDays = daysInMonth > 0 ? daysInMonth : 30;
+
+    // 1) PER HOUR SALARY = (Monthly Salary / Days in Month) / Standard Daily Work Hours
     let hourlyRate = 0;
-
-    if (emp.daily_rate && parseFloat(emp.daily_rate) > 0) {
-      dailyRate = parseFloat(emp.daily_rate);
-    } else if (baseSalary > 0) {
-      // 1) PER DAY SALARY = SALARY PER MONTH / NO OF DAYS IN A MONTH
-      dailyRate = baseSalary / (daysInMonth > 0 ? daysInMonth : 30);
+    if (baseSalary > 0 && numDays > 0 && stdDailyWorkHours > 0) {
+      hourlyRate = (baseSalary / numDays) / stdDailyWorkHours;
     }
 
-    if (emp.hourly_rate && parseFloat(emp.hourly_rate) > 0) {
-      hourlyRate = parseFloat(emp.hourly_rate);
-    } else if (dailyRate > 0 && schedDailyWorkHours > 0) {
-      // 2) PER HOUR SALARY = PER DAY SALARY / ((OUT TIME - IN TIME) - BREAK HOURS)
-      hourlyRate = dailyRate / schedDailyWorkHours;
+    // 2) DAILY RATE = Hourly Rate * Standard Daily Work Hours
+    let dailyRate = 0;
+    if (hourlyRate > 0) {
+      dailyRate = Number(hourlyRate.toFixed(2)) * stdDailyWorkHours;
     }
 
     return {
-      hourlyRate: Number(hourlyRate.toFixed(4)),
+      hourlyRate: Number(hourlyRate.toFixed(2)),
       dailyRate: Number(dailyRate.toFixed(2)),
       baseSalary,
-      schedDailyWorkHours: Number(schedDailyWorkHours.toFixed(2))
+      daysInMonth: numDays,
+      schedDailyWorkHours: Number(stdDailyWorkHours.toFixed(4))
     };
   }
 
@@ -327,17 +337,17 @@ class CalculationEngine {
         calcMode = 'Normal';
         rawDurationMins = Math.max(0, actualOutMins - stdInMins);
       } else if (isLateIn && isLateOut) {
-        // Case 2: Both late -> Scheduled OUT + 10 min - A.IN
+        // Case 2: Both late -> A.OUT - A.IN
         calcMode = 'Both late';
-        rawDurationMins = Math.max(0, (stdOutMins + 10) - actualInMins);
+        rawDurationMins = Math.max(0, actualOutMins - actualInMins);
       } else if (isLateIn && !isLateOut) {
         // Case 3: Late IN only -> A.OUT - A.IN
         calcMode = 'Late IN only';
         rawDurationMins = Math.max(0, actualOutMins - actualInMins);
       } else if (!isLateIn && isLateOut) {
-        // Case 4: Late OUT only -> Scheduled OUT + 10 min - Scheduled IN
+        // Case 4: Late OUT only -> A.OUT - Scheduled IN
         calcMode = 'Late OUT only';
-        rawDurationMins = Math.max(0, (stdOutMins + 10) - stdInMins);
+        rawDurationMins = Math.max(0, actualOutMins - stdInMins);
       }
     } else if (actualInMins > 0 && actualOutMins === 0) {
       rawDurationMins = 0;
@@ -367,33 +377,31 @@ class CalculationEngine {
     }
 
     // Overtime Calculation (Strictly disabled for Doctors)
-    let rawOvertimeMins = 0;
+    // Rule: If actual work >= target + min OT from master, then Overtime = actual work - target, else 0
     let overtimeMins = 0;
 
     if (overtimeAllowed && (statusCode === 'P' || statusCode === 'HD' || statusCode === 'WOP' || statusCode === 'WO')) {
       if (record.overtime_override_minutes && record.overtime_override_minutes > 0) {
-        rawOvertimeMins = record.overtime_override_minutes;
+        // Manual override from admin
+        overtimeMins = record.overtime_override_minutes;
       } else if (statusCode === 'WO') {
-        // If employee worked on Weekly Off: all worked hours minus standard 15m deduction
+        // If employee worked on Weekly Off: target is 0, qualify if actualWorkMins >= minOvertimeMins
         if (actualWorkMins > 0) {
-          rawOvertimeMins = Math.max(0, actualWorkMins - (minOvertimeDeductionMins > 0 ? minOvertimeDeductionMins : 15));
-        } else if (record.over_time_minutes && record.over_time_minutes > 0) {
-          rawOvertimeMins = record.over_time_minutes;
-        } else if (record.over_time && typeof record.over_time === 'string' && record.over_time !== '00:00') {
-          rawOvertimeMins = this.timeToMinutes(record.over_time);
+          if (actualWorkMins >= minOvertimeMins) {
+            overtimeMins = Math.max(0, actualWorkMins - (minOvertimeDeductionMins > 0 ? minOvertimeDeductionMins : 15));
+          } else {
+            overtimeMins = 0;
+          }
         }
-      } else if (actualOutMins > 0 && stdOutMins > 0 && actualOutMins >= (stdOutMins + 11)) {
-        // Stayed past shift: Actual OUT - (Scheduled OUT + 10 min)
-        rawOvertimeMins = actualOutMins - (stdOutMins + 10);
-      } else if (record.over_time_minutes && record.over_time_minutes > 0) {
-        rawOvertimeMins = record.over_time_minutes;
-      } else if (record.over_time && typeof record.over_time === 'string' && record.over_time !== '00:00') {
-        rawOvertimeMins = this.timeToMinutes(record.over_time);
-      }
-
-      overtimeMins = rawOvertimeMins;
-      if (minOvertimeMins > 0 && overtimeMins <= minOvertimeMins) {
-        overtimeMins = 0;
+      } else {
+        // Standard Duty Days (P, WOP, HD):
+        // If actual work >= target + min OT from master then only calculate overtime (actual work - target), else 0
+        const requiredThreshold = schedWorkMins + minOvertimeMins;
+        if (actualWorkMins >= requiredThreshold && actualWorkMins > schedWorkMins) {
+          overtimeMins = actualWorkMins - schedWorkMins;
+        } else {
+          overtimeMins = 0;
+        }
       }
     }
 
@@ -425,23 +433,23 @@ class CalculationEngine {
       }
     }
 
-    // Financial calculations for the day
+    // Financial calculations for the day (all based strictly on hourly rate * hours)
     let dailySalaryEarned = 0;
     if (statusCode === 'WO') {
-      // NOTE 1: COUNT WEEKLY OFF DAY SALARY -> If worked, calculate based on hours, otherwise full daily rate
+      // NOTE 1: COUNT WEEKLY OFF DAY SALARY -> If worked, calculate based on actual hours, otherwise standard scheduled hours
       if (actualWorkMins > 0) {
         dailySalaryEarned = (actualWorkMins / 60) * hourlyRate;
       } else {
-        dailySalaryEarned = dailyRate;
+        dailySalaryEarned = schedDailyWorkHours * hourlyRate;
       }
     } else if (statusCode === 'P' || statusCode === 'WOP') {
       if (actualWorkMins > 0) {
         dailySalaryEarned = (actualWorkMins / 60) * hourlyRate;
       } else {
-        dailySalaryEarned = dailyRate;
+        dailySalaryEarned = schedDailyWorkHours * hourlyRate;
       }
     } else if (statusCode === 'HD') {
-      dailySalaryEarned = dailyRate * 0.5;
+      dailySalaryEarned = (schedDailyWorkHours * 0.5) * hourlyRate;
     } else if (statusCode === 'A') {
       dailySalaryEarned = 0;
     }
@@ -663,11 +671,11 @@ class CalculationEngine {
         doj: emp.doj,
         status: emp.status,
         salary: emp.salary,
+        incentive: parseFloat(emp.incentive) || 0,
         standard_in_time: emp.standard_in_time || '08:00',
         standard_out_time: emp.standard_out_time || '20:00',
         standard_break_minutes: emp.standard_break_minutes || 0,
         standard_work_hours: emp.standard_work_hours || 12.0,
-        rate_type: emp.rate_type || 'hourly',
         hourly_rate: hourlyRate,
         daily_rate: dailyRate,
         wop: parseFloat(emp.wop) || 0,
