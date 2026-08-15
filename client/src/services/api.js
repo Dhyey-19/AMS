@@ -91,14 +91,6 @@ export const employeeApi = {
     });
     return res.data;
   },
-  importSample: async (mode = 'upsert') => {
-    const res = await api.post('/employees/import-sample', { mode });
-    return res.data;
-  },
-  importSampleWorkbook: async () => {
-    const res = await api.post('/employees/import-sample-workbook');
-    return res.data;
-  },
   clear: async () => {
     const res = await api.delete('/employees/clear');
     return res.data;
@@ -118,16 +110,16 @@ export const attendanceApi = {
     });
     return res.data;
   },
-  importSample: async (fileName = 'MD MAY.csv') => {
-    const res = await api.post('/attendance/import-sample', { fileName });
-    return res.data;
-  },
   getMonths: async () => {
     const res = await api.get('/attendance/months');
     return res.data;
   },
   getEmployeeSheet: async (code, params = {}) => {
     const res = await api.get(`/attendance/employee/${code}/sheet`, { params });
+    return res.data;
+  },
+  updateRecord: async (code, dateIso, data) => {
+    const res = await api.put(`/attendance/employee/${code}/date/${dateIso}`, data);
     return res.data;
   },
   exportEmployeeSheet: async (code, params = {}) => {

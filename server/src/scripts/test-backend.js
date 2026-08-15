@@ -12,8 +12,10 @@ async function testBackend() {
   const loginRes = AuthService.login({ username: 'admin', password: 'admin123' });
   console.log('Admin login successful. Token generated:', !!loginRes.token, 'User:', loginRes.user.fullName);
 
-  console.log('\n--- Testing Master Data Sample Import (First Pass) ---');
-  const importResult1 = await EmployeeService.importSampleFile('upsert', 'TestAdmin');
+  const path = require('path');
+  const samplePath = path.resolve(__dirname, '../../../excel files/MD MASTER.csv');
+  console.log('\n--- Testing Master Data Import (First Pass) ---');
+  const importResult1 = await EmployeeService.importMasterData(samplePath, 'MD MASTER.csv', 'upsert', 'TestAdmin');
   console.log('Import 1 Summary:', {
     totalRows: importResult1.totalRows,
     inserted: importResult1.inserted,
@@ -22,8 +24,8 @@ async function testBackend() {
     errors: importResult1.errorCount
   });
 
-  console.log('\n--- Testing Master Data Sample Import (Second Pass - Deduplication Check) ---');
-  const importResult2 = await EmployeeService.importSampleFile('upsert', 'TestAdmin');
+  console.log('\n--- Testing Master Data Import (Second Pass - Deduplication Check) ---');
+  const importResult2 = await EmployeeService.importMasterData(samplePath, 'MD MASTER.csv', 'upsert', 'TestAdmin');
   console.log('Import 2 Summary (Expected 126 updated, 0 inserted):', {
     totalRows: importResult2.totalRows,
     inserted: importResult2.inserted,

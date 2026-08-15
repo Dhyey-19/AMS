@@ -2,8 +2,10 @@ const { getDatabase } = require('../config/database');
 const AttendanceService = require('../services/attendanceService');
 
 async function testAttendance() {
+  const path = require('path');
+  const samplePath = path.resolve(__dirname, '../../../excel files/MD MAY.csv');
   console.log('--- Testing Attendance Import (First Pass - MD MAY.csv) ---');
-  const res1 = await AttendanceService.importSampleMonth('MD MAY.csv', 'Admin');
+  const res1 = await AttendanceService.importAttendanceData(samplePath, 'MD MAY.csv', 'Admin');
   console.log('Import 1 Summary:', {
     totalRows: res1.totalRows,
     inserted: res1.inserted,
@@ -12,7 +14,7 @@ async function testAttendance() {
   });
 
   console.log('\n--- Testing Deduplication / Upsert (Second Pass - MD MAY.csv) ---');
-  const res2 = await AttendanceService.importSampleMonth('MD MAY.csv', 'Admin');
+  const res2 = await AttendanceService.importAttendanceData(samplePath, 'MD MAY.csv', 'Admin');
   console.log('Import 2 Summary (Expected 1488 updated, 0 inserted):', {
     totalRows: res2.totalRows,
     inserted: res2.inserted,

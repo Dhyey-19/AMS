@@ -203,6 +203,7 @@ export const EmployeeTable = ({
                   <ArrowUpDown size={13} color={sortBy === 'salary' ? '#0284c7' : '#94a3b8'} />
                 </div>
               </th>
+              <th>WOP / YPL</th>
               <th className="sortable" onClick={() => handleHeaderSort('status')}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                   <span>Status</span>
@@ -215,7 +216,7 @@ export const EmployeeTable = ({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="9" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+                <td colSpan="10" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
                   <div style={{ color: '#0284c7', fontWeight: '600' }} className="animate-pulse">
                     Loading records from database...
                   </div>
@@ -223,7 +224,7 @@ export const EmployeeTable = ({
               </tr>
             ) : employees.length === 0 ? (
               <tr>
-                <td colSpan="9" style={{ textAlign: 'center', padding: '4rem 1rem' }}>
+                <td colSpan="10" style={{ textAlign: 'center', padding: '4rem 1rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
                     <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
                       <Users size={24} />
@@ -232,7 +233,7 @@ export const EmployeeTable = ({
                     <p style={{ color: '#94a3b8', fontSize: '0.875rem', maxWidth: '360px' }}>
                       {search || selectedDepartment !== 'All' || selectedStatus !== 'All'
                         ? 'No records match your active search filters. Try adjusting your query.'
-                        : 'Your master employee database is empty. Click Import CSV to load the MD Master file.'}
+                        : 'Your master employee database is empty. Upload a CSV or Excel file to import employee data.'}
                     </p>
                     <button
                       className="btn btn-primary btn-sm"
@@ -240,7 +241,7 @@ export const EmployeeTable = ({
                       style={{ marginTop: '0.5rem' }}
                     >
                       <FileSpreadsheet size={15} />
-                      Import MD Master Data
+                      Upload Master Data
                     </button>
                   </div>
                 </td>
@@ -277,6 +278,12 @@ export const EmployeeTable = ({
                   <td>
                     <span style={{ fontSize: '0.8125rem', fontWeight: '600', color: emp.salary ? '#15803d' : '#94a3b8' }}>
                       {emp.salary ? `₹${Number(emp.salary).toLocaleString()}` : '-'}
+                    </span>
+                  </td>
+                  <td>
+                    <span style={{ fontSize: '0.75rem', fontWeight: '600', display: 'inline-flex', gap: '0.35rem' }}>
+                      <span className="badge badge-info">{emp.wop || 0} WOP</span>
+                      <span className="badge badge-success">{emp.ypl || 0} YPL</span>
                     </span>
                   </td>
                   <td>

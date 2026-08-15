@@ -68,6 +68,8 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
         min_overtime_minutes: employee.min_overtime_minutes !== undefined && employee.min_overtime_minutes !== null ? employee.min_overtime_minutes : 0,
         min_overtime_deduction_minutes: employee.min_overtime_deduction_minutes !== undefined && employee.min_overtime_deduction_minutes !== null ? employee.min_overtime_deduction_minutes : 0,
         special_rules: employee.special_rules || '',
+        wop: employee.wop !== undefined && employee.wop !== null ? employee.wop : 0,
+        ypl: employee.ypl !== undefined && employee.ypl !== null ? employee.ypl : 0,
         uid_no: employee.uid_no || '',
         pan_no: employee.pan_no || '',
         rfid: employee.rfid || ''
@@ -120,7 +122,9 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
         overtime_multiplier: parseFloat(formData.overtime_multiplier) || 2.0,
         overtime_allowed: parseInt(formData.overtime_allowed, 10) || 1,
         min_overtime_minutes: parseInt(formData.min_overtime_minutes, 10) || 0,
-        min_overtime_deduction_minutes: parseInt(formData.min_overtime_deduction_minutes, 10) || 0
+        min_overtime_deduction_minutes: parseInt(formData.min_overtime_deduction_minutes, 10) || 0,
+        wop: parseFloat(formData.wop) || 0,
+        ypl: parseFloat(formData.ypl) || 0
       };
 
       const res = await employeeApi.update(employee.employee_code, payload);
@@ -357,6 +361,36 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                       className="form-control"
                     />
                     <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>e.g. 0 min, 30 min, 60 min, 120 min</small>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">WOP (Weekly Off Present - Days)</label>
+                    <input 
+                      type="number" 
+                      step="0.5"
+                      name="wop"
+                      value={formData.wop}
+                      onChange={handleChange}
+                      placeholder="e.g. 0, 1, 2"
+                      className="form-control"
+                    />
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Days worked on Weekly Off</small>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">YPL (Yearly Paid Leave - Days)</label>
+                    <input 
+                      type="number" 
+                      step="0.5"
+                      name="ypl"
+                      value={formData.ypl}
+                      onChange={handleChange}
+                      placeholder="e.g. 12, 15, 18"
+                      className="form-control"
+                    />
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Total yearly paid leaves entitled</small>
                   </div>
                 </div>
 

@@ -83,49 +83,6 @@ class EmployeeController {
     }
   }
 
-  /**
-   * Import sample multi-sheet workbook from `excel files/MAY - 26.xlsx`
-   */
-  static async importSampleWorkbook(req, res) {
-    try {
-      const importedBy = req.user ? req.user.username : 'Admin';
-      const result = await EmployeeService.importSampleWorkbook(importedBy);
-
-      return res.status(200).json({
-        success: true,
-        message: `MAY - 26.xlsx imported successfully: ${result.employeesUpserted} employee profiles synced, ${result.attendanceInserted + result.attendanceUpdated} attendance records updated across ${result.totalSheets} sheets.`,
-        data: result
-      });
-    } catch (err) {
-      return res.status(500).json({
-        success: false,
-        message: err.message || 'Failed to import sample workbook'
-      });
-    }
-  }
-
-  /**
-   * Import sample file from `excel files/MD MASTER.csv`
-   */
-  static async importSample(req, res) {
-    try {
-      const mode = req.body.mode || 'upsert';
-      const importedBy = req.user ? req.user.username : 'Admin';
-
-      const result = await EmployeeService.importSampleFile(mode, importedBy);
-
-      return res.status(200).json({
-        success: true,
-        message: `Sample Master Data imported successfully: ${result.inserted} inserted, ${result.updated} updated, ${result.skipped} skipped.`,
-        data: result
-      });
-    } catch (err) {
-      return res.status(500).json({
-        success: false,
-        message: err.message || 'Failed to import sample file'
-      });
-    }
-  }
 
   /**
    * Get filtered & paginated employees

@@ -267,7 +267,7 @@ export const AttendanceTable = ({
                     <p style={{ color: '#94a3b8', fontSize: '0.875rem', maxWidth: '380px' }}>
                       {search || selectedDepartment !== 'All' || selectedStatus !== 'All' || startDate || endDate
                         ? 'No records match your active search filters. Try adjusting your query.'
-                        : 'No attendance logs have been imported yet. Import MD MAY.csv to get started.'}
+                        : 'No attendance logs have been imported yet. Upload an attendance CSV or Excel file to get started.'}
                     </p>
                     <button
                       className="btn btn-primary btn-sm"
@@ -275,7 +275,7 @@ export const AttendanceTable = ({
                       style={{ marginTop: '0.5rem' }}
                     >
                       <FileSpreadsheet size={15} />
-                      Import Attendance Data
+                      Upload Attendance Data
                     </button>
                   </div>
                 </td>

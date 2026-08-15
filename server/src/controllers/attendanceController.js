@@ -42,28 +42,6 @@ class AttendanceController {
     }
   }
 
-  /**
-   * Import Sample Month File (e.g. MD MAY.csv)
-   */
-  static async importSample(req, res) {
-    try {
-      const monthFileName = req.body.fileName || 'MD MAY.csv';
-      const importedBy = req.user ? req.user.username : 'Admin';
-
-      const result = await AttendanceService.importSampleMonth(monthFileName, importedBy);
-
-      return res.status(200).json({
-        success: true,
-        message: `Sample ${monthFileName} imported successfully: ${result.inserted} inserted, ${result.updated} updated.`,
-        data: result
-      });
-    } catch (err) {
-      return res.status(500).json({
-        success: false,
-        message: err.message || 'Failed to import sample attendance'
-      });
-    }
-  }
 
   /**
    * Single Employee Full Attendance Record & Calculations Sheet
@@ -213,6 +191,35 @@ class AttendanceController {
       return res.status(500).json({
         success: false,
         message: err.message
+      });
+    }
+  }
+
+  /**
+   * Update or directly edit an individual attendance record in the database
+   */
+  static async updateRecord(req, res) {
+    try {
+      const { code, dateIso } = req.params;
+      const updateData = req.body;
+
+      if (!code || !dateIso) {
+        return res.status(400).json({
+          success: false,
+          message: 'Employee code and attendance date (ISO) are required'
+        });
+      }
+
+      const updated = AttendanceService.updateAttendanceRecord(code, dateIso, updateData);
+      return res.status(200).json({
+        success: true,
+        message: 'Attendance record updated successfully in database',
+        data: updated
+      });
+    } catch (err) {
+      return res.status(500).json({
+        success: false,
+        message: err.message || 'Failed to update attendance record'
       });
     }
   }

@@ -98,8 +98,8 @@ class EmployeeService {
     }
 
     const salary = normalized['salary'] ? parseFloat(normalized['salary']) : null;
-    const stdIn = normalized['standardintime'] || normalized['intime'] || normalized['standardin'] || '08:00';
-    const stdOut = normalized['standardouttime'] || normalized['outtime'] || normalized['standardout'] || '20:00';
+    const stdIn = CalculationEngine.formatTimeString(normalized['standardintime'] || normalized['intime'] || normalized['standardin'] || '08:00') || '08:00';
+    const stdOut = CalculationEngine.formatTimeString(normalized['standardouttime'] || normalized['outtime'] || normalized['standardout'] || '20:00') || '20:00';
     const stdBreak = normalized['standardbreakminutes'] ? parseInt(normalized['standardbreakminutes'], 10) : 0;
     const stdHours = normalized['standardworkhours'] ? parseFloat(normalized['standardworkhours']) : 12.0;
 
@@ -143,7 +143,9 @@ class EmployeeService {
       min_overtime_minutes: normalized['minovertimeminutes'] ? parseInt(normalized['minovertimeminutes'], 10) : 0,
       min_overtime_deduction_minutes: (normalized['minovertimedeductionminutes'] || normalized['minovertimededuction'] || normalized['overtimedeductionminutes'] || normalized['overtimededuction']) ? parseInt(normalized['minovertimedeductionminutes'] || normalized['minovertimededuction'] || normalized['overtimedeductionminutes'] || normalized['overtimededuction'], 10) : 0,
       special_rules: normalized['specialrules'] || normalized['rules'] || normalized['remarks'] || null,
-      salary_history_json: normalized['salaryhistoryjson'] || null
+      salary_history_json: normalized['salaryhistoryjson'] || null,
+      wop: normalized['wop'] ? parseFloat(normalized['wop']) : 0,
+      ypl: normalized['ypl'] ? parseFloat(normalized['ypl']) : 0
     };
   }
 
@@ -171,7 +173,8 @@ class EmployeeService {
         salary, standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
         rate_type, hourly_rate, daily_rate, payment_mode,
         late_grace_minutes, late_deduction_multiplier, overtime_multiplier, overtime_allowed,
-        min_overtime_minutes, min_overtime_deduction_minutes, special_rules, salary_history_json
+        min_overtime_minutes, min_overtime_deduction_minutes, special_rules, salary_history_json,
+        wop, ypl
       ) VALUES (
         @employee_code, @employee_name, @device_code, @company, @department,
         @location, @designation, @grade, @team, @category,
@@ -181,7 +184,8 @@ class EmployeeService {
         @salary, @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
         @rate_type, @hourly_rate, @daily_rate, @payment_mode,
         @late_grace_minutes, @late_deduction_multiplier, @overtime_multiplier, @overtime_allowed,
-        @min_overtime_minutes, @min_overtime_deduction_minutes, @special_rules, @salary_history_json
+        @min_overtime_minutes, @min_overtime_deduction_minutes, @special_rules, @salary_history_json,
+        @wop, @ypl
       )
     `);
 
@@ -226,6 +230,8 @@ class EmployeeService {
         min_overtime_deduction_minutes = COALESCE(@min_overtime_deduction_minutes, min_overtime_deduction_minutes),
         special_rules = COALESCE(@special_rules, special_rules),
         salary_history_json = COALESCE(@salary_history_json, salary_history_json),
+        wop = COALESCE(@wop, wop),
+        ypl = COALESCE(@ypl, ypl),
         updated_at = CURRENT_TIMESTAMP
       WHERE employee_code = @employee_code
     `);
@@ -320,7 +326,8 @@ class EmployeeService {
         salary, standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
         rate_type, hourly_rate, daily_rate, payment_mode,
         late_grace_minutes, late_deduction_multiplier, overtime_multiplier, overtime_allowed,
-        min_overtime_minutes, min_overtime_deduction_minutes, special_rules, salary_history_json
+        min_overtime_minutes, min_overtime_deduction_minutes, special_rules, salary_history_json,
+        wop, ypl
       ) VALUES (
         @employee_code, @employee_name, @device_code, @company, @department,
         @location, @designation, @grade, @team, @category,
@@ -328,7 +335,8 @@ class EmployeeService {
         @salary, @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
         @rate_type, @hourly_rate, @daily_rate, @payment_mode,
         @late_grace_minutes, @late_deduction_multiplier, @overtime_multiplier, @overtime_allowed,
-        @min_overtime_minutes, @min_overtime_deduction_minutes, @special_rules, @salary_history_json
+        @min_overtime_minutes, @min_overtime_deduction_minutes, @special_rules, @salary_history_json,
+        @wop, @ypl
       )
       ON CONFLICT(employee_code) DO UPDATE SET
         employee_name = excluded.employee_name,
@@ -447,10 +455,10 @@ class EmployeeService {
 
           // Shift timings: prefer nameHeader first, fallback to textAC1
           let scheduleText = (nameHeader.includes('TO') || nameHeader.includes('to')) ? nameHeader : (textAC1 || nameHeader);
-          const timeMatch = scheduleText.match(/(\d{1,2}:\d{2})\s*(?:AM)?\s*TO\s*(\d{1,2}:\d{2})\s*(?:PM|AM)?/i);
+          const timeMatch = scheduleText.match(/(\d{1,2}[:.]\d{2})\s*(?:AM)?\s*TO\s*(\d{1,2}[:.]\d{2})\s*(?:PM|AM)?/i);
           if (timeMatch) {
-            let t1 = timeMatch[1];
-            let t2 = timeMatch[2];
+            let t1 = timeMatch[1].replace('.', ':');
+            let t2 = timeMatch[2].replace('.', ':');
             stdIn = t1.padStart(5, '0');
             let [h2, m2] = t2.split(':').map(Number);
             if (h2 < 12 && (scheduleText.toUpperCase().includes('PM') || h2 < 8)) {
@@ -567,7 +575,9 @@ class EmployeeService {
             min_overtime_minutes: 0,
             min_overtime_deduction_minutes: 0,
             special_rules: specialRules || null,
-            salary_history_json: salaryHistory.length > 0 ? JSON.stringify(salaryHistory) : null
+            salary_history_json: salaryHistory.length > 0 ? JSON.stringify(salaryHistory) : null,
+            wop: existingDb?.wop || 0,
+            ypl: existingDb?.ypl || 0
           });
           employeesUpserted++;
 
@@ -667,16 +677,6 @@ class EmployeeService {
     };
   }
 
-  /**
-   * Import sample workbook from `excel files/MAY - 26.xlsx`
-   */
-  static async importSampleWorkbook(importedBy = 'Admin') {
-    const samplePath = path.resolve(__dirname, '../../../excel files/MAY - 26.xlsx');
-    if (!fs.existsSync(samplePath)) {
-      throw new Error(`Sample workbook file not found at: ${samplePath}`);
-    }
-    return this.importWorkbook(samplePath, 'MAY - 26.xlsx', importedBy);
-  }
 
   /**
    * Update Employee Master Manual Fields
@@ -754,6 +754,8 @@ class EmployeeService {
         min_overtime_deduction_minutes = COALESCE(@min_overtime_deduction_minutes, min_overtime_deduction_minutes),
         special_rules = COALESCE(@special_rules, special_rules),
         salary_history_json = COALESCE(@salary_history_json, salary_history_json),
+        wop = COALESCE(@wop, wop),
+        ypl = COALESCE(@ypl, ypl),
         updated_at = CURRENT_TIMESTAMP
       WHERE employee_code = @employee_code
     `);
@@ -798,7 +800,9 @@ class EmployeeService {
       min_overtime_minutes: updateData.min_overtime_minutes !== undefined ? (parseInt(updateData.min_overtime_minutes, 10) || 0) : existing.min_overtime_minutes,
       min_overtime_deduction_minutes: updateData.min_overtime_deduction_minutes !== undefined ? (parseInt(updateData.min_overtime_deduction_minutes, 10) || 0) : existing.min_overtime_deduction_minutes,
       special_rules: updateData.special_rules ?? existing.special_rules,
-      salary_history_json: updateData.salary_history_json !== undefined ? (typeof updateData.salary_history_json === 'object' ? JSON.stringify(updateData.salary_history_json) : updateData.salary_history_json) : existing.salary_history_json
+      salary_history_json: updateData.salary_history_json !== undefined ? (typeof updateData.salary_history_json === 'object' ? JSON.stringify(updateData.salary_history_json) : updateData.salary_history_json) : existing.salary_history_json,
+      wop: updateData.wop !== undefined ? parseFloat(updateData.wop) : existing.wop,
+      ypl: updateData.ypl !== undefined ? parseFloat(updateData.ypl) : existing.ypl
     });
 
     return this.getEmployeeByCode(employeeCode);
@@ -843,7 +847,8 @@ class EmployeeService {
         salary, standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
         rate_type, hourly_rate, daily_rate, payment_mode,
         late_grace_minutes, late_deduction_multiplier, overtime_multiplier, overtime_allowed,
-        min_overtime_minutes, min_overtime_deduction_minutes, special_rules, salary_history_json
+        min_overtime_minutes, min_overtime_deduction_minutes, special_rules, salary_history_json,
+        wop, ypl
       ) VALUES (
         @employee_code, @employee_name, @device_code, @company, @department,
         @location, @designation, @grade, @team, @category,
@@ -853,7 +858,8 @@ class EmployeeService {
         @salary, @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
         @rate_type, @hourly_rate, @daily_rate, @payment_mode,
         @late_grace_minutes, @late_deduction_multiplier, @overtime_multiplier, @overtime_allowed,
-        @min_overtime_minutes, @min_overtime_deduction_minutes, @special_rules, @salary_history_json
+        @min_overtime_minutes, @min_overtime_deduction_minutes, @special_rules, @salary_history_json,
+        @wop, @ypl
       )
     `);
 
@@ -897,22 +903,14 @@ class EmployeeService {
       min_overtime_minutes: parseInt(data.min_overtime_minutes, 10) || 0,
       min_overtime_deduction_minutes: parseInt(data.min_overtime_deduction_minutes, 10) || 0,
       special_rules: data.special_rules || null,
-      salary_history_json: data.salary_history_json ? (typeof data.salary_history_json === 'object' ? JSON.stringify(data.salary_history_json) : data.salary_history_json) : null
+      salary_history_json: data.salary_history_json ? (typeof data.salary_history_json === 'object' ? JSON.stringify(data.salary_history_json) : data.salary_history_json) : null,
+      wop: parseFloat(data.wop) || 0,
+      ypl: parseFloat(data.ypl) || 0
     });
 
     return this.getEmployeeByCode(data.employee_code);
   }
 
-  /**
-   * Import sample file located in `excel files/MD MASTER.csv`
-   */
-  static async importSampleFile(mode = 'upsert', importedBy = 'Admin') {
-    const samplePath = path.resolve(__dirname, '../../../excel files/MD MASTER.csv');
-    if (!fs.existsSync(samplePath)) {
-      throw new Error(`Sample file not found at: ${samplePath}`);
-    }
-    return this.importMasterData(samplePath, 'MD MASTER.csv', mode, importedBy);
-  }
 
   /**
    * Get filtered and paginated list of employees

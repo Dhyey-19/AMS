@@ -4,14 +4,9 @@ import { AttendanceTable } from '../components/attendance/AttendanceTable';
 import { AttendanceImportModal } from '../components/attendance/AttendanceImportModal';
 import { Toast } from '../components/common/Toast';
 import { 
-  FileSpreadsheet, 
   UploadCloud, 
   Calendar, 
-  Clock, 
-  RefreshCw, 
-  CheckCircle2, 
-  Trash2,
-  FileText
+  Trash2
 } from 'lucide-react';
 
 export const AttendanceImportPage = () => {
@@ -28,7 +23,6 @@ export const AttendanceImportPage = () => {
   const [loading, setLoading] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [toast, setToast] = useState({ message: '', type: 'success' });
-  const [importingMay, setImportingMay] = useState(false);
 
   const fetchAttendance = useCallback(async (page = 1) => {
     try {
@@ -81,22 +75,6 @@ export const AttendanceImportPage = () => {
   const handleSort = (col, dir) => {
     setSortBy(col);
     setSortOrder(dir);
-  };
-
-  const handleImportMayDirect = async () => {
-    try {
-      setImportingMay(true);
-      const res = await attendanceApi.importSample('MD MAY.csv');
-      setToast({
-        message: `MD MAY.csv imported: ${res.data.inserted} inserted, ${res.data.updated} updated on unique ID+Date!`,
-        type: 'success'
-      });
-      fetchAttendance(1);
-    } catch (err) {
-      setToast({ message: err.message || 'Import failed', type: 'error' });
-    } finally {
-      setImportingMay(false);
-    }
   };
 
   const handleClearAttendance = async () => {
@@ -154,29 +132,11 @@ export const AttendanceImportPage = () => {
 
         <div style={{ display: 'flex', gap: '0.625rem', flexWrap: 'wrap' }}>
           <button
-            className="btn btn-success btn-sm"
-            onClick={handleImportMayDirect}
-            disabled={importingMay}
-          >
-            {importingMay ? (
-              <>
-                <RefreshCw size={15} className="spin" />
-                Loading MD MAY...
-              </>
-            ) : (
-              <>
-                <FileText size={15} />
-                Load MD MAY.csv
-              </>
-            )}
-          </button>
-
-          <button
             className="btn btn-primary btn-sm"
             onClick={() => setIsImportModalOpen(true)}
           >
             <UploadCloud size={15} />
-            Upload File
+            Upload Attendance File
           </button>
 
           {records.length > 0 && (
@@ -187,6 +147,7 @@ export const AttendanceImportPage = () => {
               title="Clear all attendance records"
             >
               <Trash2 size={15} />
+              Clear Attendance
             </button>
           )}
         </div>

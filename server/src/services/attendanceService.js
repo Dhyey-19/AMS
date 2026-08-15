@@ -120,8 +120,10 @@ class AttendanceService {
 
     const inTime = CalculationEngine.formatTimeString(normalized['intime'] || normalized['actualin'] || normalized['in'] || '');
     const outTime = CalculationEngine.formatTimeString(normalized['outtime'] || normalized['actualout'] || normalized['out'] || '');
-    const breakOut = CalculationEngine.formatTimeString(normalized['breakout'] || '');
-    const breakIn = CalculationEngine.formatTimeString(normalized['breakin'] || '');
+    const rawPunchRecords = normalized['punchrecords'] || '';
+    const extractedBreaks = CalculationEngine.extractBreakPunches(rawPunchRecords, normalized['breakout'], normalized['breakin']);
+    const breakOut = extractedBreaks.breakOut;
+    const breakIn = extractedBreaks.breakIn;
 
     const totalDuration = normalized['totalduration'] || normalized['duration'] || '00:00';
     const lateBy = normalized['lateby'] || '00:00';
@@ -268,16 +270,6 @@ class AttendanceService {
     };
   }
 
-  /**
-   * Import sample month file from `excel files/`
-   */
-  static async importSampleMonth(monthFileName = 'MD MAY.csv', importedBy = 'Admin') {
-    const samplePath = path.resolve(__dirname, `../../../excel files/${monthFileName}`);
-    if (!fs.existsSync(samplePath)) {
-      throw new Error(`Sample file not found: ${samplePath}`);
-    }
-    return this.importAttendanceData(samplePath, monthFileName, importedBy);
-  }
 
   /**
    * Get Employee-Wise Detailed Attendance Sheet with Dynamic Calculations
@@ -759,6 +751,74 @@ class AttendanceService {
       ORDER BY month DESC
     `).all();
     return rows.map(r => r.month);
+  }
+
+  /**
+   * Directly update any field of an individual attendance record in the database
+   */
+  static updateAttendanceRecord(employeeCode, dateIso, updateData) {
+    const db = getDatabase();
+    
+    // Normalize times if provided
+    const inTime = updateData.in_time !== undefined ? CalculationEngine.formatTimeString(updateData.in_time) : undefined;
+    const outTime = updateData.out_time !== undefined ? CalculationEngine.formatTimeString(updateData.out_time) : undefined;
+    const breakOut = updateData.break_out !== undefined ? CalculationEngine.formatTimeString(updateData.break_out) : undefined;
+    const breakIn = updateData.break_in !== undefined ? CalculationEngine.formatTimeString(updateData.break_in) : undefined;
+
+    const existing = db.prepare('SELECT * FROM attendance WHERE employee_code = ? AND attendance_date_iso = ?').get(String(employeeCode).trim(), dateIso);
+
+    // Get employee master details for fallback metadata
+    const emp = db.prepare('SELECT * FROM employees WHERE employee_code = ?').get(String(employeeCode).trim());
+    const empName = emp?.employee_name || updateData.employee_name || existing?.employee_name || '';
+    const dept = emp?.department || updateData.department || existing?.department || 'General';
+    const desig = emp?.designation || updateData.designation || existing?.designation || '';
+
+    const stmt = db.prepare(`
+      INSERT INTO attendance (
+        employee_code, attendance_date, attendance_date_iso, employee_name,
+        designation, department, in_time, out_time, break_out, break_in,
+        status_code, leave_deduction, penalty_amount, overtime_override_minutes,
+        punch_records, remarks
+      ) VALUES (
+        @employee_code, @attendance_date, @attendance_date_iso, @employee_name,
+        @designation, @department, @in_time, @out_time, @break_out, @break_in,
+        @status_code, @leave_deduction, @penalty_amount, @overtime_override_minutes,
+        @punch_records, @remarks
+      )
+      ON CONFLICT(employee_code, attendance_date_iso) DO UPDATE SET
+        in_time = @in_time,
+        out_time = @out_time,
+        break_out = @break_out,
+        break_in = @break_in,
+        status_code = @status_code,
+        leave_deduction = @leave_deduction,
+        penalty_amount = @penalty_amount,
+        overtime_override_minutes = @overtime_override_minutes,
+        punch_records = CASE WHEN @punch_records != '' THEN @punch_records ELSE attendance.punch_records END,
+        remarks = @remarks,
+        updated_at = CURRENT_TIMESTAMP
+    `);
+
+    stmt.run({
+      employee_code: String(employeeCode).trim(),
+      attendance_date: updateData.attendance_date || existing?.attendance_date || dateIso,
+      attendance_date_iso: dateIso,
+      employee_name: empName,
+      designation: desig,
+      department: dept,
+      in_time: inTime !== undefined ? inTime : (existing?.in_time || ''),
+      out_time: outTime !== undefined ? outTime : (existing?.out_time || ''),
+      break_out: breakOut !== undefined ? breakOut : (existing?.break_out || ''),
+      break_in: breakIn !== undefined ? breakIn : (existing?.break_in || ''),
+      status_code: (updateData.status_code !== undefined ? updateData.status_code : (existing?.status_code || 'P')).toUpperCase().trim(),
+      leave_deduction: updateData.leave_deduction !== undefined ? parseFloat(updateData.leave_deduction) || 0 : (existing?.leave_deduction || 0),
+      penalty_amount: updateData.penalty_amount !== undefined ? parseFloat(updateData.penalty_amount) || 0 : (existing?.penalty_amount || 0),
+      overtime_override_minutes: updateData.overtime_override_minutes !== undefined ? parseInt(updateData.overtime_override_minutes, 10) || 0 : (existing?.overtime_override_minutes || 0),
+      punch_records: updateData.punch_records !== undefined ? updateData.punch_records : (existing?.punch_records || ''),
+      remarks: updateData.remarks !== undefined ? updateData.remarks : (existing?.remarks || '')
+    });
+
+    return db.prepare('SELECT * FROM attendance WHERE employee_code = ? AND attendance_date_iso = ?').get(String(employeeCode).trim(), dateIso);
   }
 
   /**

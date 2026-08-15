@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { employeeApi, attendanceApi } from '../services/api';
 import { EditEmployeeMasterModal } from '../components/employees/EditEmployeeMasterModal';
+import { EditDayAttendanceModal } from '../components/attendance/EditDayAttendanceModal';
 
 const formatHoursToHHMM = (hrs) => {
   if (hrs === null || hrs === undefined || isNaN(hrs)) return '00:00';
@@ -44,10 +45,9 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
 
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedRecordForEdit, setSelectedRecordForEdit] = useState(null);
+  const [isDayEditModalOpen, setIsDayEditModalOpen] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState('attendance'); // 'attendance', 'salary-history'
-
-  // Workbook Import State
-  const [importingWorkbook, setImportingWorkbook] = useState(false);
   const [importMessage, setImportMessage] = useState(null);
 
   // 1. Fetch Employee List and Available Months on load
@@ -136,30 +136,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
     }
   };
 
-  // 1-Click Import MAY - 26.xlsx Workbook
-  const handleImportSampleWorkbook = async () => {
-    if (!window.confirm('Import complete multi-sheet MAY - 26.xlsx workbook? This will sync all 46 employee profiles and attendance sheets.')) return;
-    setImportingWorkbook(true);
-    setImportMessage(null);
-    try {
-      const res = await employeeApi.importSampleWorkbook();
-      setImportMessage({
-        type: 'success',
-        text: res.message || 'MAY - 26.xlsx imported successfully!'
-      });
-      const empRes = await employeeApi.getAll({ limit: 200 });
-      setEmployees(empRes.data || []);
-      const sheetRes = await attendanceApi.getEmployeeSheet(selectedEmployeeCode, { month: selectedMonth });
-      setSheetData(sheetRes.data);
-    } catch (err) {
-      setImportMessage({
-        type: 'error',
-        text: err.response?.data?.message || err.message || 'Failed to import sample workbook'
-      });
-    } finally {
-      setImportingWorkbook(false);
-    }
-  };
+
 
   const filteredEmployees = employees.filter(e => 
     e.employee_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -359,15 +336,6 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
           >
             <Download size={15} /> CSV
           </button>
-
-          <button
-            onClick={handleImportSampleWorkbook}
-            disabled={importingWorkbook}
-            className="btn btn-secondary btn-sm"
-            title="Sync all sheets from MAY - 26.xlsx"
-          >
-            <Upload size={14} /> {importingWorkbook ? 'Syncing...' : 'Sync Workbook'}
-          </button>
         </div>
       </div>
 
@@ -477,8 +445,10 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem', fontSize: '0.8125rem' }}>
                   <div><span style={{ color: 'var(--slate-500)' }}>Shift:</span> <strong>{currentEmp?.standard_in_time} - {currentEmp?.standard_out_time}</strong></div>
                   <div><span style={{ color: 'var(--slate-500)' }}>Daily Target:</span> <strong>{formatHoursToHHMM(currentEmp?.standard_work_hours)} hrs/d</strong></div>
-                  <div><span style={{ color: 'var(--slate-500)' }}>Total Break:</span> <strong>{summary?.totalActualBreakFormatted || '00:00'} hrs</strong></div>
-                  <div><span style={{ color: 'var(--slate-500)' }}>Grace:</span> <strong>{currentEmp?.late_grace_minutes || 11}m</strong></div>
+                  <div><span style={{ color: 'var(--slate-500)' }}>Master Break:</span> <strong>{currentEmp?.standard_break_minutes || 0}m</strong></div>
+                  <div><span style={{ color: 'var(--slate-500)' }}>Grace Window:</span> <strong>{currentEmp?.late_grace_minutes || 11}m</strong></div>
+                  <div><span style={{ color: 'var(--slate-500)' }}>WOP Days:</span> <strong style={{ color: '#0284c7' }}>{currentEmp?.wop || 0}d</strong></div>
+                  <div><span style={{ color: 'var(--slate-500)' }}>YPL Leaves:</span> <strong style={{ color: '#059669' }}>{currentEmp?.ypl || 0}d</strong></div>
                 </div>
               </div>
 
@@ -500,8 +470,8 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem', fontSize: '0.8125rem' }}>
                   <div><span style={{ color: 'var(--slate-600)' }}>Base Salary:</span> <strong style={{ color: 'var(--success-text)', fontSize: '0.95rem' }}>₹{currentEmp?.salary?.toLocaleString() || '0'}</strong></div>
                   <div><span style={{ color: 'var(--slate-600)' }}>Hourly:</span> <strong>₹{summary?.hourlyRate}/hr</strong></div>
-                  <div><span style={{ color: 'var(--slate-600)' }}>Daily Rate:</span> <strong>₹{summary?.dailyRate}/day</strong></div>
-                  <div><span style={{ color: 'var(--slate-600)' }}>Late / OT:</span> <strong>{currentEmp?.late_deduction_multiplier}x / {currentEmp?.overtime_multiplier}x</strong></div>
+                  <div><span style={{ color: 'var(--slate-600)' }}>Daily Rate:</span> <strong>₹{summary?.dailyRate}/day</strong> ({summary?.calendarDays}d)</div>
+                  <div><span style={{ color: 'var(--slate-600)' }}>Late / OT:</span> <strong>{currentEmp?.late_deduction_multiplier}x / {currentEmp?.is_doctor ? '0x (Doctor)' : `${currentEmp?.overtime_multiplier}x`}</strong></div>
                 </div>
               </div>
             </div>
@@ -699,6 +669,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                     <tr>
                       <th>DATE</th>
                       <th style={{ textAlign: 'center' }}>P/A</th>
+                      <th>CALC MODE</th>
                       <th>SCHED IN</th>
                       <th>SCHED OUT</th>
                       <th>TARGET</th>
@@ -707,7 +678,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                       <th>DURATION</th>
                       <th>BREAK OUT</th>
                       <th>BREAK IN</th>
-                      <th>BREAK TIME</th>
+                      <th>EFF. BREAK</th>
                       <th>ACTUAL WORK</th>
                       <th style={{ textAlign: 'center' }}>DIFF (+/-)</th>
                       <th>LATE BY</th>
@@ -717,6 +688,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                       <th style={{ textAlign: 'right', color: 'var(--danger-text)' }}>LATE DED</th>
                       <th style={{ textAlign: 'right', color: 'var(--success-text)' }}>O.T. PAY</th>
                       <th style={{ textAlign: 'right', background: 'var(--primary-50)', color: 'var(--primary-800)' }}>NET SALARY</th>
+                      <th style={{ textAlign: 'center', width: '70px' }}>ACTION</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -751,6 +723,27 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                               {r.status_code}
                             </span>
                           </td>
+                          <td>
+                            <span 
+                              className={`badge ${
+                                r.calc_mode === 'Normal' ? 'badge-success' :
+                                r.calc_mode === 'Both late' ? 'badge-danger' :
+                                r.calc_mode === 'Late IN only' ? 'badge-warning' :
+                                r.calc_mode === 'Late OUT only' ? 'badge-info' :
+                                'badge-secondary'
+                              }`}
+                              style={{ fontSize: '0.7rem', padding: '0.2rem 0.45rem' }}
+                              title={
+                                r.calc_mode === 'Normal' ? 'Normal: A.OUT - Scheduled IN' :
+                                r.calc_mode === 'Both late' ? 'Both late: Scheduled OUT + 10m - A.IN' :
+                                r.calc_mode === 'Late IN only' ? 'Late IN only: A.OUT - A.IN' :
+                                r.calc_mode === 'Late OUT only' ? 'Late OUT only: Scheduled OUT + 10m - Scheduled IN' :
+                                r.calc_mode
+                              }
+                            >
+                              {r.calc_mode || 'Normal'}
+                            </span>
+                          </td>
                           <td style={{ color: 'var(--slate-600)' }}>{r.scheduled_in_time}</td>
                           <td style={{ color: 'var(--slate-600)' }}>{r.scheduled_out_time}</td>
                           <td style={{ fontWeight: '600', color: 'var(--slate-700)' }}>{r.scheduled_work_formatted}</td>
@@ -761,8 +754,8 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                           <td style={{ color: 'var(--slate-600)' }}>{r.actual_duration_formatted}</td>
                           <td style={{ color: 'var(--slate-700)' }}>{r.break_out || '—'}</td>
                           <td style={{ color: 'var(--slate-700)' }}>{r.break_in || '—'}</td>
-                          <td style={{ color: r.actual_break_minutes > 0 ? 'var(--primary-700)' : 'var(--slate-400)', fontWeight: r.actual_break_minutes > 0 ? '600' : 'normal' }}>
-                            {r.actual_break_minutes > 0 ? r.actual_break_formatted : '—'}
+                          <td style={{ color: r.effective_break_minutes > 0 ? 'var(--primary-700)' : 'var(--slate-400)', fontWeight: r.effective_break_minutes > 0 ? '600' : 'normal' }} title={`Actual: ${r.actual_break_formatted}, Master: ${r.scheduled_break_formatted}`}>
+                            {r.effective_break_minutes > 0 ? r.effective_break_formatted : '—'}
                           </td>
                           <td style={{ fontWeight: '700', color: 'var(--slate-900)' }}>{r.actual_work_formatted}</td>
                           <td style={{ textAlign: 'center' }}>
@@ -787,6 +780,21 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                           <td style={{ textAlign: 'right', fontWeight: '700', color: 'var(--primary-700)', background: 'var(--primary-50)' }}>
                             ₹{r.net_daily_salary}
                           </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedRecordForEdit(r);
+                                setIsDayEditModalOpen(true);
+                              }}
+                              className="btn btn-outline-primary btn-sm"
+                              style={{ padding: '0.2rem 0.45rem', fontSize: '0.725rem', gap: '0.25rem' }}
+                              title="Edit Attendance / Punches / Deductions"
+                            >
+                              <Edit3 size={12} />
+                              <span>Edit</span>
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
@@ -795,6 +803,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                     <tr>
                       <td>TOTAL</td>
                       <td style={{ textAlign: 'center' }}>{summary?.presentDays}P/{summary?.absentDays}A</td>
+                      <td>—</td>
                       <td>—</td>
                       <td>—</td>
                       <td>{summary?.totalExpectedWorkFormatted || '00:00'}</td>
@@ -815,6 +824,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                       <td style={{ textAlign: 'right', color: 'var(--danger-text)' }}>-₹{summary?.totalLateDeductions}</td>
                       <td style={{ textAlign: 'right', color: 'var(--success-text)' }}>+₹{summary?.totalOvertimePay}</td>
                       <td style={{ textAlign: 'right', color: 'var(--primary-700)', fontSize: '0.95rem', background: 'var(--primary-100)' }}>₹{summary?.netPayableSalary}</td>
+                      <td style={{ textAlign: 'center' }}>—</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -865,6 +875,23 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
           employee={currentEmp}
           isOpen={isEditModalOpen}
           onClose={() => setIsEditModalOpen(false)}
+          onUpdated={async () => {
+            const res = await attendanceApi.getEmployeeSheet(selectedEmployeeCode, { month: selectedMonth });
+            setSheetData(res.data);
+          }}
+        />
+      )}
+
+      {/* Edit Day Attendance Record Modal */}
+      {isDayEditModalOpen && selectedRecordForEdit && (
+        <EditDayAttendanceModal
+          isOpen={isDayEditModalOpen}
+          record={selectedRecordForEdit}
+          employee={currentEmp}
+          onClose={() => {
+            setIsDayEditModalOpen(false);
+            setSelectedRecordForEdit(null);
+          }}
           onUpdated={async () => {
             const res = await attendanceApi.getEmployeeSheet(selectedEmployeeCode, { month: selectedMonth });
             setSheetData(res.data);

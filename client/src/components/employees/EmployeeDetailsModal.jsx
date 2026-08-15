@@ -133,6 +133,14 @@ export const EmployeeDetailsModal = ({ isOpen, onClose, employee, onOpenAttendan
               <span className="detail-item-value">{employee.overtime_multiplier ?? 2.0}x</span>
             </div>
             <div className="detail-item">
+              <span className="detail-item-label">WOP (Weekly Off Present)</span>
+              <span className="detail-item-value" style={{ fontWeight: '700', color: '#0284c7' }}>{employee.wop || 0} days</span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-item-label">YPL (Yearly Paid Leave)</span>
+              <span className="detail-item-value" style={{ fontWeight: '700', color: '#059669' }}>{employee.ypl || 0} days</span>
+            </div>
+            <div className="detail-item">
               <span className="detail-item-label">Min Overtime Threshold</span>
               <span className="detail-item-value">{employee.min_overtime_minutes || 0} mins</span>
             </div>

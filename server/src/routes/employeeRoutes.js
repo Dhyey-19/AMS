@@ -10,8 +10,6 @@ router.use(authenticateToken);
 // Master Data & Workbook Imports
 router.post('/import', upload.single('file'), EmployeeController.importFile);
 router.post('/import-workbook', upload.single('file'), EmployeeController.importWorkbookFile);
-router.post('/import-sample', EmployeeController.importSample);
-router.post('/import-sample-workbook', EmployeeController.importSampleWorkbook);
 
 // Query & Filter Employees
 router.get('/', EmployeeController.getEmployees);

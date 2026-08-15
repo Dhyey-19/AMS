@@ -88,6 +88,8 @@ function initSchema() {
       min_overtime_deduction_minutes INTEGER DEFAULT 0,
       special_rules TEXT,
       salary_history_json TEXT,
+      wop REAL DEFAULT 0,
+      ypl REAL DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -115,6 +117,8 @@ function initSchema() {
   addColumnIfNotExists('employees', 'min_overtime_deduction_minutes', 'INTEGER DEFAULT 0');
   addColumnIfNotExists('employees', 'special_rules', 'TEXT');
   addColumnIfNotExists('employees', 'salary_history_json', 'TEXT');
+  addColumnIfNotExists('employees', 'wop', 'REAL DEFAULT 0');
+  addColumnIfNotExists('employees', 'ypl', 'REAL DEFAULT 0');
 
   // Attendance Records table
   db.exec(`

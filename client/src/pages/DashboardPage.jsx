@@ -115,14 +115,14 @@ export const DashboardPage = ({
           <div className="card-body">
             {departmentStats.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
-                <p>No department data available. Import the Master Data file to view breakdown.</p>
+                <p>No department data available. Upload the Master Data file to view breakdown.</p>
                 <button
                   className="btn btn-primary btn-sm"
                   onClick={() => setIsImportModalOpen(true)}
                   style={{ marginTop: '0.75rem' }}
                 >
                   <FileSpreadsheet size={15} />
-                  Import MD Master Data
+                  Upload Master Data
                 </button>
               </div>
             ) : (
@@ -189,9 +189,9 @@ export const DashboardPage = ({
                     <Calendar size={18} />
                   </div>
                   <div>
-                    <div>Import Attendance (MD MAY)</div>
+                    <div>Upload Attendance Data</div>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 'normal' }}>
-                      Upload CSV/Excel or load sample files
+                      Upload biometric attendance CSV or Excel
                     </div>
                   </div>
                 </button>
@@ -219,9 +219,9 @@ export const DashboardPage = ({
                     <FileSpreadsheet size={18} />
                   </div>
                   <div>
-                    <div>Import Master Data</div>
+                    <div>Upload Master Data / Workbook</div>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 'normal' }}>
-                      Upload MD MASTER.csv
+                      Upload Master CSV/Excel or Monthly Workbook
                     </div>
                   </div>
                 </button>
@@ -300,7 +300,7 @@ export const DashboardPage = ({
                       style={{ marginTop: '0.5rem' }}
                     >
                       <FileSpreadsheet size={15} />
-                      Import MD Master Data
+                      Upload Master Data
                     </button>
                   </td>
                 </tr>

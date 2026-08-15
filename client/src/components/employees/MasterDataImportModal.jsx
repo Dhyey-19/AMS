@@ -1,10 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { Modal } from '../common/Modal';
 import { employeeApi } from '../../services/api';
-import { UploadCloud, FileSpreadsheet, CheckCircle2, AlertTriangle, RefreshCw, FileText } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, CheckCircle2, AlertTriangle, RefreshCw, Layers, Users } from 'lucide-react';
 
 export const MasterDataImportModal = ({ isOpen, onClose, onImportSuccess }) => {
   const [file, setFile] = useState(null);
+  const [importType, setImportType] = useState('master'); // 'master' or 'workbook'
   const [mode, setMode] = useState('upsert'); // 'upsert' or 'skip'
   const [loading, setLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -47,6 +48,10 @@ export const MasterDataImportModal = ({ isOpen, onClose, onImportSuccess }) => {
 
   const validateAndSetFile = (f) => {
     const ext = f.name.split('.').pop().toLowerCase();
+    if (importType === 'workbook' && !['xlsx', 'xls'].includes(ext)) {
+      setError('Multi-sheet workbooks must be an Excel file (.xlsx, .xls)');
+      return;
+    }
     if (['csv', 'xlsx', 'xls'].includes(ext)) {
       setFile(f);
       setError(null);
@@ -69,25 +74,16 @@ export const MasterDataImportModal = ({ isOpen, onClose, onImportSuccess }) => {
     formData.append('mode', mode);
 
     try {
-      const res = await employeeApi.importFile(formData);
-      setResult(res.data);
+      let res;
+      if (importType === 'workbook') {
+        res = await employeeApi.importWorkbook(formData);
+      } else {
+        res = await employeeApi.importFile(formData);
+      }
+      setResult({ ...res.data, importType });
       if (onImportSuccess) onImportSuccess();
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Import failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleImportSample = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await employeeApi.importSample(mode);
-      setResult(res.data);
-      if (onImportSuccess) onImportSuccess();
-    } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Sample import failed');
     } finally {
       setLoading(false);
     }
@@ -100,7 +96,7 @@ export const MasterDataImportModal = ({ isOpen, onClose, onImportSuccess }) => {
         resetState();
         onClose();
       }}
-      title="Import Employee Master Data"
+      title={importType === 'workbook' ? 'Import Multi-Sheet Monthly Workbook' : 'Import Employee Master Data'}
       size="md"
       footer={
         result ? (
@@ -133,12 +129,12 @@ export const MasterDataImportModal = ({ isOpen, onClose, onImportSuccess }) => {
               {loading ? (
                 <>
                   <RefreshCw size={16} className="animate-pulse" />
-                  Importing...
+                  Processing File...
                 </>
               ) : (
                 <>
                   <UploadCloud size={16} />
-                  Import File
+                  Upload & Import
                 </>
               )}
             </button>
@@ -171,39 +167,60 @@ export const MasterDataImportModal = ({ isOpen, onClose, onImportSuccess }) => {
               <CheckCircle2 size={32} color="#059669" />
               <div>
                 <h4 style={{ color: '#065f46', fontWeight: '700', fontSize: '1rem' }}>
-                  Import Completed Successfully!
+                  File Processed Successfully!
                 </h4>
                 <p style={{ color: '#047857', fontSize: '0.8125rem' }}>
-                  Source: <strong>{result.filename}</strong>
+                  Uploaded: <strong>{result.filename}</strong>
                 </p>
               </div>
             </div>
 
-            <div className="detail-info-grid">
-              <div className="detail-item">
-                <span className="detail-item-label">Total Rows in File</span>
-                <span className="detail-item-value" style={{ color: '#0284c7' }}>{result.totalRows}</span>
+            {result.importType === 'workbook' ? (
+              <div className="detail-info-grid">
+                <div className="detail-item">
+                  <span className="detail-item-label">Employee Sheets Synced</span>
+                  <span className="detail-item-value" style={{ color: '#0284c7' }}>{result.totalSheets || result.employeesUpserted}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-item-label">Profiles Created / Updated</span>
+                  <span className="detail-item-value" style={{ color: '#059669' }}>{result.employeesUpserted}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-item-label">New Shifts Created</span>
+                  <span className="detail-item-value" style={{ color: '#059669' }}>{result.attendanceInserted}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-item-label">Existing Shifts Updated</span>
+                  <span className="detail-item-value" style={{ color: '#0284c7' }}>{result.attendanceUpdated}</span>
+                </div>
               </div>
-              <div className="detail-item">
-                <span className="detail-item-label">New Records Inserted</span>
-                <span className="detail-item-value" style={{ color: '#059669' }}>{result.inserted}</span>
+            ) : (
+              <div className="detail-info-grid">
+                <div className="detail-item">
+                  <span className="detail-item-label">Total Rows in File</span>
+                  <span className="detail-item-value" style={{ color: '#0284c7' }}>{result.totalRows}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-item-label">New Records Inserted</span>
+                  <span className="detail-item-value" style={{ color: '#059669' }}>{result.inserted}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-item-label">Existing Records Updated</span>
+                  <span className="detail-item-value" style={{ color: '#0284c7' }}>{result.updated}</span>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-item-label">Duplicates Skipped</span>
+                  <span className="detail-item-value" style={{ color: '#64748b' }}>{result.skipped}</span>
+                </div>
               </div>
-              <div className="detail-item">
-                <span className="detail-item-label">Existing Records Updated</span>
-                <span className="detail-item-value" style={{ color: '#0284c7' }}>{result.updated}</span>
-              </div>
-              <div className="detail-item">
-                <span className="detail-item-label">Duplicates Skipped</span>
-                <span className="detail-item-value" style={{ color: '#64748b' }}>{result.skipped}</span>
-              </div>
-            </div>
+            )}
 
             {result.errors && result.errors.length > 0 && (
               <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '8px', padding: '0.875rem' }}>
                 <strong style={{ color: '#9f1239', fontSize: '0.8125rem' }}>Validation Warnings ({result.errors.length}):</strong>
                 <ul style={{ paddingLeft: '1.25rem', marginTop: '0.375rem', fontSize: '0.75rem', color: '#be123c' }}>
                   {result.errors.map((err, i) => (
-                    <li key={i}>Row {err.row}: {err.error}</li>
+                    <li key={i}>{err.sheet ? `Sheet ${err.sheet}: ` : `Row ${err.row}: `}{err.error}</li>
                   ))}
                 </ul>
               </div>
@@ -212,40 +229,57 @@ export const MasterDataImportModal = ({ isOpen, onClose, onImportSuccess }) => {
         ) : (
           /* File Upload & Mode Selector */
           <>
-            {/* Quick Sample Button */}
-            <div 
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.875rem 1rem',
-                backgroundColor: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                borderRadius: '10px'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <FileText size={20} color="#0284c7" />
+            {/* Import Format Selector */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <div
+                onClick={() => { setImportType('master'); setFile(null); }}
+                style={{
+                  border: `2px solid ${importType === 'master' ? 'var(--primary-600)' : '#e2e8f0'}`,
+                  backgroundColor: importType === 'master' ? 'var(--primary-50)' : '#ffffff',
+                  borderRadius: '10px',
+                  padding: '0.875rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.75rem',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Users size={20} color={importType === 'master' ? 'var(--primary-600)' : '#64748b'} style={{ marginTop: '2px', flexShrink: 0 }} />
                 <div>
-                  <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#1e293b' }}>
-                    Use Hospital Master Data
+                  <div style={{ fontWeight: '700', fontSize: '0.875rem', color: importType === 'master' ? 'var(--primary-900)' : '#1e293b' }}>
+                    Master Data (List)
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                    Load default <code>MD MASTER.csv</code> directly
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
+                    Standard CSV or Excel list of employees & salaries
                   </div>
                 </div>
               </div>
-              <button
-                className="btn btn-outline-primary btn-sm"
-                onClick={handleImportSample}
-                disabled={loading}
-              >
-                {loading ? 'Processing...' : 'Load Sample File'}
-              </button>
-            </div>
 
-            <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem', fontWeight: '600' }}>
-              &mdash; OR UPLOAD CUSTOM FILE &mdash;
+              <div
+                onClick={() => { setImportType('workbook'); setFile(null); }}
+                style={{
+                  border: `2px solid ${importType === 'workbook' ? 'var(--primary-600)' : '#e2e8f0'}`,
+                  backgroundColor: importType === 'workbook' ? 'var(--primary-50)' : '#ffffff',
+                  borderRadius: '10px',
+                  padding: '0.875rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.75rem',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Layers size={20} color={importType === 'workbook' ? 'var(--primary-600)' : '#64748b'} style={{ marginTop: '2px', flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontWeight: '700', fontSize: '0.875rem', color: importType === 'workbook' ? 'var(--primary-900)' : '#1e293b' }}>
+                    Monthly Workbook
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
+                    Multi-sheet .xlsx with individual employee sheets
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Drag & Drop Area */}
@@ -260,7 +294,7 @@ export const MasterDataImportModal = ({ isOpen, onClose, onImportSuccess }) => {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv, .xlsx, .xls"
+                accept={importType === 'workbook' ? '.xlsx, .xls' : '.csv, .xlsx, .xls'}
                 onChange={handleFileChange}
                 style={{ display: 'none' }}
               />
@@ -268,8 +302,8 @@ export const MasterDataImportModal = ({ isOpen, onClose, onImportSuccess }) => {
                 <FileSpreadsheet size={28} />
               </div>
               <div className="dropzone-text">
-                <h4>{file ? file.name : 'Choose a file or drag it here'}</h4>
-                <p>Supports CSV (.csv) or Excel spreadsheets (.xlsx, .xls)</p>
+                <h4>{file ? file.name : importType === 'workbook' ? 'Choose Monthly Workbook (.xlsx) or drag here' : 'Choose Master Data File (.csv, .xlsx) or drag here'}</h4>
+                <p>{importType === 'workbook' ? 'Supports Excel workbooks with individual employee sheets' : 'Supports CSV (.csv) or Excel spreadsheets (.xlsx, .xls)'}</p>
                 {file && (
                   <span style={{ display: 'inline-block', marginTop: '6px', fontSize: '0.75rem', color: '#0284c7', fontWeight: '600' }}>
                     Size: {(file.size / 1024).toFixed(1)} KB &bull; Click to change
@@ -278,34 +312,36 @@ export const MasterDataImportModal = ({ isOpen, onClose, onImportSuccess }) => {
               </div>
             </div>
 
-            {/* Deduplication Settings */}
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Duplicate Handling Strategy</label>
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '0.375rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    name="importMode"
-                    value="upsert"
-                    checked={mode === 'upsert'}
-                    onChange={() => setMode('upsert')}
-                  />
-                  <span><strong>Update Existing</strong> (Recommended: refresh fields on duplicate EmployeeCode)</span>
-                </label>
+            {/* Deduplication Settings for Master Data */}
+            {importType === 'master' && (
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Duplicate Handling Strategy</label>
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.375rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="importMode"
+                      value="upsert"
+                      checked={mode === 'upsert'}
+                      onChange={() => setMode('upsert')}
+                    />
+                    <span><strong>Update Existing</strong> (Recommended: refresh fields on duplicate EmployeeCode)</span>
+                  </label>
+                </div>
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.375rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="importMode"
+                      value="skip"
+                      checked={mode === 'skip'}
+                      onChange={() => setMode('skip')}
+                    />
+                    <span><strong>Skip Duplicates</strong> (Keep existing database records intact)</span>
+                  </label>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '0.375rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    name="importMode"
-                    value="skip"
-                    checked={mode === 'skip'}
-                    onChange={() => setMode('skip')}
-                  />
-                  <span><strong>Skip Duplicates</strong> (Keep existing database records intact)</span>
-                </label>
-              </div>
-            </div>
+            )}
           </>
         )}
       </div>

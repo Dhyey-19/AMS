@@ -8,13 +8,7 @@ import { Toast } from '../components/common/Toast';
 import { 
   FileSpreadsheet, 
   UploadCloud, 
-  FileText, 
-  Users, 
-  CheckCircle2, 
-  RefreshCw,
-  Trash2,
-  CalendarCheck,
-  Upload
+  Trash2
 } from 'lucide-react';
 
 export const MasterDataPage = ({ onNavigateToEmployeeAttendance }) => {
@@ -32,8 +26,6 @@ export const MasterDataPage = ({ onNavigateToEmployeeAttendance }) => {
   const [editingEmployee, setEditingEmployee] = useState(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [toast, setToast] = useState({ message: '', type: 'success' });
-  const [importingSample, setImportingSample] = useState(false);
-  const [importingWorkbook, setImportingWorkbook] = useState(false);
 
   const fetchEmployees = useCallback(async (page = 1) => {
     try {
@@ -85,40 +77,6 @@ export const MasterDataPage = ({ onNavigateToEmployeeAttendance }) => {
   const handleSort = (column, direction) => {
     setSortBy(column);
     setSortOrder(direction);
-  };
-
-  const handleImportSampleDirect = async () => {
-    try {
-      setImportingSample(true);
-      const res = await employeeApi.importSample('upsert');
-      setToast({
-        message: `Master data imported: ${res.data.inserted} inserted, ${res.data.updated} updated!`,
-        type: 'success'
-      });
-      fetchEmployees(1);
-      fetchDepartments();
-    } catch (err) {
-      setToast({ message: err.message || 'Sample import failed', type: 'error' });
-    } finally {
-      setImportingSample(false);
-    }
-  };
-
-  const handleImportSampleWorkbook = async () => {
-    try {
-      setImportingWorkbook(true);
-      const res = await employeeApi.importSampleWorkbook();
-      setToast({
-        message: `MAY - 26.xlsx synced: ${res.data.employeesUpserted} profiles and ${res.data.attendanceInserted + res.data.attendanceUpdated} attendance records updated!`,
-        type: 'success'
-      });
-      fetchEmployees(1);
-      fetchDepartments();
-    } catch (err) {
-      setToast({ message: err.message || 'Workbook import failed', type: 'error' });
-    } finally {
-      setImportingWorkbook(false);
-    }
   };
 
   const handleClearData = async () => {
@@ -178,47 +136,10 @@ export const MasterDataPage = ({ onNavigateToEmployeeAttendance }) => {
         <div style={{ display: 'flex', gap: '0.625rem', flexWrap: 'wrap' }}>
           <button
             className="btn btn-primary btn-sm"
-            onClick={handleImportSampleWorkbook}
-            disabled={importingWorkbook}
-            title="Import all 46 employee profiles and attendance sheets from MAY - 26.xlsx"
-          >
-            {importingWorkbook ? (
-              <>
-                <RefreshCw size={15} className="spin" />
-                Syncing MAY - 26.xlsx...
-              </>
-            ) : (
-              <>
-                <Upload size={15} />
-                Sync Full MAY - 26.xlsx
-              </>
-            )}
-          </button>
-
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={handleImportSampleDirect}
-            disabled={importingSample}
-          >
-            {importingSample ? (
-              <>
-                <RefreshCw size={15} className="spin" />
-                Loading...
-              </>
-            ) : (
-              <>
-                <FileText size={15} color="var(--primary-600)" />
-                Load MD MASTER.csv
-              </>
-            )}
-          </button>
-
-          <button
-            className="btn btn-secondary btn-sm"
             onClick={() => setIsImportModalOpen(true)}
           >
             <UploadCloud size={15} />
-            Upload File
+            Upload File / Workbook
           </button>
 
           {employees.length > 0 && (
@@ -229,6 +150,7 @@ export const MasterDataPage = ({ onNavigateToEmployeeAttendance }) => {
               title="Clear all master data"
             >
               <Trash2 size={15} />
+              Clear Master Data
             </button>
           )}
         </div>
@@ -287,7 +209,7 @@ export const MasterDataPage = ({ onNavigateToEmployeeAttendance }) => {
         onImportSuccess={() => {
           fetchEmployees(1);
           fetchDepartments();
-          setToast({ message: 'Master Data successfully imported into SQLite database!', type: 'success' });
+          setToast({ message: 'File successfully processed and imported into database!', type: 'success' });
         }}
       />
 

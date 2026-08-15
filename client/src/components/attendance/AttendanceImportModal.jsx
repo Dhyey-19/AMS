@@ -6,9 +6,7 @@ import {
   FileSpreadsheet, 
   CheckCircle2, 
   AlertTriangle, 
-  RefreshCw, 
-  FileText,
-  Calendar
+  RefreshCw 
 } from 'lucide-react';
 
 export const AttendanceImportModal = ({ isOpen, onClose, onImportSuccess }) => {
@@ -18,14 +16,6 @@ export const AttendanceImportModal = ({ isOpen, onClose, onImportSuccess }) => {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
-
-  const sampleMonths = [
-    { label: 'MD MAY.csv (Primary)', file: 'MD MAY.csv', highlight: true },
-    { label: 'MD APRIL.csv', file: 'MD APRIL.csv' },
-    { label: 'MD JUNE.csv', file: 'MD JUNE.csv' },
-    { label: 'MD JULY.csv', file: 'MD JULY.csv' },
-    { label: 'MD AUG.csv', file: 'MD AUG.csv' }
-  ];
 
   const resetState = () => {
     setFile(null);
@@ -93,20 +83,6 @@ export const AttendanceImportModal = ({ isOpen, onClose, onImportSuccess }) => {
     }
   };
 
-  const handleImportSample = async (sampleFileName) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await attendanceApi.importSample(sampleFileName);
-      setResult(res.data);
-      if (onImportSuccess) onImportSuccess();
-    } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Sample import failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <Modal
       isOpen={isOpen}
@@ -114,7 +90,7 @@ export const AttendanceImportModal = ({ isOpen, onClose, onImportSuccess }) => {
         resetState();
         onClose();
       }}
-      title="Import Attendance Records"
+      title="Upload Attendance Records"
       size="md"
       footer={
         result ? (
@@ -152,7 +128,7 @@ export const AttendanceImportModal = ({ isOpen, onClose, onImportSuccess }) => {
               ) : (
                 <>
                   <UploadCloud size={16} />
-                  Import File
+                  Upload & Import
                 </>
               )}
             </button>
@@ -226,42 +202,8 @@ export const AttendanceImportModal = ({ isOpen, onClose, onImportSuccess }) => {
             )}
           </div>
         ) : (
-          /* File Upload & Sample Loader */
+          /* File Upload Area */
           <>
-            {/* Quick 1-Click Sample Monthly Loaders */}
-            <div 
-              style={{
-                padding: '1rem',
-                backgroundColor: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                borderRadius: '10px'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.625rem' }}>
-                <Calendar size={18} color="#0284c7" />
-                <span style={{ fontSize: '0.875rem', fontWeight: '700', color: '#1e293b' }}>
-                  Load Hospital Monthly Datasets
-                </span>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                {sampleMonths.map((item) => (
-                  <button
-                    key={item.file}
-                    className={`btn btn-sm ${item.highlight ? 'btn-primary' : 'btn-secondary'}`}
-                    onClick={() => handleImportSample(item.file)}
-                    disabled={loading}
-                    style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
-                  >
-                    {loading ? 'Processing...' : item.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem', fontWeight: '600' }}>
-              &mdash; OR UPLOAD ATTENDANCE FILE &mdash;
-            </div>
-
             {/* Drag & Drop Area */}
             <div
               className={`dropzone-box ${dragActive ? 'drag-over' : ''}`}
@@ -283,7 +225,7 @@ export const AttendanceImportModal = ({ isOpen, onClose, onImportSuccess }) => {
               </div>
               <div className="dropzone-text">
                 <h4>{file ? file.name : 'Choose Attendance CSV / Excel or drag here'}</h4>
-                <p>Specifically formatted with Employee Code, Attendance Date, In/Out Times, Status Code</p>
+                <p>Supports CSV (.csv) or Excel spreadsheets (.xlsx, .xls)</p>
                 {file && (
                   <span style={{ display: 'inline-block', marginTop: '6px', fontSize: '0.75rem', color: '#0284c7', fontWeight: '600' }}>
                     Size: {(file.size / 1024).toFixed(1)} KB &bull; Click to change
