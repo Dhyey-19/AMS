@@ -17,11 +17,14 @@ import {
   FileText,
   Upload,
   Sparkles,
-  Users
+  Users,
+  Printer
 } from 'lucide-react';
 import { employeeApi, attendanceApi } from '../services/api';
 import { EditEmployeeMasterModal } from '../components/employees/EditEmployeeMasterModal';
 import { EditDayAttendanceModal } from '../components/attendance/EditDayAttendanceModal';
+import { EmployeeAttendancePdfModal } from '../components/attendance/EmployeeAttendancePdfModal';
+import { printEmployeeAttendance } from '../utils/employeeAttendancePdf';
 
 const formatHoursToHHMM = (hrs) => {
   if (hrs === null || hrs === undefined || isNaN(hrs)) return '00:00';
@@ -72,6 +75,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedRecordForEdit, setSelectedRecordForEdit] = useState(null);
   const [isDayEditModalOpen, setIsDayEditModalOpen] = useState(false);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState('attendance'); // 'attendance', 'salary-history'
   const [importMessage, setImportMessage] = useState(null);
 
@@ -482,6 +486,31 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
             title="Edit Master Data & Rules for this employee"
           >
             <Edit3 size={15} color="var(--primary-600)" /> Edit Rules
+          </button>
+
+          {/* PDF Statement & Print Options */}
+          <button
+            onClick={() => setIsPdfModalOpen(true)}
+            disabled={loading || !sheetData}
+            className="btn btn-secondary btn-sm"
+            style={{
+              borderColor: '#f43f5e',
+              color: '#e11d48',
+              backgroundColor: '#fff1f2',
+              fontWeight: '700'
+            }}
+            title="Open PDF Preview & Export Options"
+          >
+            <FileText size={15} color="#e11d48" /> PDF Statement
+          </button>
+
+          <button
+            onClick={() => printEmployeeAttendance(sheetData)}
+            disabled={loading || !sheetData}
+            className="btn btn-secondary btn-sm"
+            title="Direct 1-Click Print / Save as PDF"
+          >
+            <Printer size={15} color="var(--slate-600)" /> Print
           </button>
 
           <button
@@ -1070,6 +1099,15 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
             const res = await attendanceApi.getEmployeeSheet(selectedEmployeeCode, { month: selectedMonth });
             setSheetData(res.data);
           }}
+        />
+      )}
+
+      {/* PDF Export & Preview Modal */}
+      {isPdfModalOpen && sheetData && (
+        <EmployeeAttendancePdfModal
+          isOpen={isPdfModalOpen}
+          sheetData={sheetData}
+          onClose={() => setIsPdfModalOpen(false)}
         />
       )}
     </div>
