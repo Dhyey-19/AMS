@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, Clock, Building, UserCircle } from 'lucide-react';
+import { Menu, Clock, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-export const Header = ({ activeTab, onToggleSidebar }) => {
+export const Header = ({ activeTab, onToggleSidebar, onOpenDeviceModal }) => {
   const { user } = useAuth();
   const [timeStr, setTimeStr] = useState('');
   const [dateStr, setDateStr] = useState('');
@@ -47,7 +47,27 @@ export const Header = ({ activeTab, onToggleSidebar }) => {
         </div>
       </div>
 
-      <div className="header-right">
+      <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        {/* Device / Workstation License Badge */}
+        <button 
+          onClick={onOpenDeviceModal}
+          className="live-clock-badge"
+          style={{ 
+            background: 'var(--primary-50)', 
+            borderColor: 'var(--primary-200)',
+            cursor: 'pointer',
+            border: '1px solid var(--primary-200)',
+            color: 'var(--primary-700)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+          title="Workstation License Active &bull; Click to manage authorized devices"
+        >
+          <ShieldCheck size={15} color="#0284c7" />
+          <span style={{ fontWeight: 600 }}>Workstation Active</span>
+        </button>
+
         <div className="live-clock-badge">
           <Clock size={15} color="#0284c7" />
           <span>{dateStr} &bull; {timeStr}</span>

@@ -8,6 +8,7 @@ const { authenticateToken } = require('../middleware/auth');
 router.use(authenticateToken);
 
 // Import endpoints
+router.post('/parse-headers', upload.single('file'), AttendanceController.parseHeaders);
 router.post('/import', upload.single('file'), AttendanceController.importFile);
 
 // List & Filter records

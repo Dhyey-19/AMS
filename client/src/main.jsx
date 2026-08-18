@@ -7,6 +7,7 @@ import './styles/layout.css';
 import './styles/auth.css';
 import './styles/dashboard.css';
 import './styles/table.css';
+import './styles/device.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

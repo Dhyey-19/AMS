@@ -3,8 +3,34 @@ const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
 
-// Database path in project root
-const DB_PATH = process.env.DB_PATH || path.resolve(__dirname, '../../../ams.db');
+// Database path in project root or publish root (supports data/ folder)
+const dataDir = path.resolve(process.cwd(), 'data');
+const dataDbPath = path.join(dataDir, 'ams.db');
+
+const possibleDbPaths = [
+  process.env.DB_PATH,
+  dataDbPath,
+  path.resolve(process.cwd(), 'ams.db'),
+  path.resolve(__dirname, 'data/ams.db'),
+  path.resolve(__dirname, 'ams.db'),
+  path.resolve(__dirname, '../../../ams.db')
+].filter(Boolean);
+
+let targetDbPath = process.env.DB_PATH || possibleDbPaths.find(p => fs.existsSync(p));
+if (!targetDbPath) {
+  if (fs.existsSync(dataDir)) {
+    targetDbPath = dataDbPath;
+  } else {
+    try {
+      fs.mkdirSync(dataDir, { recursive: true });
+      targetDbPath = dataDbPath;
+    } catch (e) {
+      targetDbPath = path.resolve(process.cwd(), 'ams.db');
+    }
+  }
+}
+
+const DB_PATH = targetDbPath;
 
 let db;
 
@@ -182,6 +208,31 @@ function initSchema() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  // Device Registrations table (One-Click Registration & Device Authorization)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS device_registrations (
+      device_id TEXT PRIMARY KEY,
+      is_registered INTEGER DEFAULT 0,
+      random_number TEXT,
+      device_name TEXT,
+      last_user TEXT,
+      last_active_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      ip_address TEXT,
+      user_agent TEXT,
+      registered_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_device_random_number ON device_registrations(random_number);
+    CREATE INDEX IF NOT EXISTS idx_device_registered ON device_registrations(is_registered);
+  `);
+
+  addColumnIfNotExists('device_registrations', 'device_name', 'TEXT');
+  addColumnIfNotExists('device_registrations', 'last_user', 'TEXT');
+  addColumnIfNotExists('device_registrations', 'last_active_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP');
+  addColumnIfNotExists('device_registrations', 'ip_address', 'TEXT');
+  addColumnIfNotExists('device_registrations', 'user_agent', 'TEXT');
+  addColumnIfNotExists('device_registrations', 'registered_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP');
 
   // Seed default admin user if no users exist
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;

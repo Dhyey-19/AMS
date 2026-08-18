@@ -3,9 +3,15 @@ const path = require('path');
 const fs = require('fs');
 
 // Create temp uploads directory if not exists
-const uploadDir = path.resolve(__dirname, '../../uploads');
+const uploadDir = process.env.UPLOAD_DIR || (
+  fs.existsSync(path.resolve(process.cwd(), 'uploads'))
+    ? path.resolve(process.cwd(), 'uploads')
+    : path.resolve(__dirname, '../../uploads')
+);
 if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+  try {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  } catch (e) {}
 }
 
 const storage = multer.diskStorage({

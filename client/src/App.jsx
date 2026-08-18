@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { RegistrationGuard } from './components/auth/RegistrationGuard';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -95,9 +96,11 @@ const MainApplication = () => {
 
 export const App = () => {
   return (
-    <AuthProvider>
-      <MainApplication />
-    </AuthProvider>
+    <RegistrationGuard>
+      <AuthProvider>
+        <MainApplication />
+      </AuthProvider>
+    </RegistrationGuard>
   );
 };
 

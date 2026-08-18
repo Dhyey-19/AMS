@@ -42,8 +42,18 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+const fs = require('fs');
+
 // Serve frontend in production (Monolithic setup)
-const clientBuildPath = path.resolve(__dirname, '../../client/dist');
+const possibleClientPaths = [
+  process.env.CLIENT_DIST_PATH,
+  path.resolve(__dirname, 'client_dist'),
+  path.resolve(process.cwd(), 'client_dist'),
+  path.resolve(__dirname, '../../client/dist'),
+  path.resolve(process.cwd(), 'client/dist')
+].filter(Boolean);
+
+const clientBuildPath = possibleClientPaths.find(p => fs.existsSync(p)) || path.resolve(process.cwd(), 'client_dist');
 app.use(express.static(clientBuildPath));
 
 app.get('*', (req, res, next) => {
@@ -90,6 +100,18 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, HOST, () => {
-  console.log(`🚀 AMS Monolithic Server is running at http://${HOST}:${PORT}`);
+  const displayHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
+  const url = `http://${displayHost}:${PORT}`;
+  console.log(`🚀 AMS Server is running at ${url}`);
   console.log(`🏥 Global IVF Hospital - Attendance Management System`);
+
+  // Auto-open browser in standalone/pkg mode
+  if (process.env.AUTO_OPEN !== 'false' && (process.pkg || process.env.NODE_ENV === 'production')) {
+    setTimeout(() => {
+      try {
+        const cmd = process.platform === 'win32' ? `start ${url}` : process.platform === 'darwin' ? `open ${url}` : `xdg-open ${url}`;
+        require('child_process').exec(cmd);
+      } catch (e) {}
+    }, 1200);
+  }
 });

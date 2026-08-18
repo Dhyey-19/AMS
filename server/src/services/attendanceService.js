@@ -5,7 +5,182 @@ const csv = require('csv-parser');
 const { getDatabase } = require('../config/database');
 const CalculationEngine = require('./calculationEngine');
 
+const ATTENDANCE_FIELD_DEFINITIONS = [
+  {
+    key: 'employee_code',
+    label: 'Employee Code / ID',
+    required: true,
+    category: 'required',
+    description: 'Unique Employee ID (e.g. EMP001, 101)',
+    aliases: ['employeecode', 'empcode', 'employeeid', 'empid', 'bioid', 'biometricid', 'biocode', 'deviceid', 'deviceuserid', 'punchid', 'staffid', 'staffcode', 'staffno', 'cardno', 'badgeno', 'acno', 'usercode', 'userid', 'enrollno', 'enrollid', 'code', 'id', 'no']
+  },
+  {
+    key: 'attendance_date',
+    label: 'Attendance Date',
+    required: true,
+    category: 'required',
+    description: 'Date of attendance (YYYY-MM-DD, DD/MM/YYYY, etc.)',
+    aliases: ['attendancedate', 'date', 'attdate', 'punchdate', 'logdate', 'workdate', 'entrydate', 'day', 'shiftdate']
+  },
+  {
+    key: 'employee_name',
+    label: 'Employee Name',
+    required: false,
+    category: 'employee',
+    description: 'Staff / Employee full name',
+    aliases: ['employeename', 'empname', 'name', 'staffname', 'staff', 'fullname', 'username', 'personname', 'workername']
+  },
+  {
+    key: 'in_time',
+    label: 'In Time (First Punch)',
+    required: false,
+    category: 'timings',
+    description: 'First check-in punch timestamp (HH:MM)',
+    aliases: ['intime', 'timein', 'actualin', 'checkin', 'firstin', 'firstpunch', 'signin', 'punchin', 'in1', 'clockin', 'arrival', 'in']
+  },
+  {
+    key: 'out_time',
+    label: 'Out Time (Last Punch)',
+    required: false,
+    category: 'timings',
+    description: 'Last check-out punch timestamp (HH:MM)',
+    aliases: ['outtime', 'timeout', 'actualout', 'checkout', 'lastout', 'lastpunch', 'signout', 'punchout', 'out1', 'clockout', 'departure', 'out']
+  },
+  {
+    key: 'total_duration',
+    label: 'Total Duration / Work Hours',
+    required: false,
+    category: 'timings',
+    description: 'Worked duration (HH:MM)',
+    aliases: ['totalduration', 'duration', 'workduration', 'workhours', 'totalhours', 'totalhrs', 'worktime', 'workinghours', 'totalwork', 'netduration']
+  },
+  {
+    key: 'status_code',
+    label: 'Status Code',
+    required: false,
+    category: 'employee',
+    description: 'Attendance status (P, A, WO, H, HD, etc.)',
+    aliases: ['statuscode', 'status', 'attendancestatus', 'attstatus', 'presentstatus', 'daystatus', 'present']
+  },
+  {
+    key: 'shift_name',
+    label: 'Shift Name',
+    required: false,
+    category: 'employee',
+    description: 'Assigned shift name or code',
+    aliases: ['shiftname', 'shifttype', 'shift', 'shiftcode', 'shiftschedule', 'assignedshift', 'timetable', 'workshift']
+  },
+  {
+    key: 'punch_records',
+    label: 'Punch Records (Log)',
+    required: false,
+    category: 'timings',
+    description: 'All punch times log (e.g. 08:30, 13:00, 14:00, 17:30)',
+    aliases: ['punchrecords', 'punchrecord', 'punchlog', 'punches', 'allpunches', 'rawpunches', 'rawlog', 'punchlist', 'logs', 'punchdetails', 'timelog']
+  },
+  {
+    key: 'department',
+    label: 'Department',
+    required: false,
+    category: 'employee',
+    description: 'Department name',
+    aliases: ['department', 'dept', 'deptname', 'division', 'unit', 'section']
+  },
+  {
+    key: 'designation',
+    label: 'Designation / Role',
+    required: false,
+    category: 'employee',
+    description: 'Employee job title / designation',
+    aliases: ['designation', 'desig', 'role', 'jobtitle', 'position', 'title', 'post']
+  },
+  {
+    key: 'break_out',
+    label: 'Break Out Time',
+    required: false,
+    category: 'timings',
+    description: 'Lunch / break start time (HH:MM)',
+    aliases: ['breakout', 'lunchout', 'out2', 'break1out', 'mealout']
+  },
+  {
+    key: 'break_in',
+    label: 'Break In Time',
+    required: false,
+    category: 'timings',
+    description: 'Lunch / break end time (HH:MM)',
+    aliases: ['breakin', 'lunchin', 'in2', 'break1in', 'mealin']
+  },
+  {
+    key: 'begin_time',
+    label: 'Shift Begin Time',
+    required: false,
+    category: 'timings',
+    description: 'Scheduled shift start time (HH:MM)',
+    aliases: ['begintime', 'shiftin', 'shiftstart', 'schedulein', 'starttime', 'planin']
+  },
+  {
+    key: 'end_time',
+    label: 'Shift End Time',
+    required: false,
+    category: 'timings',
+    description: 'Scheduled shift end time (HH:MM)',
+    aliases: ['endtime', 'shiftout', 'shiftend', 'scheduleout', 'planout']
+  },
+  {
+    key: 'late_by',
+    label: 'Late By Duration',
+    required: false,
+    category: 'adjustments',
+    description: 'Late arrival time (HH:MM)',
+    aliases: ['lateby', 'latemins', 'lateminutes', 'late', 'latetime', 'delay']
+  },
+  {
+    key: 'early_by',
+    label: 'Early By Duration',
+    required: false,
+    category: 'adjustments',
+    description: 'Early departure time (HH:MM)',
+    aliases: ['earlyby', 'earlymins', 'earlyminutes', 'early', 'earlyleaving', 'earlygoing']
+  },
+  {
+    key: 'over_time',
+    label: 'Overtime (OT)',
+    required: false,
+    category: 'adjustments',
+    description: 'Overtime duration (HH:MM)',
+    aliases: ['overtime', 'overtimeminutes', 'ot', 'othours', 'otminutes', 'extratime']
+  },
+  {
+    key: 'leave_deduction',
+    label: 'Leave Deduction',
+    required: false,
+    category: 'adjustments',
+    description: 'Leave deduction days (0, 0.5, 1.0)',
+    aliases: ['leavededuction', 'leave', 'deduction', 'leavedays']
+  },
+  {
+    key: 'penalty_amount',
+    label: 'Penalty Amount',
+    required: false,
+    category: 'adjustments',
+    description: 'Fine or penalty amount',
+    aliases: ['penalty', 'penaltyamount', 'fine', 'deductionamount']
+  },
+  {
+    key: 'remarks',
+    label: 'Remarks / Notes',
+    required: false,
+    category: 'adjustments',
+    description: 'Comments or notes',
+    aliases: ['remarks', 'remark', 'comments', 'comment', 'note', 'notes', 'reason']
+  }
+];
+
 class AttendanceService {
+  static getFieldDefinitions() {
+    return ATTENDANCE_FIELD_DEFINITIONS;
+  }
+
   /**
    * Helper to normalize raw row keys
    */
@@ -75,16 +250,63 @@ class AttendanceService {
   }
 
   /**
+   * Automatically suggest column mapping based on file headers
+   */
+  static suggestColumnMapping(headers = []) {
+    const mapping = {};
+    const usedHeaders = new Set();
+
+    const normalizedHeaders = headers.map(h => ({
+      original: h,
+      normalized: this.normalizeKey(h)
+    }));
+
+    // Step 1: Exact matches against alias list (prioritizing required primary fields first)
+    for (const def of ATTENDANCE_FIELD_DEFINITIONS) {
+      for (const h of normalizedHeaders) {
+        if (usedHeaders.has(h.original)) continue;
+        if (def.aliases.includes(h.normalized)) {
+          mapping[def.key] = h.original;
+          usedHeaders.add(h.original);
+          break;
+        }
+      }
+    }
+
+    // Step 2: Substring / fuzzy containment matches for remaining unmapped fields
+    for (const def of ATTENDANCE_FIELD_DEFINITIONS) {
+      if (mapping[def.key]) continue;
+      for (const h of normalizedHeaders) {
+        if (usedHeaders.has(h.original)) continue;
+        const isSubMatch = def.aliases.some(alias => {
+          if (['id', 'no', 'code', 'emp', 'in', 'out', 'day'].includes(alias)) return false;
+          return (alias.length >= 3 && h.normalized.includes(alias)) || 
+                 (h.normalized.length >= 4 && alias.includes(h.normalized));
+        });
+        if (isSubMatch) {
+          mapping[def.key] = h.original;
+          usedHeaders.add(h.original);
+          break;
+        }
+      }
+    }
+
+    return mapping;
+  }
+
+  /**
    * Parse either CSV or XLSX file
    */
-  static async parseFile(filePath) {
+  static async parseFile(filePath, sheetName = null) {
     const ext = path.extname(filePath).toLowerCase();
 
     if (ext === '.xlsx' || ext === '.xls') {
-      const workbook = xlsx.readFile(filePath);
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      return xlsx.utils.sheet_to_json(sheet, { defval: '' });
+      const workbook = xlsx.readFile(filePath, { cellDates: false });
+      const sheetNames = workbook.SheetNames || [];
+      const targetSheet = sheetName && sheetNames.includes(sheetName) ? sheetName : (sheetNames[0] || '');
+      const sheet = workbook.Sheets[targetSheet];
+      if (!sheet) return [];
+      return xlsx.utils.sheet_to_json(sheet, { defval: '', raw: false });
     }
 
     return new Promise((resolve, reject) => {
@@ -98,16 +320,121 @@ class AttendanceService {
   }
 
   /**
+   * Extract headers, sheet names, preview rows, and suggested mappings from file
+   */
+  static async parseFileHeaders(filePath, sheetName = null) {
+    const ext = path.extname(filePath).toLowerCase();
+    let sheetNames = ['Sheet1'];
+    let activeSheet = 'Sheet1';
+    let headers = [];
+    let previewRows = [];
+    let totalRows = 0;
+
+    if (ext === '.xlsx' || ext === '.xls') {
+      const workbook = xlsx.readFile(filePath, { cellDates: false });
+      sheetNames = workbook.SheetNames || [];
+      activeSheet = sheetName && sheetNames.includes(sheetName) ? sheetName : (sheetNames[0] || '');
+      const sheet = workbook.Sheets[activeSheet];
+
+      if (sheet) {
+        const jsonAll = xlsx.utils.sheet_to_json(sheet, { defval: '', raw: false });
+        totalRows = jsonAll.length;
+
+        // Try extracting headers from matrix row 0
+        const headerMatrix = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+        if (headerMatrix.length > 0 && Array.isArray(headerMatrix[0])) {
+          headers = headerMatrix[0]
+            .map(h => (h !== undefined && h !== null ? String(h).trim() : ''))
+            .filter(Boolean);
+        }
+
+        // Fallback: union of keys from json objects
+        if (headers.length === 0 && jsonAll.length > 0) {
+          const keySet = new Set();
+          jsonAll.forEach(r => Object.keys(r).forEach(k => {
+            if (k && k.trim()) keySet.add(k.trim());
+          }));
+          headers = Array.from(keySet);
+        }
+
+        previewRows = jsonAll.slice(0, 10);
+      }
+    } else {
+      // CSV file
+      const jsonAll = await new Promise((resolve, reject) => {
+        const results = [];
+        fs.createReadStream(filePath)
+          .pipe(csv())
+          .on('data', (data) => results.push(data))
+          .on('end', () => resolve(results))
+          .on('error', (err) => reject(err));
+      });
+
+      totalRows = jsonAll.length;
+      const keySet = new Set();
+      if (jsonAll.length > 0) {
+        Object.keys(jsonAll[0]).forEach(k => {
+          if (k && k.trim()) keySet.add(k.trim());
+        });
+        jsonAll.forEach(r => Object.keys(r).forEach(k => {
+          if (k && k.trim()) keySet.add(k.trim());
+        }));
+      }
+      headers = Array.from(keySet);
+      previewRows = jsonAll.slice(0, 10);
+    }
+
+    const suggestedMapping = this.suggestColumnMapping(headers);
+
+    return {
+      sheetNames,
+      activeSheet,
+      headers,
+      previewRows,
+      totalRows,
+      suggestedMapping,
+      fieldDefinitions: ATTENDANCE_FIELD_DEFINITIONS
+    };
+  }
+
+  /**
    * Map raw row to standardized Attendance Record storing only raw data
    */
-  static mapRowToAttendance(rawRow) {
+  static mapRowToAttendance(rawRow, columnMapping = null) {
+    const getMappedValue = (fieldKey) => {
+      if (columnMapping && columnMapping[fieldKey]) {
+        const headerName = columnMapping[fieldKey];
+        if (rawRow[headerName] !== undefined && rawRow[headerName] !== '') {
+          return this.cleanValue(rawRow[headerName]);
+        }
+        // Case-insensitive / trimmed search fallback
+        const foundKey = Object.keys(rawRow).find(
+          k => k.trim().toLowerCase() === headerName.trim().toLowerCase()
+        );
+        if (foundKey && rawRow[foundKey] !== undefined && rawRow[foundKey] !== '') {
+          return this.cleanValue(rawRow[foundKey]);
+        }
+      }
+      return null;
+    };
+
+    // Normalized row for auto-detection fallback
     const normalized = {};
     for (const [key, value] of Object.entries(rawRow)) {
       normalized[this.normalizeKey(key)] = this.cleanValue(value);
     }
 
-    const employeeCode = normalized['employeecode'] || normalized['code'] || normalized['empid'] || normalized['id'];
-    const attendanceDateRaw = normalized['attendancedate'] || normalized['date'];
+    // 1. Employee Code
+    let employeeCode = getMappedValue('employee_code');
+    if (employeeCode === null) {
+      employeeCode = normalized['employeecode'] || normalized['code'] || normalized['empid'] || normalized['id'] || '';
+    }
+
+    // 2. Attendance Date
+    let attendanceDateRaw = getMappedValue('attendance_date');
+    if (attendanceDateRaw === null) {
+      attendanceDateRaw = normalized['attendancedate'] || normalized['date'] || '';
+    }
 
     if (!employeeCode || !attendanceDateRaw) {
       return null;
@@ -118,27 +445,117 @@ class AttendanceService {
       return null;
     }
 
-    const inTime = CalculationEngine.formatTimeString(normalized['intime'] || normalized['actualin'] || normalized['in'] || '');
-    const outTime = CalculationEngine.formatTimeString(normalized['outtime'] || normalized['actualout'] || normalized['out'] || '');
-    const rawPunchRecords = normalized['punchrecords'] || '';
-    const extractedBreaks = CalculationEngine.extractBreakPunches(rawPunchRecords, normalized['breakout'], normalized['breakin']);
+    // 3. Employee Name
+    let employeeName = getMappedValue('employee_name');
+    if (employeeName === null) {
+      employeeName = normalized['employeename'] || normalized['name'] || '';
+    }
+
+    // 4. Designation & Department
+    let designation = getMappedValue('designation');
+    if (designation === null) designation = normalized['designation'] || '';
+
+    let department = getMappedValue('department');
+    if (department === null) department = normalized['department'] || 'Admin';
+
+    // 5. Shift & Begin/End Times
+    let shiftName = getMappedValue('shift_name');
+    if (shiftName === null) shiftName = normalized['shiftname'] || normalized['shift'] || '';
+
+    let beginTime = getMappedValue('begin_time');
+    if (beginTime === null) beginTime = normalized['begintime'] || '00:00';
+
+    let endTime = getMappedValue('end_time');
+    if (endTime === null) endTime = normalized['endtime'] || '00:00';
+
+    // 6. Punches & Timings
+    let inTimeRaw = getMappedValue('in_time');
+    if (inTimeRaw === null) inTimeRaw = normalized['intime'] || normalized['actualin'] || normalized['in'] || '';
+    const inTime = CalculationEngine.formatTimeString(inTimeRaw);
+
+    let outTimeRaw = getMappedValue('out_time');
+    if (outTimeRaw === null) outTimeRaw = normalized['outtime'] || normalized['actualout'] || normalized['out'] || '';
+    const outTime = CalculationEngine.formatTimeString(outTimeRaw);
+
+    let punchRecords = getMappedValue('punch_records');
+    if (punchRecords === null) punchRecords = normalized['punchrecords'] || '';
+
+    if (!punchRecords && (inTime || outTime)) {
+      const list = [inTime, outTime].filter(Boolean);
+      punchRecords = list.join(', ');
+    }
+
+    let breakOutRaw = getMappedValue('break_out');
+    let breakInRaw = getMappedValue('break_in');
+    const extractedBreaks = CalculationEngine.extractBreakPunches(
+      punchRecords,
+      breakOutRaw !== null ? breakOutRaw : normalized['breakout'],
+      breakInRaw !== null ? breakInRaw : normalized['breakin']
+    );
     const breakOut = extractedBreaks.breakOut;
     const breakIn = extractedBreaks.breakIn;
 
-    const totalDuration = normalized['totalduration'] || normalized['duration'] || '00:00';
-    const lateBy = normalized['lateby'] || '00:00';
-    const earlyBy = normalized['earlyby'] || '00:00';
-    const overTime = normalized['overtime'] || '00:00';
+    // 7. Durations
+    let totalDurationRaw = getMappedValue('total_duration');
+    if (totalDurationRaw === null) totalDurationRaw = normalized['totalduration'] || normalized['duration'] || '';
+    let totalDuration = CalculationEngine.formatTimeString(totalDurationRaw) || '00:00';
+
+    if (totalDuration === '00:00' && inTime && outTime && inTime !== '00:00' && outTime !== '00:00') {
+      const inMins = CalculationEngine.timeToMinutes(inTime);
+      const outMins = CalculationEngine.timeToMinutes(outTime);
+      if (outMins >= inMins) {
+        const diff = outMins - inMins;
+        const h = Math.floor(diff / 60).toString().padStart(2, '0');
+        const m = (diff % 60).toString().padStart(2, '0');
+        totalDuration = `${h}:${m}`;
+      }
+    }
+
+    let lateByRaw = getMappedValue('late_by');
+    if (lateByRaw === null) lateByRaw = normalized['lateby'] || '00:00';
+    const lateBy = CalculationEngine.formatTimeString(lateByRaw) || '00:00';
+
+    let earlyByRaw = getMappedValue('early_by');
+    if (earlyByRaw === null) earlyByRaw = normalized['earlyby'] || '00:00';
+    const earlyBy = CalculationEngine.formatTimeString(earlyByRaw) || '00:00';
+
+    let overTimeRaw = getMappedValue('over_time');
+    if (overTimeRaw === null) overTimeRaw = normalized['overtime'] || '00:00';
+    const overTime = CalculationEngine.formatTimeString(overTimeRaw) || '00:00';
+
+    // 8. Status Code
+    let statusCodeRaw = getMappedValue('status_code');
+    if (statusCodeRaw === null) statusCodeRaw = normalized['statuscode'] || normalized['status'] || '';
+    let statusCode = (statusCodeRaw || '').toString().toUpperCase().trim();
+    if (!statusCode) {
+      if (inTime && inTime !== '00:00') {
+        statusCode = 'P';
+      } else {
+        statusCode = 'A';
+      }
+    }
+
+    // 9. Leave, Penalty, Remarks
+    let leaveDeductionRaw = getMappedValue('leave_deduction');
+    if (leaveDeductionRaw === null) leaveDeductionRaw = normalized['leavededuction'];
+    const leaveDeduction = leaveDeductionRaw ? parseFloat(leaveDeductionRaw) || 0 : 0;
+
+    let penaltyRaw = getMappedValue('penalty_amount');
+    if (penaltyRaw === null) penaltyRaw = normalized['penalty'] || normalized['penaltyamount'];
+    const penaltyAmount = penaltyRaw ? parseFloat(penaltyRaw) || 0 : 0;
+
+    let remarks = getMappedValue('remarks');
+    if (remarks === null) remarks = normalized['remarks'] || '';
 
     return {
       employee_code: employeeCode.toString().trim(),
       attendance_date: attendanceDateRaw,
       attendance_date_iso: attendanceDateIso,
-      employee_name: normalized['employeename'] || normalized['name'] || '',
-      designation: normalized['designation'] || '',
-      department: normalized['department'] || 'Admin',
-      begin_time: normalized['begintime'] || '00:00',
-      end_time: normalized['endtime'] || '00:00',
+      employee_name: employeeName,
+      designation: designation,
+      department: department,
+      begin_time: beginTime,
+      end_time: endTime,
       in_time: inTime,
       out_time: outTime,
       break_out: breakOut,
@@ -146,26 +563,26 @@ class AttendanceService {
       late_by: lateBy,
       early_by: earlyBy,
       over_time: overTime,
-      punch_records: normalized['punchrecords'] || '',
-      shift_name: normalized['shiftname'] || '',
-      status_code: (normalized['statuscode'] || normalized['status'] || 'A').toUpperCase().trim(),
+      punch_records: punchRecords,
+      shift_name: shiftName,
+      status_code: statusCode,
       total_duration: totalDuration,
       total_duration_minutes: CalculationEngine.timeToMinutes(totalDuration),
       late_by_minutes: CalculationEngine.timeToMinutes(lateBy),
       early_by_minutes: CalculationEngine.timeToMinutes(earlyBy),
       over_time_minutes: CalculationEngine.timeToMinutes(overTime),
-      leave_deduction: normalized['leavededuction'] ? parseFloat(normalized['leavededuction']) : 0,
-      penalty_amount: normalized['penalty'] || normalized['penaltyamount'] ? parseFloat(normalized['penalty'] || normalized['penaltyamount']) : 0,
-      overtime_override_minutes: normalized['overtimeoverride'] ? parseInt(normalized['overtimeoverride'], 10) : 0,
-      remarks: normalized['remarks'] || ''
+      leave_deduction: leaveDeduction,
+      penalty_amount: penaltyAmount,
+      overtime_override_minutes: 0,
+      remarks: remarks
     };
   }
 
   /**
    * Import attendance records with automatic upsert on (employee_code, attendance_date_iso)
    */
-  static async importAttendanceData(filePath, originalFilename, importedBy = 'Admin') {
-    const rawRows = await this.parseFile(filePath);
+  static async importAttendanceData(filePath, originalFilename, importedBy = 'Admin', columnMapping = null, sheetName = null) {
+    const rawRows = await this.parseFile(filePath, sheetName);
     const db = getDatabase();
 
     let inserted = 0;
@@ -219,7 +636,7 @@ class AttendanceService {
     const transaction = db.transaction((rows) => {
       rows.forEach((rawRow, idx) => {
         try {
-          const rec = this.mapRowToAttendance(rawRow);
+          const rec = this.mapRowToAttendance(rawRow, columnMapping);
           if (!rec) {
             errors.push({ row: idx + 2, error: 'Missing Employee Code or Attendance Date' });
             return;

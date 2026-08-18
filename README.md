@@ -1,35 +1,54 @@
 # 🏥 Global IVF Hospital - Attendance Management System (AMS)
 
-A full-stack, monolithic web application for managing hospital staff master records and attendance tracking.
-
-## 🛠️ Technology Stack
-- **Frontend:** React.js (Vite, Lucide Icons, Custom Vanilla CSS Design System)
-- **Backend:** Node.js + Express.js
-- **Database:** Local SQLite database (`ams.db` with WAL mode)
-- **Authentication:** JWT (JSON Web Tokens) & Bcrypt password hashing
+A complete, production-ready full-stack application for hospital employee master data management, biometric attendance log ingestion, dynamic salary/overtime calculation engine, and secure device authorization.
 
 ---
 
-## ⚡ Quick Start
+## 🛠️ Technology Stack
+- **Frontend:** React 18, Vite, Lucide Icons, Custom Premium Vanilla CSS Design System (Glassmorphic cards, teal medical theme, mobile-responsive).
+- **Backend:** Node.js + Express.js, `esbuild` bundler.
+- **Database:** Local embedded SQLite database (`ams.db` with WAL mode & auto-schema migration).
+- **File Parsing & Math:** SheetJS (`xlsx`), `csv-parser`, Dynamic Duration & Salary Calculation Engine.
+- **Security & Authorization:** JWT authentication, Bcrypt password hashing, One-Click Device Registration Gate.
 
-### 1. Unified Monolithic Run (Single Server)
-Serves both backend API and React frontend on port `5050`:
+---
+
+## ⚡ Quick Start (Development & Local Run)
+
+### 1. Install All Dependencies (Single Unified Command)
 ```bash
-npm start
+npm install
 ```
-Open **[http://127.0.0.1:5050](http://127.0.0.1:5050)** in your web browser.
+*(Uses NPM Workspaces — installs both backend and frontend dependencies into a single root `node_modules`).*
 
 ### 2. Development Mode (With Hot Reloading)
-Runs Express backend on `5050` and Vite dev server on `3000`:
+Runs Express API backend on port `5050` and Vite React client with hot-module replacement on port `3000`:
 ```bash
 npm run dev
 ```
-Open **[http://localhost:3000](http://localhost:3000)** in your web browser.
+Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
-### 3. Rebuild React Frontend
+### 3. Production Monolithic Run (Single Port)
+Serves both backend API and the compiled React frontend together on port `5050`:
 ```bash
-npm run build
+npm start
 ```
+Open **[http://localhost:5050](http://localhost:5050)** in your browser.
+
+---
+
+## 🚀 Standalone Distribution (Zero Source Code Exposure)
+
+To run this application on another Windows PC **without exposing any source code**:
+
+1. Run the publish build command:
+   ```bash
+   npm run publish:build
+   ```
+2. Copy the generated `publish/` folder (or zip it) to the other Windows PC.
+3. On that PC, double-click **`START_AMS.bat`**.
+   - It will automatically launch the server and open **`http://localhost:5050`** in the default browser.
+4. To stop the application, double-click **`STOP_AMS.bat`**.
 
 ---
 
@@ -37,26 +56,24 @@ npm run build
 - **Username:** `admin`
 - **Password:** `admin123`
 
-*(You can also use the Signup page to register new staff accounts at any time).*
-
 ---
 
-## 🌟 Key Features Implemented
+## 🌟 Core Features
 
-1. **Monolithic Single Repository**: Complete frontend, backend, database, and Excel datasets reside within one single project.
-2. **Local SQLite Storage (`ams.db`)**: No external database setup or cloud services required. Auto-creates schema and indexes on startup.
-3. **Hospital Dashboard**:
-   - Live KPI cards: Total Staff, Active Working, Resigned, Total Departments.
-   - Dynamic department visual breakdown bars.
-   - Real-time digital clock and quick action shortcuts.
-4. **Master Data CSV & Excel Ingestion**:
-   - 1-Click **"Load Sample File (MD MASTER.csv)"** button to instantly sync hospital records.
-   - Drag-and-drop file upload supporting `.csv`, `.xlsx`, and `.xls`.
-   - Conflict-free **deduplication / upsert** based on `EmployeeCode` (126 unique employees, 0 duplicate insertions).
-5. **Interactive Employee Directory**:
-   - Real-time search across Name, Employee Code, Department, and Designation.
-   - Multi-filtering by Department, Status (*Working* / *Resigned*), and Gender.
-   - Sortable columns and pagination.
-   - Full 23-field Employee Profile modal (DOJ, DOC, DOB, RFID, PAN, Voter ID, Shift Group, etc.).
-   - CSV Export button.
-6. **Extensible Architecture**: Clean separation into `routes/`, `controllers/`, `services/`, and `middleware/` designed for the upcoming attendance CSV import and reporting phases.
+1. **NPM Workspaces Monolithic Architecture**: Single unified `node_modules` without duplication.
+2. **Dynamic Spreadsheet Ingestion & Column Mapping**:
+   - Accepts `.csv`, `.xlsx`, and `.xls` files.
+   - Automatically detects column headers and auto-maps fields based on intelligent fuzzy name matching.
+   - Interactive live preview table rendering mapped rows before executing import.
+   - Multi-sheet workbook selector for complex monthly Excel files.
+   - Deduplication and upsert on `(employee_code, attendance_date_iso)`.
+3. **Dynamic Attendance & Salary Calculation Engine**:
+   - 4-Tier Duration Calculation threshold (11-minute grace rule, late IN, late OUT, both late).
+   - Automated break time extraction from biometric punch logs.
+   - Real-time Per-Day & Per-Hour salary calculation.
+   - Overtime rules (Doctors exempt, Weekly Off counting, multipliers).
+4. **Employee Master Management**:
+   - 23+ profile fields, department filters, search, edit modals, and Excel export.
+5. **One-Click Device Registration & License Gate**:
+   - Secure authorization code system with auto-approval and revoke controls.
+

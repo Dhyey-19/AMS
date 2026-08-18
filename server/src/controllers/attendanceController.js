@@ -3,7 +3,48 @@ const AttendanceService = require('../services/attendanceService');
 
 class AttendanceController {
   /**
-   * Upload & Import Attendance File
+   * Parse Attendance File Headers, Sample Rows & Suggested Mappings
+   */
+  static async parseHeaders(req, res) {
+    let filePath = null;
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please upload an attendance CSV or Excel file'
+        });
+      }
+
+      filePath = req.file.path;
+      const sheetName = req.body.sheetName || req.query.sheetName || null;
+      const data = await AttendanceService.parseFileHeaders(filePath, sheetName);
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          filename: req.file.originalname,
+          size: req.file.size,
+          ...data
+        }
+      });
+    } catch (err) {
+      return res.status(500).json({
+        success: false,
+        message: err.message || 'Failed to read headers from file'
+      });
+    } finally {
+      if (filePath && fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (e) {
+          console.error('Failed to remove temp upload:', e);
+        }
+      }
+    }
+  }
+
+  /**
+   * Upload & Import Attendance File with Column Mapping
    */
   static async importFile(req, res) {
     let filePath = null;
@@ -19,7 +60,26 @@ class AttendanceController {
       const originalFilename = req.file.originalname;
       const importedBy = req.user ? req.user.username : 'Admin';
 
-      const result = await AttendanceService.importAttendanceData(filePath, originalFilename, importedBy);
+      let columnMapping = null;
+      if (req.body.columnMapping) {
+        try {
+          columnMapping = typeof req.body.columnMapping === 'string'
+            ? JSON.parse(req.body.columnMapping)
+            : req.body.columnMapping;
+        } catch (e) {
+          columnMapping = null;
+        }
+      }
+
+      const sheetName = req.body.sheetName || null;
+
+      const result = await AttendanceService.importAttendanceData(
+        filePath,
+        originalFilename,
+        importedBy,
+        columnMapping,
+        sheetName
+      );
 
       return res.status(200).json({
         success: true,

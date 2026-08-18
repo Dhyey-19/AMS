@@ -50,6 +50,60 @@ export const authApi = {
   }
 };
 
+export const deviceApi = {
+  getStatus: async (deviceId, user = '', deviceName = '') => {
+    const res = await api.get('/auth/registration-status', {
+      params: { deviceId, user, deviceName }
+    });
+    return res.data;
+  },
+  requestActivation: async ({ randomNumber, deviceId, appName = 'AMS', origin = '' }) => {
+    const res = await api.post('/auth/request-activation', {
+      randomNumber,
+      deviceId,
+      appName,
+      origin: origin || (typeof window !== 'undefined' ? window.location.origin : '')
+    });
+    return res.data;
+  },
+  activateManual: async (deviceId, activationKey, appName = 'AMS') => {
+    const res = await api.post('/auth/register-app', {
+      deviceId,
+      activationKey,
+      appName
+    });
+    return res.data;
+  },
+  surrender: async (deviceId) => {
+    const res = await api.post('/auth/surrender-app', { deviceId });
+    return res.data;
+  },
+  getAll: async () => {
+    const res = await api.get('/auth/devices');
+    return res.data;
+  },
+  update: async (deviceId, deviceName) => {
+    const res = await api.put(`/auth/devices/${deviceId}`, { deviceName });
+    return res.data;
+  },
+  revoke: async (deviceId) => {
+    const res = await api.post(`/auth/devices/${deviceId}/revoke`);
+    return res.data;
+  },
+  deleteDevice: async (deviceId) => {
+    const res = await api.delete(`/auth/devices/${deviceId}`);
+    return res.data;
+  },
+  batchRevoke: async (deviceIds) => {
+    const res = await api.post('/auth/devices/batch-revoke', { deviceIds });
+    return res.data;
+  },
+  batchDelete: async (deviceIds) => {
+    const res = await api.post('/auth/devices/batch-delete', { deviceIds });
+    return res.data;
+  }
+};
+
 export const employeeApi = {
   getAll: async (params = {}) => {
     const res = await api.get('/employees', { params });
@@ -100,6 +154,14 @@ export const employeeApi = {
 export const attendanceApi = {
   getAll: async (params = {}) => {
     const res = await api.get('/attendance', { params });
+    return res.data;
+  },
+  parseHeaders: async (formData) => {
+    const res = await api.post('/attendance/parse-headers', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
     return res.data;
   },
   importFile: async (formData) => {

@@ -43,4 +43,6 @@ desktop.ini
 client/dist/
 dist/
 dist-ssr
+publish/
+uploads/
 *.local

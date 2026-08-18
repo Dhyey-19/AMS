@@ -7,11 +7,12 @@ import {
   Hospital,
   Building2,
   UserCheck,
+  ShieldCheck,
   X
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-export const Sidebar = ({ activeTab, onSelectTab, isOpen, onClose }) => {
+export const Sidebar = ({ activeTab, onSelectTab, isOpen, onClose, onOpenDeviceModal }) => {
   const { user, logout } = useAuth();
 
   const navItems = [
@@ -61,7 +62,23 @@ export const Sidebar = ({ activeTab, onSelectTab, isOpen, onClose }) => {
           })}
 
           <div style={{ marginTop: 'auto' }}>
-            <span className="nav-section-title">System</span>
+            <span className="nav-section-title">System &amp; Security</span>
+            
+            {/* Workstations / Device License Management */}
+            <button
+              className="nav-item"
+              onClick={() => {
+                if (onOpenDeviceModal) onOpenDeviceModal();
+                if (onClose) onClose();
+              }}
+              style={{ color: 'var(--primary-600)' }}
+            >
+              <span className="nav-icon" style={{ color: 'var(--primary-600)' }}>
+                <ShieldCheck size={20} />
+              </span>
+              <span>Workstation Licenses</span>
+            </button>
+
             <button
               className="nav-item"
               onClick={logout}
