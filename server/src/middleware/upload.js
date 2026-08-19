@@ -1,22 +1,52 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
-// Create temp uploads directory if not exists
-const uploadDir = process.env.UPLOAD_DIR || (
-  fs.existsSync(path.resolve(process.cwd(), 'uploads'))
-    ? path.resolve(process.cwd(), 'uploads')
-    : path.resolve(__dirname, '../../uploads')
-);
-if (!fs.existsSync(uploadDir)) {
+// Resolve safe, writable temporary upload directory
+function getUploadDir() {
+  const customDir = process.env.UPLOADS_DIR || process.env.UPLOAD_DIR || process.env.TEMP_UPLOAD_DIR;
+  if (customDir) {
+    try {
+      if (!fs.existsSync(customDir)) {
+        fs.mkdirSync(customDir, { recursive: true });
+      }
+      return customDir;
+    } catch (e) {
+      console.warn('Failed to create custom upload dir, falling back to temp:', e.message);
+    }
+  }
+
+  // If in packaged Electron or production, use system temp directory
+  const isPackagedApp = Boolean(process.versions.electron || process.env.IS_ELECTRON || process.pkg);
+  if (isPackagedApp) {
+    const tempDir = path.join(os.tmpdir(), 'global-ivf-ams', 'uploads');
+    try {
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      return tempDir;
+    } catch (e) {
+      return os.tmpdir();
+    }
+  }
+
+  // In local development
+  const localDir = path.resolve(process.cwd(), 'uploads');
   try {
-    fs.mkdirSync(uploadDir, { recursive: true });
-  } catch (e) {}
+    if (!fs.existsSync(localDir)) {
+      fs.mkdirSync(localDir, { recursive: true });
+    }
+    return localDir;
+  } catch (e) {
+    return os.tmpdir();
+  }
 }
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, uploadDir);
+    const dir = getUploadDir();
+    cb(null, dir);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -39,7 +69,7 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 20 * 1024 * 1024 // 20 MB limit
+    fileSize: 50 * 1024 * 1024 // 50 MB limit
   }
 });
 

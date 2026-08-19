@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const morgan = require('morgan');
+const fs = require('fs');
 require('dotenv').config();
 
 const { getDatabase } = require('./config/database');
@@ -12,15 +13,6 @@ const attendanceRoutes = require('./routes/attendanceRoutes');
 const app = express();
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = process.env.PORT || 5050;
-
-// Initialize SQLite Database
-try {
-  getDatabase();
-  console.log('📦 Local SQLite database (ams.db) initialized successfully.');
-} catch (err) {
-  console.error('❌ Failed to initialize SQLite database:', err);
-  process.exit(1);
-}
 
 // Middleware
 app.use(cors());
@@ -42,15 +34,14 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-const fs = require('fs');
-
-// Serve frontend in production (Monolithic setup)
+// Serve frontend in production (Monolithic setup & Electron)
 const possibleClientPaths = [
   process.env.CLIENT_DIST_PATH,
   path.resolve(__dirname, 'client_dist'),
   path.resolve(process.cwd(), 'client_dist'),
   path.resolve(__dirname, '../../client/dist'),
-  path.resolve(process.cwd(), 'client/dist')
+  path.resolve(process.cwd(), 'client/dist'),
+  path.resolve(process.cwd(), 'dist')
 ].filter(Boolean);
 
 const clientBuildPath = possibleClientPaths.find(p => fs.existsSync(p)) || path.resolve(process.cwd(), 'client_dist');
@@ -99,19 +90,55 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, HOST, () => {
-  const displayHost = HOST === '0.0.0.0' ? 'localhost' : HOST;
-  const url = `http://${displayHost}:${PORT}`;
-  console.log(`🚀 AMS Server is running at ${url}`);
-  console.log(`🏥 Global IVF Hospital - Attendance Management System`);
+let serverInstance = null;
 
-  // Auto-open browser in standalone/pkg mode
-  if (process.env.AUTO_OPEN !== 'false' && (process.pkg || process.env.NODE_ENV === 'production')) {
-    setTimeout(() => {
-      try {
-        const cmd = process.platform === 'win32' ? `start ${url}` : process.platform === 'darwin' ? `open ${url}` : `xdg-open ${url}`;
-        require('child_process').exec(cmd);
-      } catch (e) {}
-    }, 1200);
+function startServer(port = PORT, host = HOST) {
+  if (serverInstance) {
+    return serverInstance;
   }
-});
+
+  // Initialize SQLite Database
+  try {
+    getDatabase();
+    console.log('📦 Local SQLite database (ams.db) initialized successfully.');
+  } catch (err) {
+    console.error('❌ Failed to initialize SQLite database:', err);
+  }
+
+  serverInstance = app.listen(port, host, () => {
+    const displayHost = host === '0.0.0.0' ? 'localhost' : host;
+    const url = `http://${displayHost}:${port}`;
+    console.log(`🚀 AMS Server is running at ${url}`);
+    console.log(`🏥 Global IVF Hospital - Attendance Management System`);
+
+    // Auto-open browser in standalone/pkg mode (skip if running in Electron)
+    const isElectron = Boolean(process.versions.electron || process.env.IS_ELECTRON);
+    if (!isElectron && process.env.AUTO_OPEN !== 'false' && (process.pkg || process.env.NODE_ENV === 'production')) {
+      setTimeout(() => {
+        try {
+          const cmd = process.platform === 'win32' ? `start ${url}` : process.platform === 'darwin' ? `open ${url}` : `xdg-open ${url}`;
+          require('child_process').exec(cmd);
+        } catch (e) {}
+      }, 1200);
+    }
+  });
+
+  return serverInstance;
+}
+
+function stopServer() {
+  if (serverInstance) {
+    serverInstance.close();
+    serverInstance = null;
+  }
+}
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = {
+  app,
+  startServer,
+  stopServer
+};

@@ -1,7 +1,14 @@
 import axios from 'axios';
 
+const getBaseUrl = () => {
+  if (typeof window !== 'undefined' && window.location.protocol === 'file:') {
+    return 'http://127.0.0.1:5050/api';
+  }
+  return '/api';
+};
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: getBaseUrl(),
   headers: {
     'Content-Type': 'application/json'
   }

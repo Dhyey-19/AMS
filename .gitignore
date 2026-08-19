@@ -10,6 +10,10 @@ client/node_modules/
 ams.db
 ams.db-wal
 ams.db-shm
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
 
 # Environment variables
 .env
@@ -27,6 +31,9 @@ server/uploads/*
 # Logs
 logs/
 *.log
+app_log.txt
+stdout.log
+stderr.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -39,10 +46,21 @@ pnpm-debug.log*
 Thumbs.db
 desktop.ini
 
-# Vite / Build outputs
+# Vite / Build outputs & Executables / Archives
 client/dist/
 dist/
 dist-ssr
 publish/
 uploads/
 *.local
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+*.exe
+*.msi
+*.dmg
+*.pkg
+*.appx
+

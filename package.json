@@ -2,18 +2,22 @@
   "name": "global-ivf-ams",
   "version": "1.0.0",
   "description": "Attendance Management System (AMS) for Global IVF Hospital",
-  "main": "server/src/server.js",
+  "main": "electron/main.js",
   "workspaces": [
     "client"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
+    "build:frontend": "npm run build --prefix client",
+    "build": "npm run build:frontend",
+    "dist": "npm run build && electron-builder",
+    "build:exe": "cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 npm run dist",
     "server:dev": "node --watch server/src/server.js",
-    "client:dev": "npm --workspace=client run dev",
-    "build": "npm --workspace=client run build",
-    "publish:build": "node server/src/scripts/build-publish.js",
-    "start": "node server/src/server.js",
-    "seed": "node server/src/scripts/seed.js"
+    "client:dev": "npm run dev --prefix client",
+    "electron:dev": "cross-env NODE_ENV=development electron .",
+    "dev": "concurrently -k \"npm run server:dev\" \"npm run dev --prefix client\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development electron .\"",
+    "start": "electron .",
+    "seed": "node server/src/scripts/seed.js",
+    "publish:build": "node server/src/scripts/build-publish.js"
   },
   "keywords": [
     "ams",
@@ -22,7 +26,8 @@
     "management",
     "react",
     "express",
-    "sqlite"
+    "sqlite",
+    "electron"
   ],
   "author": "Global IVF Hospital",
   "license": "ISC",
@@ -40,7 +45,46 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2",
-    "esbuild": "^0.28.2"
+    "concurrently": "^9.2.4",
+    "cross-env": "^10.1.0",
+    "electron": "^32.2.8",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2",
+    "wait-on": "^9.1.0"
+  },
+  "build": {
+    "appId": "com.globalivf.ams",
+    "productName": "Global IVF Hospital AMS",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "client/dist/**/*",
+      "server/**/*",
+      "data/**/*",
+      "build/icon.png",
+      "package.json",
+      ".env"
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.png",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Global IVF Hospital AMS"
+    }
   }
 }

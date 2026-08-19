@@ -3,8 +3,8 @@ const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
 
-// Database path in project root or publish root (supports data/ folder)
-const dataDir = path.resolve(process.cwd(), 'data');
+// Database path in project root or publish root (supports data/ folder or custom userData dir)
+const dataDir = process.env.AMS_DATA_DIR || process.env.DATA_DIR || path.resolve(process.cwd(), 'data');
 const dataDbPath = path.join(dataDir, 'ams.db');
 
 const possibleDbPaths = [
