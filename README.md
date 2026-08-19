@@ -37,18 +37,19 @@ Open **[http://localhost:5050](http://localhost:5050)** in your browser.
 
 ---
 
-## 🚀 Standalone Distribution (Zero Source Code Exposure)
+## 🚀 Standalone Distribution & Windows Executable (Zero Source Code Exposure)
 
-To run this application on another Windows PC **without exposing any source code**:
+To distribute and run this application on any Windows PC **without exposing any raw source code**:
 
 1. Run the publish build command:
    ```bash
    npm run publish:build
    ```
-2. Copy the generated `publish/` folder (or zip it) to the other Windows PC.
-3. On that PC, double-click **`START_AMS.bat`**.
-   - It will automatically launch the server and open **`http://localhost:5050`** in the default browser.
-4. To stop the application, double-click **`STOP_AMS.bat`**.
+2. The standalone package is generated in the **`publish/`** folder:
+   - **`Global_IVF_AMS.exe`**: Double-click to run! Starts background server silently, opens browser at `http://localhost:5050`, and docks in the Windows System Tray.
+   - **`INSTALL_AMS_SETUP.bat`**: 1-Click setup wizard that creates Desktop & Start Menu shortcuts.
+   - **`InnoSetup_Compiler.iss`**: Compile into a single `Global_IVF_AMS_Setup.exe` installer with Inno Setup.
+   - **`START_AMS.bat` / `STOP_AMS.bat`**: Optional script-based launchers.
 
 ---
 

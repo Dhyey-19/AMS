@@ -1019,7 +1019,7 @@ class AttendanceService {
   }
 
   /**
-   * Daily Attendance Report
+   * Daily Attendance Report with Break Hours & Salary Calculations
    */
   static getDailyReport(dateIso, department = '') {
     const db = getDatabase();
@@ -1040,45 +1040,113 @@ class AttendanceService {
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
-    const summary = db.prepare(`
-      SELECT
-        COUNT(*) as totalShifts,
-        SUM(CASE WHEN status_code = 'P' THEN 1 ELSE 0 END) as presentCount,
-        SUM(CASE WHEN status_code = 'A' THEN 1 ELSE 0 END) as absentCount,
-        SUM(CASE WHEN status_code = 'WO' THEN 1 ELSE 0 END) as weeklyOffCount,
-        SUM(CASE WHEN status_code = 'WOP' THEN 1 ELSE 0 END) as weeklyOffPresentCount,
-        SUM(CASE WHEN status_code = 'HD' THEN 1 ELSE 0 END) as halfDayCount,
-        SUM(CASE WHEN in_time IS NOT NULL AND in_time != '' THEN 1 ELSE 0 END) as punchedCount
-      FROM attendance
-      ${whereClause}
-    `).get(...params);
-
-    const records = db.prepare(`
+    const rawRecords = db.prepare(`
       SELECT * FROM attendance
       ${whereClause}
       ORDER BY CAST(employee_code AS INTEGER) ASC
     `).all(...params);
 
+    // Fetch all employees master data for calculation rates & shift rules
+    const allEmployees = db.prepare('SELECT * FROM employees').all();
+    const empMap = new Map();
+    allEmployees.forEach(e => {
+      if (e.employee_code) empMap.set(String(e.employee_code).toLowerCase().trim(), e);
+    });
+
+    const daysInMonth = CalculationEngine.getDaysInMonth(targetDate);
+
+    let totalWorkMins = 0;
+    let totalBreakMins = 0;
+    let totalLateMins = 0;
+    let totalOTMins = 0;
+    let totalGrossSalary = 0;
+    let totalLateDeductions = 0;
+    let totalOvertimePay = 0;
+    let totalNetSalary = 0;
+    let lateCount = 0;
+    let presentCount = 0;
+    let absentCount = 0;
+    let weeklyOffCount = 0;
+    let weeklyOffPresentCount = 0;
+    let halfDayCount = 0;
+    let punchedCount = 0;
+
+    const calculatedRecords = rawRecords.map(r => {
+      const empKey = String(r.employee_code || '').toLowerCase().trim();
+      const emp = empMap.get(empKey) || {
+        employee_code: r.employee_code,
+        employee_name: r.employee_name || 'Staff Member',
+        department: r.department || 'General',
+        designation: r.designation || '',
+        salary: 0,
+        standard_in_time: r.begin_time || '08:00',
+        standard_out_time: r.end_time || '20:00',
+        standard_break_minutes: 0,
+        standard_work_hours: 12.0
+      };
+
+      const calc = CalculationEngine.calculateDayRecord(emp, r, daysInMonth);
+
+      const code = calc.status_code;
+      if (code === 'P') presentCount++;
+      else if (code === 'A') absentCount++;
+      else if (code === 'WO') weeklyOffCount++;
+      else if (code === 'WOP') weeklyOffPresentCount++;
+      else if (code === 'HD') halfDayCount++;
+
+      if (r.in_time) punchedCount++;
+      if (calc.is_late) lateCount++;
+
+      totalWorkMins += calc.actual_work_minutes;
+      totalBreakMins += calc.actual_break_minutes;
+      totalLateMins += calc.late_minutes;
+      totalOTMins += calc.overtime_minutes;
+
+      totalGrossSalary += calc.daily_salary_earned;
+      totalLateDeductions += calc.late_salary_deduction;
+      totalOvertimePay += calc.overtime_pay;
+      totalNetSalary += calc.net_daily_salary;
+
+      return {
+        ...r,
+        ...calc
+      };
+    });
+
+    const totalShifts = calculatedRecords.length;
+    const effectivePresent = presentCount + weeklyOffPresentCount + (halfDayCount * 0.5);
+
     return {
       date: targetDate,
       summary: {
-        totalShifts: summary.totalShifts || 0,
-        presentCount: summary.presentCount || 0,
-        absentCount: summary.absentCount || 0,
-        weeklyOffCount: summary.weeklyOffCount || 0,
-        weeklyOffPresentCount: summary.weeklyOffPresentCount || 0,
-        halfDayCount: summary.halfDayCount || 0,
-        punchedCount: summary.punchedCount || 0,
-        attendanceRate: summary.totalShifts > 0
-          ? Math.round(((summary.presentCount + (summary.weeklyOffPresentCount || 0)) / summary.totalShifts) * 100)
-          : 0
+        totalShifts,
+        presentCount,
+        absentCount,
+        weeklyOffCount,
+        weeklyOffPresentCount,
+        halfDayCount,
+        punchedCount,
+        lateCount,
+        attendanceRate: totalShifts > 0 ? Math.round((effectivePresent / totalShifts) * 100) : 0,
+        totalWorkingMinutes: totalWorkMins,
+        totalWorkingHours: (totalWorkMins / 60).toFixed(1),
+        totalBreakMinutes: totalBreakMins,
+        totalBreakHours: (totalBreakMins / 60).toFixed(1),
+        totalLateMinutes: totalLateMins,
+        totalLateHours: (totalLateMins / 60).toFixed(1),
+        totalOvertimeMinutes: totalOTMins,
+        totalOvertimeHours: (totalOTMins / 60).toFixed(1),
+        totalGrossSalary: Number(totalGrossSalary.toFixed(2)),
+        totalLateDeductions: Number(totalLateDeductions.toFixed(2)),
+        totalOvertimePay: Number(totalOvertimePay.toFixed(2)),
+        totalNetDailySalary: Number(totalNetSalary.toFixed(2))
       },
-      records
+      records: calculatedRecords
     };
   }
 
   /**
-   * Monthly Attendance Summary Report (Matrix per employee)
+   * Monthly Attendance Summary & Payroll Report (Matrix per employee with Break Hours & Salary)
    */
   static getMonthlySummaryReport(yearMonth, department = '') {
     const db = getDatabase();
@@ -1099,60 +1167,326 @@ class AttendanceService {
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
-    const employeeSummaries = db.prepare(`
-      SELECT
-        employee_code,
-        employee_name,
-        department,
-        designation,
-        COUNT(*) as totalDays,
-        SUM(CASE WHEN status_code = 'P' THEN 1 ELSE 0 END) as presentDays,
-        SUM(CASE WHEN status_code = 'A' THEN 1 ELSE 0 END) as absentDays,
-        SUM(CASE WHEN status_code = 'WO' THEN 1 ELSE 0 END) as weeklyOffDays,
-        SUM(CASE WHEN status_code = 'WOP' THEN 1 ELSE 0 END) as weeklyOffPresentDays,
-        SUM(CASE WHEN status_code = 'HD' THEN 1 ELSE 0 END) as halfDays
-      FROM attendance
+    // Fetch all attendance records for this month & department
+    const allAttendance = db.prepare(`
+      SELECT * FROM attendance
       ${whereClause}
-      GROUP BY employee_code, employee_name, department, designation
-      ORDER BY CAST(employee_code AS INTEGER) ASC
+      ORDER BY attendance_date_iso ASC
     `).all(...params);
 
-    const formatted = employeeSummaries.map((emp) => {
-      const effectivePresent = emp.presentDays + emp.weeklyOffPresentDays + (emp.halfDays * 0.5);
-      const workingDays = emp.totalDays - emp.weeklyOffDays;
-      const attendancePercentage = workingDays > 0
-        ? Math.min(100, Math.round((effectivePresent / workingDays) * 100))
-        : 0;
-
-      return {
-        ...emp,
-        effectivePresent,
-        workingDays,
-        attendancePercentage
-      };
+    // Group records by employee_code
+    const empRecordsMap = new Map();
+    allAttendance.forEach(r => {
+      const codeKey = String(r.employee_code).toLowerCase().trim();
+      if (!empRecordsMap.has(codeKey)) {
+        empRecordsMap.set(codeKey, []);
+      }
+      empRecordsMap.get(codeKey).push(r);
     });
 
-    const monthTotals = db.prepare(`
-      SELECT
-        COUNT(*) as totalLogs,
-        COUNT(DISTINCT employee_code) as uniqueEmployees,
-        SUM(CASE WHEN status_code = 'P' THEN 1 ELSE 0 END) as totalPresent,
-        SUM(CASE WHEN status_code = 'A' THEN 1 ELSE 0 END) as totalAbsent,
-        SUM(CASE WHEN status_code = 'WO' THEN 1 ELSE 0 END) as totalWeeklyOff
-      FROM attendance
-      ${whereClause}
-    `).get(...params);
+    // Fetch employee master profiles
+    const allEmployees = db.prepare('SELECT * FROM employees ORDER BY CAST(employee_code AS INTEGER) ASC').all();
+    const empMasterMap = new Map();
+    allEmployees.forEach(e => {
+      if (e.employee_code) empMasterMap.set(String(e.employee_code).toLowerCase().trim(), e);
+    });
+
+    // Filter employees by department if specified, otherwise include all employees who have records or are active
+    const employeeListToProcess = [];
+    if (department && department !== 'All') {
+      allEmployees.filter(e => e.department === department).forEach(e => employeeListToProcess.push(e));
+    } else {
+      // Include all employees that either have attendance in the month or are in employee master
+      const processedCodes = new Set();
+      allEmployees.forEach(e => {
+        const codeKey = String(e.employee_code).toLowerCase().trim();
+        if (empRecordsMap.has(codeKey) || e.status === 'Working') {
+          employeeListToProcess.push(e);
+          processedCodes.add(codeKey);
+        }
+      });
+      // Also include any orphan attendance employee codes
+      for (const [codeKey, records] of empRecordsMap.entries()) {
+        if (!processedCodes.has(codeKey) && records.length > 0) {
+          employeeListToProcess.push({
+            employee_code: records[0].employee_code,
+            employee_name: records[0].employee_name || 'Staff Member',
+            department: records[0].department || 'General',
+            designation: records[0].designation || '',
+            salary: 0
+          });
+        }
+      }
+    }
+
+    let overallLogs = 0;
+    let overallPresent = 0;
+    let overallAbsent = 0;
+    let overallWeeklyOff = 0;
+    let overallLate = 0;
+    let overallWorkMins = 0;
+    let overallBreakMins = 0;
+    let overallOTMins = 0;
+    let overallGrossPayroll = 0;
+    let overallLateDeductions = 0;
+    let overallOvertimePay = 0;
+    let overallNetPayroll = 0;
+
+    const formattedEmployees = [];
+
+    employeeListToProcess.forEach(emp => {
+      const codeKey = String(emp.employee_code).toLowerCase().trim();
+      const records = empRecordsMap.get(codeKey) || [];
+      
+      if (records.length === 0 && (!department || department === 'All') && emp.status !== 'Working') {
+        return; // skip inactive with 0 logs
+      }
+
+      const sheet = CalculationEngine.calculateEmployeeMonthSheet(emp, records, targetMonth);
+      const s = sheet.summary;
+
+      overallLogs += s.totalDaysRecorded;
+      overallPresent += s.presentDays;
+      overallAbsent += s.absentDays;
+      overallWeeklyOff += s.weeklyOffDays;
+      overallLate += s.lateDaysCount;
+      overallWorkMins += s.totalActualWorkMinutes;
+      overallBreakMins += s.totalActualBreakMinutes;
+      overallOTMins += s.totalOvertimeMinutes;
+      overallGrossPayroll += s.grossEarnedSalary;
+      overallLateDeductions += s.totalLateDeductions;
+      overallOvertimePay += s.totalOvertimePay;
+      overallNetPayroll += s.netPayableSalary;
+
+      formattedEmployees.push({
+        employee_code: emp.employee_code,
+        employee_name: emp.employee_name,
+        department: emp.department,
+        designation: emp.designation,
+        company: emp.company,
+        totalDays: s.calendarDays,
+        totalDaysRecorded: s.totalDaysRecorded,
+        presentDays: s.presentDays,
+        absentDays: s.absentDays,
+        weeklyOffDays: s.weeklyOffDays,
+        weeklyOffPresentDays: s.weeklyOffPresentDays,
+        halfDays: s.halfDays,
+        lateDays: s.lateDaysCount,
+        earlyDays: s.earlyDaysCount,
+        effectivePresent: s.effectivePresentDays,
+        workingDays: s.workingDaysInMonth,
+        attendancePercentage: s.attendancePercentage,
+        
+        // Break & Work Durations
+        totalHours: s.totalActualWorkHours,
+        totalWorkFormatted: s.totalActualWorkFormatted,
+        totalWorkMinutes: s.totalActualWorkMinutes,
+        totalBreakHours: s.totalActualBreakHours,
+        totalBreakFormatted: s.totalActualBreakFormatted,
+        totalBreakMinutes: s.totalActualBreakMinutes,
+        totalExpectedHours: s.totalExpectedWorkHours,
+        totalWorkDiffFormatted: s.totalWorkDiffFormatted,
+        totalLateHours: s.totalLateHours,
+        totalLateFormatted: s.totalLateFormatted,
+        totalOvertimeHours: s.totalOvertimeHours,
+        totalOvertimeFormatted: s.totalOvertimeFormatted,
+
+        // Salary & Payroll Metrics
+        baseSalary: s.baseSalary,
+        hourlyRate: s.hourlyRate,
+        dailyRate: s.dailyRate,
+        grossEarnedSalary: s.grossEarnedSalary,
+        totalLateDeductions: s.totalLateDeductions,
+        totalOvertimePay: s.totalOvertimePay,
+        totalLeaveDeductions: s.totalLeaveDeductions,
+        totalPenalties: s.totalPenalties,
+        totalDeductions: s.totalDeductions,
+        netPayableSalary: s.netPayableSalary
+      });
+    });
+
+    formattedEmployees.sort((a, b) => (parseInt(a.employee_code, 10) || 0) - (parseInt(b.employee_code, 10) || 0));
 
     return {
       month: targetMonth,
       overview: {
-        totalLogs: monthTotals.totalLogs || 0,
-        uniqueEmployees: monthTotals.uniqueEmployees || 0,
-        totalPresent: monthTotals.totalPresent || 0,
-        totalAbsent: monthTotals.totalAbsent || 0,
-        totalWeeklyOff: monthTotals.totalWeeklyOff || 0
+        totalLogs: overallLogs,
+        uniqueEmployees: formattedEmployees.length,
+        totalPresent: overallPresent,
+        totalAbsent: overallAbsent,
+        totalWeeklyOff: overallWeeklyOff,
+        totalLate: overallLate,
+        totalHours: (overallWorkMins / 60).toFixed(1),
+        totalBreakHours: (overallBreakMins / 60).toFixed(1),
+        totalOvertimeHours: (overallOTMins / 60).toFixed(1),
+        totalGrossPayroll: Number(overallGrossPayroll.toFixed(2)),
+        totalLateDeductions: Number(overallLateDeductions.toFixed(2)),
+        totalOvertimePay: Number(overallOvertimePay.toFixed(2)),
+        totalNetPayroll: Number(overallNetPayroll.toFixed(2))
       },
-      employees: formatted
+      employees: formattedEmployees
+    };
+  }
+
+  /**
+   * Date Range Attendance & Department Analytics Report
+   */
+  static getRangeReport({ startDate = '', endDate = '', department = '' }) {
+    const db = getDatabase();
+
+    let start = startDate;
+    let end = endDate;
+
+    if (!start || !end) {
+      const minMax = db.prepare('SELECT MIN(attendance_date_iso) as minD, MAX(attendance_date_iso) as maxD FROM attendance').get();
+      start = start || minMax?.minD || new Date().toISOString().slice(0, 10);
+      end = end || minMax?.maxD || new Date().toISOString().slice(0, 10);
+    }
+
+    const conditions = ['attendance_date_iso >= ? AND attendance_date_iso <= ?'];
+    const params = [start, end];
+
+    if (department && department !== 'All') {
+      conditions.push('department = ?');
+      params.push(department.trim());
+    }
+
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
+
+    const rawRecords = db.prepare(`
+      SELECT * FROM attendance
+      ${whereClause}
+      ORDER BY attendance_date_iso ASC, CAST(employee_code AS INTEGER) ASC
+    `).all(...params);
+
+    const allEmployees = db.prepare('SELECT * FROM employees').all();
+    const empMap = new Map();
+    allEmployees.forEach(e => {
+      if (e.employee_code) empMap.set(String(e.employee_code).toLowerCase().trim(), e);
+    });
+
+    const daysInMonth = CalculationEngine.getDaysInMonth(start);
+
+    // Department grouping
+    const deptMap = new Map();
+    let totalWorkMins = 0;
+    let totalBreakMins = 0;
+    let totalLateMins = 0;
+    let totalOTMins = 0;
+    let presentCount = 0;
+    let absentCount = 0;
+    let weeklyOffCount = 0;
+    let lateCount = 0;
+    let totalGrossSalary = 0;
+    let totalNetSalary = 0;
+    const activeStaffSet = new Set();
+
+    rawRecords.forEach(r => {
+      const empKey = String(r.employee_code || '').toLowerCase().trim();
+      activeStaffSet.add(empKey);
+      const emp = empMap.get(empKey) || {
+        employee_code: r.employee_code,
+        employee_name: r.employee_name,
+        department: r.department || 'General',
+        salary: 0,
+        standard_work_hours: 12.0
+      };
+
+      const calc = CalculationEngine.calculateDayRecord(emp, r, daysInMonth);
+      const deptName = r.department || emp.department || 'General';
+
+      if (!deptMap.has(deptName)) {
+        deptMap.set(deptName, {
+          department: deptName,
+          totalShifts: 0,
+          presentCount: 0,
+          absentCount: 0,
+          weeklyOffCount: 0,
+          lateCount: 0,
+          totalWorkingMinutes: 0,
+          totalBreakMinutes: 0,
+          totalOvertimeMinutes: 0,
+          totalGrossSalary: 0,
+          totalNetSalary: 0
+        });
+      }
+
+      const d = deptMap.get(deptName);
+      d.totalShifts++;
+      if (calc.status_code === 'P' || calc.status_code === 'WOP') {
+        d.presentCount++;
+        presentCount++;
+      } else if (calc.status_code === 'A') {
+        d.absentCount++;
+        absentCount++;
+      } else if (calc.status_code === 'WO') {
+        d.weeklyOffCount++;
+        weeklyOffCount++;
+      }
+
+      if (calc.is_late) {
+        d.lateCount++;
+        lateCount++;
+      }
+
+      d.totalWorkingMinutes += calc.actual_work_minutes;
+      d.totalBreakMinutes += calc.actual_break_minutes;
+      d.totalOvertimeMinutes += calc.overtime_minutes;
+      d.totalGrossSalary += calc.daily_salary_earned;
+      d.totalNetSalary += calc.net_daily_salary;
+
+      totalWorkMins += calc.actual_work_minutes;
+      totalBreakMins += calc.actual_break_minutes;
+      totalLateMins += calc.late_minutes;
+      totalOTMins += calc.overtime_minutes;
+      totalGrossSalary += calc.daily_salary_earned;
+      totalNetSalary += calc.net_daily_salary;
+    });
+
+    const totalShifts = rawRecords.length;
+    const departmentBreakdown = Array.from(deptMap.values()).sort((a, b) => b.totalShifts - a.totalShifts);
+
+    return {
+      startDate: start,
+      endDate: end,
+      summary: {
+        totalShifts,
+        activeStaffCount: activeStaffSet.size,
+        presentCount,
+        absentCount,
+        weeklyOffCount,
+        lateCount,
+        attendanceRate: totalShifts > 0 ? Math.round((presentCount / totalShifts) * 100) : 0,
+        totalWorkingMinutes: totalWorkMins,
+        totalWorkingHours: (totalWorkMins / 60).toFixed(1),
+        totalBreakMinutes: totalBreakMins,
+        totalBreakHours: (totalBreakMins / 60).toFixed(1),
+        totalLateMinutes: totalLateMins,
+        totalLateHours: (totalLateMins / 60).toFixed(1),
+        totalOvertimeMinutes: totalOTMins,
+        totalOvertimeHours: (totalOTMins / 60).toFixed(1),
+        totalGrossSalary: Number(totalGrossSalary.toFixed(2)),
+        totalNetSalary: Number(totalNetSalary.toFixed(2))
+      },
+      departmentBreakdown
+    };
+  }
+
+  /**
+   * Get single employee attendance report with timeline & calculations
+   */
+  static getEmployeeReport(employeeCode, { startDate = '', endDate = '', month = '' }) {
+    const sheet = this.getEmployeeAttendanceSheet(employeeCode, { month, startDate, endDate });
+    return {
+      employee: sheet.employee,
+      summary: {
+        ...sheet.summary,
+        totalHours: sheet.summary.totalActualWorkHours,
+        breakHours: sheet.summary.totalActualBreakHours,
+        lateHours: sheet.summary.totalLateHours,
+        overtimeHours: sheet.summary.totalOvertimeHours
+      },
+      records: sheet.dailyRecords
     };
   }
 

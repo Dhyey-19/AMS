@@ -6,7 +6,6 @@ import { RegistrationPage } from './RegistrationPage';
 export const RegistrationGuard = ({ children }) => {
   const [isRegistered, setIsRegistered] = useState(null);
   const [randomNumber, setRandomNumber] = useState(null);
-  const [approveUrl, setApproveUrl] = useState(null);
   const [deviceName, setDeviceName] = useState('');
   const [checking, setChecking] = useState(true);
 
@@ -39,7 +38,6 @@ export const RegistrationGuard = ({ children }) => {
           setIsRegistered(data.isRegistered);
           if (!data.isRegistered && data.randomNumber) {
             setRandomNumber(data.randomNumber);
-            if (data.approveUrl) setApproveUrl(data.approveUrl);
             if (data.deviceName) setDeviceName(data.deviceName);
             localStorage.removeItem('ams_is_registered');
           } else if (data.isRegistered) {
@@ -50,7 +48,6 @@ export const RegistrationGuard = ({ children }) => {
         }
       } catch (err) {
         console.error('Failed to verify workstation registration:', err);
-        // If server is reachable but returned 400/unregistered, block access
         setIsRegistered(false);
       } finally {
         setChecking(false);
@@ -102,12 +99,11 @@ export const RegistrationGuard = ({ children }) => {
     );
   }
 
-  // If unregistered, present the 1-Click Registration Lock Screen
+  // If unregistered, present the Registration Lock Screen
   if (!isRegistered) {
     return (
       <RegistrationPage 
         randomNumber={randomNumber} 
-        approveUrl={approveUrl}
         deviceName={deviceName}
         onRegistered={() => setIsRegistered(true)} 
       />

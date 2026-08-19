@@ -23,6 +23,8 @@ router.put('/employee/:code/date/:dateIso', AttendanceController.updateRecord);
 // Reports endpoints
 router.get('/reports/daily', AttendanceController.getDailyReport);
 router.get('/reports/monthly', AttendanceController.getMonthlyReport);
+router.get('/reports/range', AttendanceController.getRangeReport);
+router.get('/reports/employee/:code', AttendanceController.getEmployeeReport);
 
 // Delete batch & clear data
 router.post('/delete-batch', AttendanceController.deleteBatch);

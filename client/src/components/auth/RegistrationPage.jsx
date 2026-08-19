@@ -9,26 +9,22 @@ import {
   Hospital, 
   AlertCircle, 
   Sparkles, 
-  ExternalLink,
   RefreshCw
 } from 'lucide-react';
 import { deviceApi } from '../../services/api';
 
-export const RegistrationPage = ({ randomNumber, onRegistered, approveUrl: initialApproveUrl, deviceName }) => {
+export const RegistrationPage = ({ randomNumber, onRegistered, deviceName }) => {
   const [activationKey, setActivationKey] = useState('');
   const [statusMsg, setStatusMsg] = useState({ text: '', type: '' });
   const [loading, setLoading] = useState(false);
   const [isRequestSent, setIsRequestSent] = useState(false);
   const [isAutoApproved, setIsAutoApproved] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [approveUrl, setApproveUrl] = useState(initialApproveUrl || '');
+  const [copiedCode, setCopiedCode] = useState(false);
 
-  // Background Auto-Approval Polling
+  // Background Auto-Approval Polling (unlocks automatically when administrator approves via email)
   useEffect(() => {
-    if (!isRequestSent || isAutoApproved) return;
-
     const deviceId = localStorage.getItem('ams_device_id');
-    if (!deviceId) return;
+    if (!deviceId || isAutoApproved) return;
 
     const checkInterval = setInterval(async () => {
       try {
@@ -38,7 +34,7 @@ export const RegistrationPage = ({ randomNumber, onRegistered, approveUrl: initi
           clearInterval(checkInterval);
           setIsAutoApproved(true);
           setStatusMsg({
-            text: '🎉 Administrator approved this workstation! Unlocking AMS Portal...',
+            text: '🎉 Workstation authorized! Unlocking AMS Portal...',
             type: 'success'
           });
           localStorage.setItem('ams_is_registered', 'true');
@@ -47,18 +43,18 @@ export const RegistrationPage = ({ randomNumber, onRegistered, approveUrl: initi
           }, 900);
         }
       } catch (err) {
-        console.error('Live polling registration error:', err);
+        // Polling error silently handled
       }
-    }, 2500);
+    }, 3000);
 
     return () => clearInterval(checkInterval);
-  }, [isRequestSent, isAutoApproved, onRegistered]);
+  }, [isAutoApproved, onRegistered]);
 
   const handleCopyCode = () => {
     if (!randomNumber) return;
     navigator.clipboard.writeText(randomNumber);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
   };
 
   const handleRequestActivation = async () => {
@@ -74,12 +70,9 @@ export const RegistrationPage = ({ randomNumber, onRegistered, approveUrl: initi
 
       if (data.success) {
         setStatusMsg({
-          text: data.message || 'Activation request sent to Administrator! Waiting for approval...',
+          text: data.message || 'Activation request sent to Administrator. Waiting for approval...',
           type: 'success'
         });
-        if (data.approveUrl) {
-          setApproveUrl(data.approveUrl);
-        }
         setIsRequestSent(true);
       } else {
         setStatusMsg({ text: data.message || 'Failed to send request.', type: 'error' });
@@ -98,7 +91,7 @@ export const RegistrationPage = ({ randomNumber, onRegistered, approveUrl: initi
   const handleManualActivate = async (e) => {
     e?.preventDefault();
     if (!activationKey.trim()) {
-      setStatusMsg({ text: 'Please enter the activation key provided by your Administrator.', type: 'error' });
+      setStatusMsg({ text: 'Please enter the activation key provided by Administrator.', type: 'error' });
       return;
     }
 
@@ -140,7 +133,7 @@ export const RegistrationPage = ({ randomNumber, onRegistered, approveUrl: initi
           </div>
           <h2>Workstation Authorization</h2>
           <p>
-            This machine or browser requires authorization before accessing attendance records and sensitive hospital staff data.
+            This workstation requires license authorization before accessing hospital staff data.
           </p>
         </div>
 
@@ -161,17 +154,17 @@ export const RegistrationPage = ({ randomNumber, onRegistered, approveUrl: initi
               <span className="device-code-number">{randomNumber || 'Generating...'}</span>
               <button 
                 type="button"
-                className={`btn-copy-code ${copied ? 'copied' : ''}`}
+                className={`btn-copy-code ${copiedCode ? 'copied' : ''}`}
                 onClick={handleCopyCode}
                 title="Copy verification code"
               >
-                {copied ? <Check size={14} /> : <Copy size={14} />}
-                <span>{copied ? 'Copied' : 'Copy'}</span>
+                {copiedCode ? <Check size={14} /> : <Copy size={14} />}
+                <span>{copiedCode ? 'Copied' : 'Copy'}</span>
               </button>
             </div>
           </div>
 
-          {/* Live Polling Waiting Indicator */}
+          {/* Live Polling Waiting Indicator (Active when request submitted) */}
           {isRequestSent && !isAutoApproved && (
             <div className="device-polling-box">
               <div className="radar-pulse-wrap">
@@ -181,7 +174,7 @@ export const RegistrationPage = ({ randomNumber, onRegistered, approveUrl: initi
               <div className="device-polling-text">
                 <h4>Waiting for Administrator Approval...</h4>
                 <p>
-                  As soon as the Administrator clicks <strong>Approve & Activate</strong> in their notification, this screen will automatically unlock.
+                  As soon as authorization is confirmed by Administrator, this screen will automatically unlock.
                 </p>
               </div>
             </div>
@@ -207,29 +200,10 @@ export const RegistrationPage = ({ randomNumber, onRegistered, approveUrl: initi
             ) : (
               <>
                 <Sparkles size={18} />
-                <span>⚡ Request 1-Click Activation from Admin</span>
+                <span>Request Activation</span>
               </>
             )}
           </button>
-
-          {/* Dev Quick-Approve Helper (For immediate simulation during dev/testing) */}
-          {approveUrl && (
-            <div className="dev-instant-approve-bar">
-              <div className="dev-instant-approve-text">
-                <strong>Admin 1-Click Link:</strong> Click to test approval instantly
-              </div>
-              <a 
-                href={approveUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="dev-instant-approve-btn"
-                style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-              >
-                <span>Approve</span>
-                <ExternalLink size={12} />
-              </a>
-            </div>
-          )}
 
           {/* Manual Activation Key Section */}
           <div className="manual-key-divider">
@@ -263,7 +237,7 @@ export const RegistrationPage = ({ randomNumber, onRegistered, approveUrl: initi
               <span>{deviceName || 'Workstation Client'}</span>
             </div>
             <div className="device-spec-item">
-              <span>Security Protocol v2.6</span>
+              <span>Security License v2.6</span>
             </div>
           </div>
         </div>

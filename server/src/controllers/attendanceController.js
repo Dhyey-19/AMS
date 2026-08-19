@@ -238,6 +238,45 @@ class AttendanceController {
   }
 
   /**
+   * Date Range Attendance Report & Analytics
+   */
+  static async getRangeReport(req, res) {
+    try {
+      const { startDate, endDate, department } = req.query;
+      const report = AttendanceService.getRangeReport({ startDate, endDate, department });
+      return res.status(200).json({
+        success: true,
+        data: report
+      });
+    } catch (err) {
+      return res.status(500).json({
+        success: false,
+        message: err.message
+      });
+    }
+  }
+
+  /**
+   * Single Employee Attendance Report
+   */
+  static async getEmployeeReport(req, res) {
+    try {
+      const { code } = req.params;
+      const { startDate, endDate, month } = req.query;
+      const report = AttendanceService.getEmployeeReport(code, { startDate, endDate, month });
+      return res.status(200).json({
+        success: true,
+        data: report
+      });
+    } catch (err) {
+      return res.status(500).json({
+        success: false,
+        message: err.message
+      });
+    }
+  }
+
+  /**
    * Get available recorded months
    */
   static async getMonths(req, res) {

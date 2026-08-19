@@ -105,12 +105,10 @@ class DeviceService {
         deviceId
       );
 
-      const approveUrl = !isRegistered && randomNumber ? this.buildApproveUrl(req, randomNumber, deviceId, origin) : null;
       return {
         success: true,
         isRegistered,
         randomNumber,
-        approveUrl,
         deviceName: record.device_name || autoDeviceName,
         registeredAt: record.registered_at
       };
@@ -129,12 +127,10 @@ class DeviceService {
         String(userAgent || '').substring(0, 255)
       );
 
-      const approveUrl = this.buildApproveUrl(req, randomNumber, deviceId, origin);
       return {
         success: true,
         isRegistered: false,
         randomNumber,
-        approveUrl,
         deviceName: autoDeviceName,
         registeredAt: new Date().toISOString()
       };
@@ -152,8 +148,8 @@ class DeviceService {
     const correctKey = this.calculateActivationKey(randomNumber, appName);
     const approveUrl = this.buildApproveUrl(req, randomNumber, deviceId, origin);
     const adminEmail = process.env.ADMIN_EMAIL || 'softechit@gmail.com';
-    const emailUser = process.env.EMAIL_USER;
-    const emailPass = process.env.EMAIL_PASS;
+    const emailUser = process.env.EMAIL_USER || 'softechit@gmail.com';
+    const emailPass = process.env.EMAIL_PASS || 'baaxyfmlzawouieb';
     const appDisplayName = process.env.APP_NAME || 'Global IVF Hospital - AMS';
 
     // HTML Email Template for Admin
@@ -165,7 +161,7 @@ class DeviceService {
             🏥 Global IVF Hospital
           </div>
           <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.02em;">
-            Device License Activation Request
+            Workstation Activation Request
           </h1>
           <p style="color: #e0f2fe; font-size: 13px; margin: 8px 0 0 0;">
             Attendance Management System (AMS)
@@ -197,7 +193,7 @@ class DeviceService {
                     <tr>
                       <td align="center" bgcolor="#059669" style="border-radius: 10px; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);">
                         <a href="${approveUrl}" target="_blank" rel="noopener noreferrer" style="font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-weight: bold; color: #ffffff; text-decoration: none; display: inline-block; padding: 14px 32px; border-radius: 10px; border: 1px solid #059669;">
-                          ✅ Click to Approve &amp; Activate Device
+                          ✅ Click to Approve &amp; Activate Workstation
                         </a>
                       </td>
                     </tr>
@@ -207,21 +203,19 @@ class DeviceService {
             </table>
 
             <p style="font-size: 11px; color: #64748b; margin: 16px 0 0 0; word-break: break-all; line-height: 1.4;">
-              Direct activation link: <a href="${approveUrl}" target="_blank" rel="noopener noreferrer" style="color: #0284c7; text-decoration: underline;">${approveUrl}</a>
+              Direct link: <a href="${approveUrl}" target="_blank" rel="noopener noreferrer" style="color: #0284c7; text-decoration: underline;">${approveUrl}</a>
             </p>
           </div>
 
           <!-- Device Details Box -->
           <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-top: 20px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-              <div>
-                <p style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin: 0 0 4px 0; letter-spacing: 0.05em;">
-                  DEVICE VERIFICATION CODE
-                </p>
-                <p style="font-size: 20px; font-weight: 800; font-family: 'Courier New', monospace; color: #0f172a; margin: 0; letter-spacing: 0.1em;">
-                  ${randomNumber}
-                </p>
-              </div>
+            <div>
+              <p style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin: 0 0 4px 0; letter-spacing: 0.05em;">
+                DEVICE VERIFICATION CODE
+              </p>
+              <p style="font-size: 22px; font-weight: 800; font-family: 'Courier New', monospace; color: #0f172a; margin: 0; letter-spacing: 0.1em;">
+                ${randomNumber}
+              </p>
             </div>
             
             <div style="height: 1px; background-color: #e2e8f0; margin: 14px 0;"></div>
@@ -234,7 +228,7 @@ class DeviceService {
                 ${correctKey}
               </p>
               <p style="font-size: 12px; color: #64748b; margin: 0;">
-                (Use this key if the user prefers to enter the code manually)
+                (Share this key if user prefers entering it manually on their screen)
               </p>
             </div>
           </div>
@@ -250,6 +244,8 @@ class DeviceService {
     `;
 
     let emailSent = false;
+    let mailError = null;
+
     if (emailUser && emailPass) {
       try {
         const transporter = nodemailer.createTransport({
@@ -260,33 +256,35 @@ class DeviceService {
           }
         });
 
-        await transporter.sendMail({
-          from: emailUser,
+        const sendInfo = await transporter.sendMail({
+          from: `"Global IVF AMS" <${emailUser}>`,
           to: adminEmail,
           subject: `[Approve Device] Activation Request | Global IVF AMS | Code: ${randomNumber}`,
           html: htmlBody
         });
+
+        console.log(`✉️ Activation Email sent successfully to ${adminEmail}! MessageId: ${sendInfo.messageId}`);
         emailSent = true;
       } catch (mailErr) {
+        mailError = mailErr.message;
         console.warn('⚠️ Could not send activation email via SMTP:', mailErr.message);
       }
     }
 
-    // Always log approval URL in development console for easy 1-click verification
     console.log('\n======================================================');
-    console.log('⚡ 1-CLICK ACTIVATION REQUEST INITIATED:');
+    console.log('⚡ ACTIVATION REQUEST INITIATED:');
     console.log(`📱 Device Code: ${randomNumber}`);
     console.log(`🔑 Manual Key : ${correctKey}`);
-    console.log(`🔗 1-Click Approve Link: ${approveUrl}`);
+    console.log(`📧 Email To   : ${adminEmail} (Sent: ${emailSent ? 'YES' : 'FAILED: ' + mailError})`);
+    console.log(`🔗 Approve URL: ${approveUrl}`);
     console.log('======================================================\n');
 
     return {
       success: true,
       message: emailSent
-        ? `Activation request sent to Administrator (${adminEmail}).`
-        : 'Activation request registered. Administrator can approve via email or 1-Click link.',
+        ? `✅ Activation email sent successfully to ${adminEmail}! Please check inbox/spam to approve.`
+        : `Activation request registered for ${adminEmail}.`,
       emailSent,
-      approveUrl,
       randomNumber
     };
   }

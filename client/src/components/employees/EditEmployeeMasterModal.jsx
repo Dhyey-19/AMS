@@ -70,13 +70,8 @@ const formatBreakToHHMM = (val) => {
     const m = parseInt(parts[1], 10) || 0;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   }
-  const num = parseFloat(val);
-  if (isNaN(num)) return '00:00';
-  if (num <= 12 && String(val).includes('.')) {
-    const totalMins = Math.round(num * 60);
-    return minutesToHHMM(totalMins);
-  }
-  return minutesToHHMM(Math.round(num));
+  const mins = parseBreakToMinutes(val);
+  return minutesToHHMM(mins);
 };
 
 const parseBreakToMinutes = (val) => {
@@ -88,10 +83,16 @@ const parseBreakToMinutes = (val) => {
     return h * 60 + m;
   }
   const num = parseFloat(val);
-  if (isNaN(num)) return 0;
+  if (isNaN(num) || num <= 0) return 0;
+  // If decimal <= 12 and has decimal point (like 0.5, 1.5, 2.0), treat as hours
   if (num <= 12 && String(val).includes('.')) {
     return Math.round(num * 60);
   }
+  // If small integer <= 6, treat as hours (e.g. 1 -> 60m, 2 -> 120m)
+  if (num <= 6) {
+    return Math.round(num * 60);
+  }
+  // Otherwise treat as raw minutes (e.g. 15, 30, 45, 60, 90)
   return Math.round(num);
 };
 
@@ -454,7 +455,7 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                       <button
                         type="button"
                         onClick={() => {
-                          const auto = calculateWorkHoursFromShift(formData.standard_in_time, formData.standard_out_time, formData.standard_break_minutes);
+                          const auto = calculateWorkHoursFromShift(formData.standard_in_time, formData.standard_out_time, formData.standard_break_time);
                           if (auto) {
                             setFormData(prev => ({ ...prev, standard_work_hours: auto }));
                           }
@@ -474,23 +475,33 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                       </button>
                     </div>
                     <input 
-                      type="time" 
+                      type="text" 
                       name="standard_work_hours"
                       value={formData.standard_work_hours || ''}
-                      onChange={handleChange}
+                      onChange={(e) => {
+                        let val = e.target.value.replace(/[^0-9:]/g, '');
+                        if (val.length > 5) val = val.slice(0, 5);
+                        setFormData(prev => ({ ...prev, standard_work_hours: val }));
+                      }}
+                      onBlur={(e) => {
+                        const formatted = formatHoursToHHMM(e.target.value);
+                        setFormData(prev => ({ ...prev, standard_work_hours: formatted }));
+                      }}
+                      placeholder="12:00"
+                      maxLength={5}
                       className="form-control"
                       style={{ fontWeight: '700', color: 'var(--primary-700)', fontSize: '0.95rem' }}
                     />
                     <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>
-                      Time: HH:MM • Auto-calculated & Editable
+                      Duration: HH:MM • Auto-calculated & Editable
                     </small>
                   </div>
 
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem', flexWrap: 'wrap', gap: '0.25rem' }}>
                       <label className="form-label" style={{ marginBottom: 0 }}>Standard Break Time (HH:MM)</label>
-                      <div style={{ display: 'flex', gap: '0.25rem' }}>
-                        {['00:00', '00:30', '01:00', '01:30', '02:00'].map((preset) => (
+                      <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                        {['00:00', '00:30', '00:45', '01:00', '01:30', '02:00'].map((preset) => (
                           <button
                             key={preset}
                             type="button"
@@ -499,6 +510,7 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                               setFormData(prev => ({
                                 ...prev,
                                 standard_break_time: preset,
+                                standard_break_minutes: parseBreakToMinutes(preset),
                                 ...(auto ? { standard_work_hours: auto } : {})
                               }));
                             }}
@@ -519,14 +531,42 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                       </div>
                     </div>
                     <input 
-                      type="time" 
+                      type="text" 
                       name="standard_break_time"
                       value={formData.standard_break_time || '00:00'}
-                      onChange={handleChange}
+                      onChange={(e) => {
+                        let val = e.target.value.replace(/[^0-9:]/g, '');
+                        if (val.length > 5) val = val.slice(0, 5);
+                        setFormData(prev => {
+                          const auto = calculateWorkHoursFromShift(prev.standard_in_time, prev.standard_out_time, val);
+                          return {
+                            ...prev,
+                            standard_break_time: val,
+                            standard_break_minutes: parseBreakToMinutes(val),
+                            ...(auto ? { standard_work_hours: auto } : {})
+                          };
+                        });
+                      }}
+                      onBlur={(e) => {
+                        const formatted = formatBreakToHHMM(e.target.value);
+                        setFormData(prev => {
+                          const auto = calculateWorkHoursFromShift(prev.standard_in_time, prev.standard_out_time, formatted);
+                          return {
+                            ...prev,
+                            standard_break_time: formatted,
+                            standard_break_minutes: parseBreakToMinutes(formatted),
+                            ...(auto ? { standard_work_hours: auto } : {})
+                          };
+                        });
+                      }}
+                      placeholder="00:00"
+                      maxLength={5}
                       className="form-control"
                       style={{ fontWeight: '600', color: 'var(--slate-800)', fontSize: '0.95rem' }}
                     />
-                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Format: HH:MM (e.g. 01:00 = 1 hour, 00:30 = 30 mins)</small>
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>
+                      24-Hr HH:MM only (No AM/PM) • {parseBreakToMinutes(formData.standard_break_time)} mins
+                    </small>
                   </div>
                 </div>
 
