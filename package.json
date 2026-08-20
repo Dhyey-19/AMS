@@ -1,23 +1,25 @@
 {
   "name": "global-ivf-ams",
-  "version": "1.0.0",
+  "version": "2026.8.20",
   "description": "Attendance Management System (AMS) for Global IVF Hospital",
   "main": "electron/main.js",
   "workspaces": [
     "client"
   ],
   "scripts": {
-    "build:frontend": "npm run build --prefix client",
+    "version:sync": "node scripts/sync-version.js",
+    "rebuild:node": "npm rebuild better-sqlite3",
+    "build:frontend": "node scripts/sync-version.js && npm run build --prefix client",
     "build": "npm run build:frontend",
-    "dist": "npm run build && electron-builder",
-    "build:exe": "cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 npm run dist",
+    "dist": "node scripts/sync-version.js && npm run build && electron-builder && npm run rebuild:node",
+    "build:exe": "node scripts/sync-version.js && cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 npm run dist",
     "server:dev": "node --watch server/src/server.js",
     "client:dev": "npm run dev --prefix client",
     "electron:dev": "cross-env NODE_ENV=development electron .",
     "dev": "concurrently -k \"npm run server:dev\" \"npm run dev --prefix client\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development electron .\"",
     "start": "electron .",
     "seed": "node server/src/scripts/seed.js",
-    "publish:build": "node server/src/scripts/build-publish.js"
+    "publish:build": "node scripts/sync-version.js && node server/src/scripts/build-publish.js"
   },
   "keywords": [
     "ams",
@@ -86,5 +88,6 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Global IVF Hospital AMS"
     }
-  }
+  },
+  "appVersionCode": "20260820"
 }

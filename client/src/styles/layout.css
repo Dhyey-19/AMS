@@ -63,12 +63,41 @@
   white-space: nowrap;
 }
 
+.hospital-subtitle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .hospital-subtitle {
   font-size: 0.725rem;
   color: var(--primary-600);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.app-version-tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--primary-700);
+  background-color: var(--primary-50);
+  border: 1px solid var(--primary-200);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.sidebar-footer-version {
+  padding: 0.5rem 0.75rem 0.25rem;
+  font-size: 0.6875rem;
+  color: var(--slate-400);
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
 }
 
 /* Sidebar Navigation Items */

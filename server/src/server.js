@@ -26,10 +26,19 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/attendance', attendanceRoutes);
 
 // Health check endpoint
+let versionInfo = null;
+try {
+  versionInfo = require('./version.json');
+} catch (e) {}
+
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'online',
     app: 'Global IVF Hospital - AMS',
+    version: versionInfo?.version || '20260820',
+    semver: versionInfo?.semver || '2026.8.20',
+    buildDate: versionInfo?.buildDate || '2026-08-20',
+    display: versionInfo?.display || 'v20260820',
     timestamp: new Date().toISOString()
   });
 });

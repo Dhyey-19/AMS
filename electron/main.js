@@ -36,28 +36,73 @@ if (!gotTheLock) {
   });
 }
 
-function initAppDataDirectory() {
-  if (app.isPackaged) {
-    const userDataPath = app.getPath('userData');
-    const dataDir = path.join(userDataPath, 'data');
-    const uploadsDir = path.join(userDataPath, 'uploads');
-
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
-    process.env.AMS_DATA_DIR = dataDir;
-    process.env.DATA_DIR = dataDir;
-    process.env.UPLOADS_DIR = uploadsDir;
-    process.env.UPLOAD_DIR = uploadsDir;
-    process.env.TEMP_UPLOAD_DIR = uploadsDir;
-    process.env.DB_PATH = path.join(dataDir, 'ams.db');
-
-    logMessage('Initialized app data directory at:', dataDir);
+function getAppStorageDirectory() {
+  if (!app.isPackaged) {
+    return path.resolve(__dirname, '..');
   }
+
+  // Check if local installation folder (e.g. C:\ams) is writable
+  const exeDir = path.dirname(process.execPath);
+  const localDataDir = path.join(exeDir, 'data');
+  try {
+    if (!fs.existsSync(localDataDir)) {
+      fs.mkdirSync(localDataDir, { recursive: true });
+    }
+    const testFile = path.join(localDataDir, '.test_write');
+    fs.writeFileSync(testFile, '1');
+    fs.unlinkSync(testFile);
+    logMessage('Using local installation directory for data storage:', exeDir);
+    return exeDir;
+  } catch (err) {
+    // If not writable (e.g. restricted permissions), fallback to AppData
+    const userData = app.getPath('userData');
+    logMessage('Local exe directory not writable, falling back to userData:', userData);
+    return userData;
+  }
+}
+
+function initAppDataDirectory() {
+  const baseDir = getAppStorageDirectory();
+  const dataDir = path.join(baseDir, 'data');
+  const uploadsDir = path.join(baseDir, 'uploads');
+
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+
+  const targetDb = path.join(dataDir, 'ams.db');
+
+  // If local DB doesn't exist yet, check if there is an existing DB in AppData or bundled template
+  if (!fs.existsSync(targetDb)) {
+    try {
+      const appDataDb = path.join(app.getPath('userData'), 'data', 'ams.db');
+      if (fs.existsSync(appDataDb)) {
+        fs.copyFileSync(appDataDb, targetDb);
+        logMessage('Migrated existing database from AppData to local data directory:', targetDb);
+      } else {
+        const rootDb = path.join(__dirname, '../ams.db');
+        if (fs.existsSync(rootDb)) {
+          fs.copyFileSync(rootDb, targetDb);
+          logMessage('Copied initial database template from root to:', targetDb);
+        }
+      }
+    } catch (e) {
+      logMessage('Could not copy initial database:', e.message);
+    }
+  }
+
+  process.env.AMS_DATA_DIR = dataDir;
+  process.env.DATA_DIR = dataDir;
+  process.env.UPLOADS_DIR = uploadsDir;
+  process.env.UPLOAD_DIR = uploadsDir;
+  process.env.TEMP_UPLOAD_DIR = uploadsDir;
+  process.env.DB_PATH = targetDb;
+
+  logMessage('Initialized app data directory at:', dataDir);
+  logMessage('Database path set to:', targetDb);
 }
 
 async function startBackendServer() {
@@ -111,15 +156,27 @@ function waitForServer(url, timeout = 6000) {
   });
 }
 
+function getAppVersionInfo() {
+  try {
+    const vPath = path.join(__dirname, '../server/src/version.json');
+    if (fs.existsSync(vPath)) {
+      return JSON.parse(fs.readFileSync(vPath, 'utf8'));
+    }
+  } catch (e) {}
+  return { version: app.getVersion(), display: `v${app.getVersion()}` };
+}
+
 function createWindow() {
   const iconPath = path.join(__dirname, '../build/icon.png');
+  const vInfo = getAppVersionInfo();
+  const winTitle = `Global IVF Hospital - Attendance Management System (${vInfo.display || 'v' + app.getVersion()})`;
 
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    title: 'Global IVF Hospital - Attendance Management System',
+    title: winTitle,
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
     autoHideMenuBar: true,
     show: false,
@@ -172,7 +229,10 @@ function createWindow() {
 }
 
 // IPC Handlers
-ipcMain.handle('get-app-version', () => app.getVersion());
+ipcMain.handle('get-app-version', () => {
+  const vInfo = getAppVersionInfo();
+  return vInfo.version || app.getVersion();
+});
 ipcMain.on('window-minimize', () => {
   if (mainWindow) mainWindow.minimize();
 });

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, Clock, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import versionData from '../../version.json';
 
 export const Header = ({ activeTab, onToggleSidebar, onOpenDeviceModal }) => {
   const { user } = useAuth();
@@ -43,7 +44,9 @@ export const Header = ({ activeTab, onToggleSidebar, onOpenDeviceModal }) => {
 
         <div className="page-title-group">
           <h1>{current.title}</h1>
-          <div className="page-breadcrumbs">Global IVF Hospital &bull; {current.breadcrumb}</div>
+          <div className="page-breadcrumbs">
+            Global IVF Hospital &bull; {current.breadcrumb} &bull; <span style={{ color: 'var(--primary-600)', fontWeight: 700 }}>{versionData?.display || 'v20260820'}</span>
+          </div>
         </div>
       </div>
 

@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { deviceApi } from '../../services/api';
 
-export const RegistrationPage = ({ randomNumber, onRegistered, deviceName }) => {
+export const RegistrationPage = ({ randomNumber, onRegistered, deviceName, loadError, onRefresh }) => {
   const [activationKey, setActivationKey] = useState('');
   const [statusMsg, setStatusMsg] = useState({ text: '', type: '' });
   const [loading, setLoading] = useState(false);
@@ -58,6 +58,15 @@ export const RegistrationPage = ({ randomNumber, onRegistered, deviceName }) => 
   };
 
   const handleRequestActivation = async () => {
+    if (!randomNumber) {
+      setStatusMsg({ 
+        text: 'Device verification code is still connecting to the server. Please click Retry Connection.', 
+        type: 'error' 
+      });
+      if (onRefresh) onRefresh();
+      return;
+    }
+
     setLoading(true);
     setStatusMsg({ text: '', type: '' });
     try {
@@ -140,10 +149,10 @@ export const RegistrationPage = ({ randomNumber, onRegistered, deviceName }) => 
         {/* Card Body */}
         <div className="device-card-body">
           {/* Status Message Alert */}
-          {statusMsg.text && (
-            <div className={`device-alert ${statusMsg.type === 'error' ? 'error' : 'success'}`}>
+          {(statusMsg.text || loadError) && (
+            <div className={`device-alert ${statusMsg.type === 'error' || (!statusMsg.text && loadError) ? 'error' : 'success'}`}>
               <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
-              <div>{statusMsg.text}</div>
+              <div>{statusMsg.text || loadError}</div>
             </div>
           )}
 
@@ -152,15 +161,27 @@ export const RegistrationPage = ({ randomNumber, onRegistered, deviceName }) => 
             <div className="device-code-label">Device Verification Code</div>
             <div className="device-code-value-row">
               <span className="device-code-number">{randomNumber || 'Generating...'}</span>
-              <button 
-                type="button"
-                className={`btn-copy-code ${copiedCode ? 'copied' : ''}`}
-                onClick={handleCopyCode}
-                title="Copy verification code"
-              >
-                {copiedCode ? <Check size={14} /> : <Copy size={14} />}
-                <span>{copiedCode ? 'Copied' : 'Copy'}</span>
-              </button>
+              {randomNumber ? (
+                <button 
+                  type="button"
+                  className={`btn-copy-code ${copiedCode ? 'copied' : ''}`}
+                  onClick={handleCopyCode}
+                  title="Copy verification code"
+                >
+                  {copiedCode ? <Check size={14} /> : <Copy size={14} />}
+                  <span>{copiedCode ? 'Copied' : 'Copy'}</span>
+                </button>
+              ) : (
+                <button 
+                  type="button"
+                  className="btn-copy-code"
+                  onClick={onRefresh}
+                  title="Retry fetching code"
+                >
+                  <RefreshCw size={14} />
+                  <span>Retry</span>
+                </button>
+              )}
             </div>
           </div>
 

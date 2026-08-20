@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const { execSync } = require('child_process');
 const esbuild = require('esbuild');
+const { syncVersions, getVersionInfo } = require('../../../scripts/sync-version');
 
 const ROOT_DIR = path.resolve(__dirname, '../../../');
 const PUBLISH_DIR = path.join(ROOT_DIR, 'publish');
@@ -100,8 +101,9 @@ function ensureAmsIco(filePath) {
 }
 
 async function buildPublish() {
+  const versionInfo = syncVersions();
   console.log('=====================================================');
-  console.log('🚀 Starting Global IVF AMS Standalone Publish Build');
+  console.log(`🚀 Starting Global IVF AMS Standalone Publish Build (${versionInfo.display})`);
   console.log('=====================================================\n');
 
   // 1. Build React Frontend
@@ -276,8 +278,8 @@ EMAIL_PASS=baaxyfmlzawouieb
   // 10. Generate minimal package.json
   const prodPkg = {
     name: 'global-ivf-ams-production',
-    version: '1.0.0',
-    description: 'Global IVF Hospital Attendance Management System - Standalone Distribution',
+    version: versionInfo.version,
+    description: `Global IVF Hospital Attendance Management System - Standalone Distribution (${versionInfo.display})`,
     main: 'server.bundle.js',
     scripts: {
       start: 'node server.bundle.js'
@@ -437,15 +439,15 @@ pause
 
   // 14. Generate Inno Setup Script (InnoSetup_Compiler.iss)
   const innoScriptContent = `; Inno Setup Script for Global IVF Hospital AMS
-; Free Inno Setup Compiler can compile this script into a single "Global_IVF_AMS_Setup.exe"
+; Free Inno Setup Compiler can compile this script into a single "Global_IVF_AMS_Setup_${versionInfo.version}.exe"
 
 [Setup]
 AppName=Global IVF Hospital AMS
-AppVersion=1.0.0
+AppVersion=${versionInfo.version}
 DefaultDirName={autopf}\\Global IVF Hospital AMS
 DefaultGroupName=Global IVF Hospital AMS
 OutputDir=.
-OutputBaseFilename=Global_IVF_AMS_Setup
+OutputBaseFilename=Global_IVF_AMS_Setup_${versionInfo.version}
 Compression=lzma2/max
 SolidCompression=yes
 PrivilegesRequired=lowest

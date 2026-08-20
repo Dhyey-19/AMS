@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import versionData from '../version.json';
 import { 
   Hospital, 
   Lock, 
@@ -98,7 +99,7 @@ export const SignupPage = ({ onNavigateToLogin }) => {
           </div>
 
           <div className="banner-footer">
-            &copy; 2026 Global IVF Hospital &bull; AMS v1.0.0
+            &copy; 2026 Global IVF Hospital &bull; AMS {versionData?.display || `v${versionData?.version || '20260820'}`} ({versionData?.displayDate || '20-Aug-2026'})
           </div>
         </div>
 

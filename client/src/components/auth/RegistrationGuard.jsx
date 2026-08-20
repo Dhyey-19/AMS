@@ -8,52 +8,57 @@ export const RegistrationGuard = ({ children }) => {
   const [randomNumber, setRandomNumber] = useState(null);
   const [deviceName, setDeviceName] = useState('');
   const [checking, setChecking] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  const checkRegistration = async () => {
+    setChecking(true);
+    setLoadError('');
+    try {
+      // Generate or retrieve persistent unique Device ID
+      let deviceId = localStorage.getItem('ams_device_id');
+      if (!deviceId) {
+        deviceId = typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : 'ams_dev_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+        localStorage.setItem('ams_device_id', deviceId);
+      }
+
+      let currentUser = '';
+      try {
+        const userObj = localStorage.getItem('ams_user');
+        if (userObj) {
+          const parsed = JSON.parse(userObj);
+          currentUser = parsed.username || parsed.fullName || '';
+        }
+      } catch (e) {
+        // ignore parsing error
+      }
+
+      const data = await deviceApi.getStatus(deviceId, currentUser);
+
+      if (data.success) {
+        setIsRegistered(data.isRegistered);
+        if (!data.isRegistered && data.randomNumber) {
+          setRandomNumber(data.randomNumber);
+          if (data.deviceName) setDeviceName(data.deviceName);
+          localStorage.removeItem('ams_is_registered');
+        } else if (data.isRegistered) {
+          localStorage.setItem('ams_is_registered', 'true');
+        }
+      } else {
+        setIsRegistered(false);
+        setLoadError(data.message || 'Could not retrieve device authorization code');
+      }
+    } catch (err) {
+      console.error('Failed to verify workstation registration:', err);
+      setIsRegistered(false);
+      setLoadError(err.response?.data?.message || err.message || 'Server connection error');
+    } finally {
+      setChecking(false);
+    }
+  };
 
   useEffect(() => {
-    // Generate or retrieve persistent unique Device ID
-    let deviceId = localStorage.getItem('ams_device_id');
-    if (!deviceId) {
-      deviceId = typeof crypto !== 'undefined' && crypto.randomUUID
-        ? crypto.randomUUID()
-        : 'ams_dev_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-      localStorage.setItem('ams_device_id', deviceId);
-    }
-
-    const checkRegistration = async () => {
-      try {
-        let currentUser = '';
-        try {
-          const userObj = localStorage.getItem('ams_user');
-          if (userObj) {
-            const parsed = JSON.parse(userObj);
-            currentUser = parsed.username || parsed.fullName || '';
-          }
-        } catch (e) {
-          // ignore parsing error
-        }
-
-        const data = await deviceApi.getStatus(deviceId, currentUser);
-
-        if (data.success) {
-          setIsRegistered(data.isRegistered);
-          if (!data.isRegistered && data.randomNumber) {
-            setRandomNumber(data.randomNumber);
-            if (data.deviceName) setDeviceName(data.deviceName);
-            localStorage.removeItem('ams_is_registered');
-          } else if (data.isRegistered) {
-            localStorage.setItem('ams_is_registered', 'true');
-          }
-        } else {
-          setIsRegistered(false);
-        }
-      } catch (err) {
-        console.error('Failed to verify workstation registration:', err);
-        setIsRegistered(false);
-      } finally {
-        setChecking(false);
-      }
-    };
-
     checkRegistration();
   }, []);
 
@@ -105,6 +110,8 @@ export const RegistrationGuard = ({ children }) => {
       <RegistrationPage 
         randomNumber={randomNumber} 
         deviceName={deviceName}
+        loadError={loadError}
+        onRefresh={checkRegistration}
         onRegistered={() => setIsRegistered(true)} 
       />
     );

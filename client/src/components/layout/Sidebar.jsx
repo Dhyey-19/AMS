@@ -11,6 +11,7 @@ import {
   X
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import versionData from '../../version.json';
 
 export const Sidebar = ({ activeTab, onSelectTab, isOpen, onClose, onOpenDeviceModal }) => {
   const { user, logout } = useAuth();
@@ -34,7 +35,12 @@ export const Sidebar = ({ activeTab, onSelectTab, isOpen, onClose, onOpenDeviceM
           </div>
           <div className="hospital-brand-info">
             <span className="hospital-title">Global IVF</span>
-            <span className="hospital-subtitle">Hospital AMS</span>
+            <div className="hospital-subtitle-row">
+              <span className="hospital-subtitle">Hospital AMS</span>
+              <span className="app-version-tag" title={`Build: ${versionData?.displayDate || versionData?.buildDate || '2026-08-20'}`}>
+                {versionData?.display || `v${versionData?.version || '20260820'}`}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -109,6 +115,11 @@ export const Sidebar = ({ activeTab, onSelectTab, isOpen, onClose, onOpenDeviceM
             >
               <LogOut size={16} />
             </button>
+          </div>
+          <div className="sidebar-footer-version">
+            <span>AMS {versionData?.display || `v${versionData?.version || '20260820'}`}</span>
+            <span>•</span>
+            <span>{versionData?.displayDate || '20-Aug-2026'}</span>
           </div>
         </div>
       </aside>
