@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StatusBadge, DepartmentBadge } from '../common/Badge';
 import { Pagination } from '../common/Pagination';
+import { employeeApi } from '../../services/api';
 import { 
   Search, 
   Filter, 
@@ -32,6 +33,8 @@ export const EmployeeTable = ({
   onOpenImportModal,
   loading = false
 }) => {
+  const [exportingFormat, setExportingFormat] = useState(null);
+
   const handleHeaderSort = (columnKey) => {
     if (sortBy === columnKey) {
       onSort(columnKey, sortOrder === 'asc' ? 'desc' : 'asc');
@@ -40,37 +43,37 @@ export const EmployeeTable = ({
     }
   };
 
-  const handleExportCSV = () => {
-    if (!employees || employees.length === 0) return;
+  const handleExport = async (format = 'xlsx') => {
+    try {
+      setExportingFormat(format);
+      const res = await employeeApi.exportMasterData({
+        format,
+        search,
+        department: selectedDepartment !== 'All' ? selectedDepartment : '',
+        status: selectedStatus !== 'All' ? selectedStatus : '',
+        gender: selectedGender !== 'All' ? selectedGender : ''
+      });
 
-    const headers = [
-      'EmployeeCode', 'EmployeeName', 'DeviceCode', 'Department', 'Designation',
-      'Gender', 'DOJ', 'Salary', 'Incentive', 'Status', 'DOR', 'ShiftGroupCode'
-    ];
+      const blob = new Blob([res.data], {
+        type: format === 'xlsx' 
+          ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+          : 'text/csv;charset=utf-8;'
+      });
 
-    const rows = employees.map(emp => [
-      `"${emp.employee_code || ''}"`,
-      `"${emp.employee_name || ''}"`,
-      `"${emp.device_code || ''}"`,
-      `"${emp.department || ''}"`,
-      `"${emp.designation || ''}"`,
-      `"${emp.gender || ''}"`,
-      `"${emp.doj || ''}"`,
-      `"${emp.salary ?? ''}"`,
-      `"${emp.incentive ?? 0}"`,
-      `"${emp.status || ''}"`,
-      `"${emp.dor || ''}"`,
-      `"${emp.shift_group_code || ''}"`
-    ]);
-
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `global_ivf_master_data_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Global_IVF_Hospital_Master_Data_${new Date().toISOString().slice(0, 10)}.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to export master data:', err);
+      alert('Failed to export employee master data');
+    } finally {
+      setExportingFormat(null);
+    }
   };
 
   return (
@@ -91,22 +94,31 @@ export const EmployeeTable = ({
           </div>
 
           {/* Action Buttons */}
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <button
               className="btn btn-secondary btn-sm"
-              onClick={handleExportCSV}
-              disabled={employees.length === 0}
-              title="Export visible records to CSV"
+              onClick={() => handleExport('xlsx')}
+              disabled={exportingFormat !== null}
+              title="Export all database records with all 40+ fields to multi-sheet Excel (.xlsx)"
             >
-              <Download size={15} />
-              Export
+              <Download size={14} />
+              {exportingFormat === 'xlsx' ? 'Exporting...' : 'Export Excel'}
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => handleExport('csv')}
+              disabled={exportingFormat !== null}
+              title="Export all database records with all fields to CSV (.csv)"
+            >
+              <Download size={14} />
+              {exportingFormat === 'csv' ? 'Exporting...' : 'Export CSV'}
             </button>
             <button
               className="btn btn-primary btn-sm"
               onClick={onOpenImportModal}
             >
               <FileSpreadsheet size={15} />
-              Import CSV / Excel
+              Import Master Data
             </button>
           </div>
         </div>

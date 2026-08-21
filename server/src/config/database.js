@@ -99,6 +99,7 @@ function initSchema() {
       shift_group_code TEXT,
       salary REAL,
       incentive REAL DEFAULT 0,
+      wef_date TEXT,
       standard_in_time TEXT DEFAULT '08:00',
       standard_out_time TEXT DEFAULT '20:00',
       standard_break_minutes INTEGER DEFAULT 0,
@@ -126,6 +127,7 @@ function initSchema() {
   // Migration for existing employees tables
   addColumnIfNotExists('employees', 'salary', 'REAL');
   addColumnIfNotExists('employees', 'incentive', 'REAL DEFAULT 0');
+  addColumnIfNotExists('employees', 'wef_date', 'TEXT');
   addColumnIfNotExists('employees', 'standard_in_time', "TEXT DEFAULT '08:00'");
   addColumnIfNotExists('employees', 'standard_out_time', "TEXT DEFAULT '20:00'");
   addColumnIfNotExists('employees', 'standard_break_minutes', 'INTEGER DEFAULT 0');
@@ -141,6 +143,95 @@ function initSchema() {
   addColumnIfNotExists('employees', 'salary_history_json', 'TEXT');
   addColumnIfNotExists('employees', 'wop', 'REAL DEFAULT 0');
   addColumnIfNotExists('employees', 'ypl', 'REAL DEFAULT 0');
+
+  // Employee W.E.F. (With Effect From) Revisions History table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS employee_wef_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_code TEXT NOT NULL COLLATE NOCASE,
+      effective_date TEXT NOT NULL,
+      salary REAL,
+      incentive REAL DEFAULT 0,
+      standard_in_time TEXT DEFAULT '08:00',
+      standard_out_time TEXT DEFAULT '20:00',
+      standard_break_minutes INTEGER DEFAULT 0,
+      standard_work_hours REAL DEFAULT 12.0,
+      payment_mode TEXT DEFAULT 'Bank',
+      late_grace_minutes INTEGER DEFAULT 11,
+      late_deduction_multiplier REAL DEFAULT 0.5,
+      overtime_multiplier REAL DEFAULT 2.0,
+      overtime_allowed INTEGER DEFAULT 1,
+      min_overtime_minutes INTEGER DEFAULT 0,
+      min_overtime_deduction_minutes INTEGER DEFAULT 0,
+      special_rules TEXT,
+      remarks TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(employee_code, effective_date)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_wef_emp_date ON employee_wef_history(employee_code, effective_date);
+  `);
+
+  addColumnIfNotExists('employee_wef_history', 'incentive', 'REAL DEFAULT 0');
+  addColumnIfNotExists('employee_wef_history', 'remarks', 'TEXT');
+
+  // Seed baseline W.E.F. records for existing employees if none exist
+  try {
+    const existingEmployeesWithoutWef = db.prepare(`
+      SELECT e.* FROM employees e
+      WHERE NOT EXISTS (
+        SELECT 1 FROM employee_wef_history w WHERE w.employee_code = e.employee_code
+      )
+    `).all();
+
+    if (existingEmployeesWithoutWef.length > 0) {
+      const insertWefStmt = db.prepare(`
+        INSERT OR IGNORE INTO employee_wef_history (
+          employee_code, effective_date, salary, incentive,
+          standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
+          payment_mode, late_grace_minutes, late_deduction_multiplier,
+          overtime_multiplier, overtime_allowed, min_overtime_minutes, min_overtime_deduction_minutes,
+          special_rules, remarks
+        ) VALUES (
+          @employee_code, @effective_date, @salary, @incentive,
+          @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
+          @payment_mode, @late_grace_minutes, @late_deduction_multiplier,
+          @overtime_multiplier, @overtime_allowed, @min_overtime_minutes, @min_overtime_deduction_minutes,
+          @special_rules, @remarks
+        )
+      `);
+
+      const seedTransaction = db.transaction((emps) => {
+        for (const emp of emps) {
+          const effectiveDate = emp.wef_date || emp.doj || '1900-01-01';
+          insertWefStmt.run({
+            employee_code: emp.employee_code,
+            effective_date: effectiveDate,
+            salary: emp.salary,
+            incentive: emp.incentive || 0,
+            standard_in_time: emp.standard_in_time || '08:00',
+            standard_out_time: emp.standard_out_time || '20:00',
+            standard_break_minutes: emp.standard_break_minutes || 0,
+            standard_work_hours: emp.standard_work_hours || 12.0,
+            payment_mode: emp.payment_mode || 'Bank',
+            late_grace_minutes: emp.late_grace_minutes ?? 11,
+            late_deduction_multiplier: emp.late_deduction_multiplier ?? 0.5,
+            overtime_multiplier: emp.overtime_multiplier ?? 2.0,
+            overtime_allowed: emp.overtime_allowed ?? 1,
+            min_overtime_minutes: emp.min_overtime_minutes || 0,
+            min_overtime_deduction_minutes: emp.min_overtime_deduction_minutes || 0,
+            special_rules: emp.special_rules || null,
+            remarks: 'Initial Baseline Master Configuration'
+          });
+        }
+      });
+
+      seedTransaction(existingEmployeesWithoutWef);
+    }
+  } catch (seedErr) {
+    console.error('W.E.F. baseline migration error:', seedErr.message);
+  }
 
   // Attendance Records table
   db.exec(`

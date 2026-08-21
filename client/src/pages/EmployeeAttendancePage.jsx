@@ -693,6 +693,29 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                 </div>
               </div>
             )}
+
+            {/* Multi-W.E.F. Active Notification */}
+            {summary?.isMultiWefMonth && (
+              <div 
+                style={{
+                  marginTop: '0.85rem',
+                  padding: '0.75rem 1rem',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                  color: '#1e40af',
+                  fontSize: '0.8125rem'
+                }}
+              >
+                <Calendar size={16} color="#2563eb" style={{ flexShrink: 0 }} />
+                <div>
+                  <strong>Mid-Month W.E.F. Multi-Rate Schedule Active:</strong> This month applies dynamic rate & shift schedule changes across W.E.F. revisions ({summary.wefDatesUsed?.join(', ')}). Daily rates and earnings dynamically reflect each date's active configuration.
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 2. Dynamic Monthly Summary Cards - Light Theme */}
@@ -970,8 +993,12 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                           <td style={{ color: r.overtime_minutes > 0 ? 'var(--success-text)' : 'var(--slate-400)', fontWeight: r.overtime_minutes > 0 ? '700' : 'normal' }}>
                             {r.overtime_minutes > 0 ? r.overtime_formatted : '—'}
                           </td>
-                          <td style={{ textAlign: 'right', color: 'var(--slate-500)' }}>₹{r.hourly_rate}</td>
-                          <td style={{ textAlign: 'right', fontWeight: '600' }}>₹{r.daily_salary_earned}</td>
+                          <td style={{ textAlign: 'right', color: 'var(--slate-500)' }} title={r.wef_date ? `W.E.F. Active: ${r.wef_date} • Base Salary: ₹${r.effective_salary || currentEmp?.salary}` : ''}>
+                            ₹{r.hourly_rate}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: '600' }} title={r.wef_date ? `W.E.F. Active: ${r.wef_date} • Daily Rate: ₹${r.daily_rate}` : ''}>
+                            ₹{r.daily_salary_earned}
+                          </td>
                           <td style={{ textAlign: 'right', color: r.late_salary_deduction > 0 ? 'var(--danger-text)' : 'var(--slate-400)' }}>
                             {r.late_salary_deduction > 0 ? `-₹${r.late_salary_deduction}` : '—'}
                           </td>

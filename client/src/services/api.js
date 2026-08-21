@@ -136,6 +136,22 @@ export const employeeApi = {
     const res = await api.get('/employees/departments');
     return res.data;
   },
+  getWefHistory: async (code) => {
+    const res = await api.get(`/employees/${code}/wef`);
+    return res.data;
+  },
+  addWefRevision: async (code, data) => {
+    const res = await api.post(`/employees/${code}/wef`, data);
+    return res.data;
+  },
+  updateWefRevision: async (code, id, data) => {
+    const res = await api.put(`/employees/${code}/wef/${id}`, data);
+    return res.data;
+  },
+  deleteWefRevision: async (code, id) => {
+    const res = await api.delete(`/employees/${code}/wef/${id}`);
+    return res.data;
+  },
   importFile: async (formData) => {
     const res = await api.post('/employees/import', formData, {
       headers: {
@@ -155,6 +171,13 @@ export const employeeApi = {
   clear: async () => {
     const res = await api.delete('/employees/clear');
     return res.data;
+  },
+  exportMasterData: async (params = {}) => {
+    const res = await api.get('/employees/export', {
+      params,
+      responseType: 'blob'
+    });
+    return res;
   }
 };
 

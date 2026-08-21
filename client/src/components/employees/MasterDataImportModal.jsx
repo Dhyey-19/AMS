@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Modal } from '../common/Modal';
 import { employeeApi } from '../../services/api';
-import { UploadCloud, FileSpreadsheet, CheckCircle2, AlertTriangle, RefreshCw, Layers, Users } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, CheckCircle2, AlertTriangle, RefreshCw, Layers, Users, Download } from 'lucide-react';
 
 export const MasterDataImportModal = ({ isOpen, onClose, onImportSuccess }) => {
   const [file, setFile] = useState(null);
@@ -18,6 +18,28 @@ export const MasterDataImportModal = ({ isOpen, onClose, onImportSuccess }) => {
     setResult(null);
     setError(null);
     setLoading(false);
+  };
+
+  const handleDownloadTemplate = async (format = 'xlsx') => {
+    try {
+      const res = await employeeApi.exportMasterData({ format });
+      const blob = new Blob([res.data], {
+        type: format === 'xlsx' 
+          ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+          : 'text/csv;charset=utf-8;'
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Global_IVF_Master_Data_Template.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download template:', err);
+      alert('Failed to download master data template');
+    }
   };
 
   const handleDrag = (e) => {
@@ -164,70 +186,49 @@ export const MasterDataImportModal = ({ isOpen, onClose, onImportSuccess }) => {
                 gap: '1rem'
               }}
             >
-              <CheckCircle2 size={32} color="#059669" />
+              <div
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '10px',
+                  backgroundColor: '#059669',
+                  color: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <CheckCircle2 size={24} />
+              </div>
               <div>
-                <h4 style={{ color: '#065f46', fontWeight: '700', fontSize: '1rem' }}>
-                  File Processed Successfully!
-                </h4>
-                <p style={{ color: '#047857', fontSize: '0.8125rem' }}>
-                  Uploaded: <strong>{result.filename}</strong>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '700', color: '#065f46' }}>
+                  {result.importType === 'workbook' ? 'Workbook Processed Successfully' : 'Master Data Import Completed'}
+                </h3>
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8125rem', color: '#047857' }}>
+                  {result.importType === 'workbook'
+                    ? `Processed ${result.employeesUpserted} employees, created ${result.attendanceInserted} logs, updated ${result.attendanceUpdated}.`
+                    : `Inserted: ${result.inserted} | Updated: ${result.updated} | Skipped: ${result.skipped}`}
                 </p>
               </div>
             </div>
 
-            {result.importType === 'workbook' ? (
-              <div className="detail-info-grid">
-                <div className="detail-item">
-                  <span className="detail-item-label">Employee Sheets Synced</span>
-                  <span className="detail-item-value" style={{ color: '#0284c7' }}>{result.totalSheets || result.employeesUpserted}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-item-label">Profiles Created / Updated</span>
-                  <span className="detail-item-value" style={{ color: '#059669' }}>{result.employeesUpserted}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-item-label">New Shifts Created</span>
-                  <span className="detail-item-value" style={{ color: '#059669' }}>{result.attendanceInserted}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-item-label">Existing Shifts Updated</span>
-                  <span className="detail-item-value" style={{ color: '#0284c7' }}>{result.attendanceUpdated}</span>
-                </div>
-              </div>
-            ) : (
-              <div className="detail-info-grid">
-                <div className="detail-item">
-                  <span className="detail-item-label">Total Rows in File</span>
-                  <span className="detail-item-value" style={{ color: '#0284c7' }}>{result.totalRows}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-item-label">New Records Inserted</span>
-                  <span className="detail-item-value" style={{ color: '#059669' }}>{result.inserted}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-item-label">Existing Records Updated</span>
-                  <span className="detail-item-value" style={{ color: '#0284c7' }}>{result.updated}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-item-label">Duplicates Skipped</span>
-                  <span className="detail-item-value" style={{ color: '#64748b' }}>{result.skipped}</span>
-                </div>
-              </div>
-            )}
-
             {result.errors && result.errors.length > 0 && (
-              <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '8px', padding: '0.875rem' }}>
-                <strong style={{ color: '#9f1239', fontSize: '0.8125rem' }}>Validation Warnings ({result.errors.length}):</strong>
-                <ul style={{ paddingLeft: '1.25rem', marginTop: '0.375rem', fontSize: '0.75rem', color: '#be123c' }}>
+              <div>
+                <h4 style={{ fontSize: '0.875rem', fontWeight: '600', color: '#991b1b', marginBottom: '0.5rem' }}>
+                  Errors / Warnings ({result.errorCount}):
+                </h4>
+                <div style={{ maxHeight: '140px', overflowY: 'auto', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.5rem' }}>
                   {result.errors.map((err, i) => (
-                    <li key={i}>{err.sheet ? `Sheet ${err.sheet}: ` : `Row ${err.row}: `}{err.error}</li>
+                    <div key={i} style={{ fontSize: '0.75rem', color: '#b91c1c', padding: '0.2rem 0' }}>
+                      Row {err.row}: {err.error}
+                    </div>
                   ))}
-                </ul>
+                </div>
               </div>
             )}
           </div>
         ) : (
-          /* File Upload & Mode Selector */
           <>
             {/* Import Format Selector */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
@@ -281,6 +282,55 @@ export const MasterDataImportModal = ({ isOpen, onClose, onImportSuccess }) => {
                 </div>
               </div>
             </div>
+
+            {/* Template Download Prompt */}
+            {importType === 'master' && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.65rem 0.85rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.8125rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <span style={{ color: 'var(--slate-600)' }}>
+                  Need a standard Excel / CSV template with all 40+ master fields?
+                </span>
+                <div style={{ display: 'flex', gap: '0.35rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadTemplate('xlsx')}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '4px',
+                      padding: '0.25rem 0.5rem',
+                      fontSize: '0.75rem',
+                      fontWeight: '600',
+                      color: 'var(--primary-700)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.25rem'
+                    }}
+                  >
+                    <Download size={12} /> Excel (.xlsx)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadTemplate('csv')}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '4px',
+                      padding: '0.25rem 0.5rem',
+                      fontSize: '0.75rem',
+                      fontWeight: '600',
+                      color: 'var(--primary-700)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.25rem'
+                    }}
+                  >
+                    <Download size={12} /> CSV (.csv)
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Drag & Drop Area */}
             <div

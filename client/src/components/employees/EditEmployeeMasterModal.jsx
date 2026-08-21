@@ -13,7 +13,13 @@ import {
   CheckCircle2,
   Calendar,
   Building,
-  Briefcase
+  Briefcase,
+  Plus,
+  Trash2,
+  Edit2,
+  History,
+  TrendingUp,
+  RotateCcw
 } from 'lucide-react';
 import { employeeApi } from '../../services/api';
 
@@ -123,7 +129,43 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-  const [activeTab, setActiveTab] = useState('work'); // 'work', 'salary', 'rules', 'personal'
+  const [activeTab, setActiveTab] = useState('work'); // 'work', 'salary', 'wef', 'rules', 'personal'
+
+  // W.E.F. Revisions state
+  const [wefHistory, setWefHistory] = useState([]);
+  const [editingWefId, setEditingWefId] = useState(null);
+  const [wefLoading, setWefLoading] = useState(false);
+  const [wefError, setWefError] = useState(null);
+  const [wefSuccess, setWefSuccess] = useState(null);
+  const [wefForm, setWefForm] = useState({
+    effective_date: '',
+    salary: '',
+    incentive: '',
+    standard_in_time: '08:00',
+    standard_out_time: '20:00',
+    standard_break_time: '00:00',
+    standard_work_hours: '12:00',
+    payment_mode: 'Bank',
+    late_grace_minutes: 11,
+    late_deduction_multiplier: 0.5,
+    overtime_multiplier: 2.0,
+    overtime_allowed: 1,
+    min_overtime_minutes: 0,
+    min_overtime_deduction_minutes: 0,
+    special_rules: '',
+    remarks: ''
+  });
+
+  const loadWefHistory = async (code) => {
+    try {
+      const res = await employeeApi.getWefHistory(code);
+      if (res.data) {
+        setWefHistory(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to load WEF history:', err);
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -163,6 +205,7 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
         status: employee.status || 'Working',
         gender: employee.gender || 'Not Specified',
         doj: employee.doj || '',
+        wef_date: employee.wef_date || employee.doj || '',
         salary: employee.salary !== null && employee.salary !== undefined ? employee.salary : '',
         incentive: employee.incentive !== null && employee.incentive !== undefined ? employee.incentive : '',
         standard_in_time: stdIn,
@@ -184,8 +227,34 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
         pan_no: employee.pan_no || '',
         rfid: employee.rfid || ''
       });
+
+      setWefHistory(employee.wef_history || []);
+      loadWefHistory(employee.employee_code);
+
+      // Pre-fill WEF form template
+      setWefForm({
+        effective_date: '',
+        salary: employee.salary !== null && employee.salary !== undefined ? employee.salary : '',
+        incentive: employee.incentive !== null && employee.incentive !== undefined ? employee.incentive : '',
+        standard_in_time: stdIn,
+        standard_out_time: stdOut,
+        standard_break_time: stdBreakHHMM,
+        standard_work_hours: workHoursHHMM,
+        payment_mode: employee.payment_mode || 'Bank',
+        late_grace_minutes: employee.late_grace_minutes || 11,
+        late_deduction_multiplier: employee.late_deduction_multiplier ?? 0.5,
+        overtime_multiplier: employee.overtime_multiplier ?? 2.0,
+        overtime_allowed: employee.overtime_allowed !== undefined ? (employee.overtime_allowed ? 1 : 0) : 1,
+        min_overtime_minutes: employee.min_overtime_minutes || 0,
+        min_overtime_deduction_minutes: employee.min_overtime_deduction_minutes || 0,
+        special_rules: employee.special_rules || '',
+        remarks: ''
+      });
+      setEditingWefId(null);
       setError(null);
       setSuccess(null);
+      setWefError(null);
+      setWefSuccess(null);
     }
   }, [employee]);
 
@@ -215,6 +284,143 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
 
       return next;
     });
+  };
+
+  const handleWefFormChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    const val = type === 'checkbox' ? (checked ? 1 : 0) : value;
+
+    setWefForm(prev => {
+      const next = { ...prev, [name]: val };
+      if (name === 'standard_in_time' || name === 'standard_out_time' || name === 'standard_break_time') {
+        const auto = calculateWorkHoursFromShift(
+          name === 'standard_in_time' ? val : next.standard_in_time,
+          name === 'standard_out_time' ? val : next.standard_out_time,
+          name === 'standard_break_time' ? val : next.standard_break_time
+        );
+        if (auto) {
+          next.standard_work_hours = auto;
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleEditWef = (rev) => {
+    setEditingWefId(rev.id);
+    setWefForm({
+      effective_date: rev.effective_date || '',
+      salary: rev.salary !== null && rev.salary !== undefined ? rev.salary : '',
+      incentive: rev.incentive !== null && rev.incentive !== undefined ? rev.incentive : '',
+      standard_in_time: formatTimeToHHMM(rev.standard_in_time || '08:00'),
+      standard_out_time: formatTimeToHHMM(rev.standard_out_time || '20:00'),
+      standard_break_time: formatBreakToHHMM(rev.standard_break_minutes || 0),
+      standard_work_hours: formatHoursToHHMM(rev.standard_work_hours || 12),
+      payment_mode: rev.payment_mode || 'Bank',
+      late_grace_minutes: rev.late_grace_minutes || 11,
+      late_deduction_multiplier: rev.late_deduction_multiplier ?? 0.5,
+      overtime_multiplier: rev.overtime_multiplier ?? 2.0,
+      overtime_allowed: rev.overtime_allowed !== undefined ? (rev.overtime_allowed ? 1 : 0) : 1,
+      min_overtime_minutes: rev.min_overtime_minutes || 0,
+      min_overtime_deduction_minutes: rev.min_overtime_deduction_minutes || 0,
+      special_rules: rev.special_rules || '',
+      remarks: rev.remarks || ''
+    });
+    setWefError(null);
+    setWefSuccess(null);
+  };
+
+  const handleResetWefForm = () => {
+    setEditingWefId(null);
+    setWefForm({
+      effective_date: '',
+      salary: formData.salary || '',
+      incentive: formData.incentive || '',
+      standard_in_time: formData.standard_in_time || '08:00',
+      standard_out_time: formData.standard_out_time || '20:00',
+      standard_break_time: formData.standard_break_time || '00:00',
+      standard_work_hours: formData.standard_work_hours || '12:00',
+      payment_mode: formData.payment_mode || 'Bank',
+      late_grace_minutes: formData.late_grace_minutes || 11,
+      late_deduction_multiplier: formData.late_deduction_multiplier ?? 0.5,
+      overtime_multiplier: formData.overtime_multiplier ?? 2.0,
+      overtime_allowed: formData.overtime_allowed ?? 1,
+      min_overtime_minutes: formData.min_overtime_minutes || 0,
+      min_overtime_deduction_minutes: formData.min_overtime_deduction_minutes || 0,
+      special_rules: formData.special_rules || '',
+      remarks: ''
+    });
+    setWefError(null);
+    setWefSuccess(null);
+  };
+
+  const handleSaveWefRevision = async (e) => {
+    e.preventDefault();
+    if (!wefForm.effective_date) {
+      setWefError('Please select an Effective Date (W.E.F.) for this revision.');
+      return;
+    }
+    setWefLoading(true);
+    setWefError(null);
+    setWefSuccess(null);
+
+    try {
+      const payload = {
+        ...wefForm,
+        salary: wefForm.salary !== '' ? parseFloat(wefForm.salary) : null,
+        incentive: wefForm.incentive !== '' ? parseFloat(wefForm.incentive) : 0,
+        standard_break_minutes: parseBreakToMinutes(wefForm.standard_break_time),
+        standard_work_hours: parseWorkHoursToDecimal(wefForm.standard_work_hours),
+        late_grace_minutes: parseInt(wefForm.late_grace_minutes, 10) || 11,
+        late_deduction_multiplier: parseFloat(wefForm.late_deduction_multiplier) || 0.5,
+        overtime_multiplier: parseFloat(wefForm.overtime_multiplier) || 2.0,
+        overtime_allowed: parseInt(wefForm.overtime_allowed, 10) || 1,
+        min_overtime_minutes: parseInt(wefForm.min_overtime_minutes, 10) || 0,
+        min_overtime_deduction_minutes: parseInt(wefForm.min_overtime_deduction_minutes, 10) || 0
+      };
+
+      let updatedEmp;
+      if (editingWefId) {
+        const res = await employeeApi.updateWefRevision(employee.employee_code, editingWefId, payload);
+        updatedEmp = res.data;
+        setWefSuccess('W.E.F. revision updated successfully!');
+      } else {
+        const res = await employeeApi.addWefRevision(employee.employee_code, payload);
+        updatedEmp = res.data;
+        setWefSuccess('New W.E.F. revision saved successfully!');
+      }
+
+      await loadWefHistory(employee.employee_code);
+      handleResetWefForm();
+      if (onUpdated && updatedEmp) {
+        onUpdated(updatedEmp);
+      }
+    } catch (err) {
+      setWefError(err.response?.data?.message || err.message || 'Failed to save W.E.F. revision');
+    } finally {
+      setWefLoading(false);
+    }
+  };
+
+  const handleDeleteWefRevision = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this W.E.F. revision?')) return;
+    setWefLoading(true);
+    setWefError(null);
+    setWefSuccess(null);
+
+    try {
+      await employeeApi.deleteWefRevision(employee.employee_code, id);
+      setWefSuccess('W.E.F. revision deleted successfully!');
+      await loadWefHistory(employee.employee_code);
+      const refreshed = await employeeApi.getByCode(employee.employee_code);
+      if (onUpdated && refreshed.data) {
+        onUpdated(refreshed.data);
+      }
+    } catch (err) {
+      setWefError(err.response?.data?.message || err.message || 'Failed to delete W.E.F. revision');
+    } finally {
+      setWefLoading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -262,7 +468,7 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
       <div 
         className="modal-dialog modal-lg" 
         onClick={(e) => e.stopPropagation()}
-        style={{ display: 'flex', flexDirection: 'column' }}
+        style={{ display: 'flex', flexDirection: 'column', maxWidth: '840px', width: '95vw' }}
       >
         {/* Modal Header - Light Professional */}
         <div 
@@ -320,12 +526,14 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
             background: 'var(--slate-50)',
             padding: '0.35rem 1rem 0',
             flexShrink: 0,
-            overflowX: 'auto'
+            overflowX: 'auto',
+            gap: '0.25rem'
           }}
         >
           {[
             { id: 'work', label: 'Work & Timings', icon: Clock },
             { id: 'salary', label: 'Salary & Rates', icon: DollarSign },
+            { id: 'wef', label: 'W.E.F. & Revisions', icon: History, count: wefHistory.length },
             { id: 'rules', label: 'Special Rules & Bond', icon: ShieldAlert },
             { id: 'personal', label: 'Profile Details', icon: User }
           ].map((tab) => {
@@ -356,6 +564,21 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
               >
                 <Icon size={15} color={isActive ? 'var(--primary-600)' : 'var(--slate-400)'} />
                 <span>{tab.label}</span>
+                {tab.count !== undefined && tab.count > 0 && (
+                  <span 
+                    style={{
+                      fontSize: '0.7rem',
+                      fontWeight: '700',
+                      padding: '0.1rem 0.4rem',
+                      borderRadius: '999px',
+                      background: isActive ? 'var(--primary-100)' : 'var(--slate-200)',
+                      color: isActive ? 'var(--primary-700)' : 'var(--slate-700)',
+                      marginLeft: '0.2rem'
+                    }}
+                  >
+                    {tab.count}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -720,10 +943,473 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                     </div>
                   );
                 })()}
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                  <span style={{ fontSize: '0.8125rem', color: '#1e40af' }}>
+                    Need to set up salary hikes, mid-month increments, or shift adjustments with effective dates?
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('wef')}
+                    style={{
+                      background: 'var(--primary-600)',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '6px',
+                      fontSize: '0.75rem',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Manage W.E.F. Timeline &rarr;
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* TAB 3: Special Rules & Bond */}
+            {/* TAB 3: W.E.F. (With Effect From) & Revisions */}
+            {activeTab === 'wef' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {/* Intro Explainer Banner */}
+                <div 
+                  style={{
+                    padding: '0.875rem 1rem',
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    borderRadius: '8px',
+                    fontSize: '0.825rem',
+                    color: '#1e40af',
+                    lineHeight: '1.5'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '700', marginBottom: '0.2rem' }}>
+                    <Calendar size={15} color="#2563eb" />
+                    <span>With Effect From (W.E.F.) Timeline & Revision Management</span>
+                  </div>
+                  <div>
+                    Set salary revisions, shift in/out time changes, and break duration modifications effective from any specific date (including mid-month, e.g. 1st or 15th). The attendance calculation engine dynamically evaluates each day using the active W.E.F. configuration on that exact date!
+                  </div>
+                </div>
+
+                {wefError && (
+                  <div 
+                    style={{
+                      padding: '0.75rem 1rem',
+                      borderRadius: '8px',
+                      backgroundColor: 'var(--danger-bg)',
+                      border: '1px solid var(--danger-border)',
+                      color: 'var(--danger-text)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    <AlertCircle size={16} />
+                    <span>{wefError}</span>
+                  </div>
+                )}
+
+                {wefSuccess && (
+                  <div 
+                    style={{
+                      padding: '0.75rem 1rem',
+                      borderRadius: '8px',
+                      backgroundColor: 'var(--success-bg)',
+                      border: '1px solid var(--success-border)',
+                      color: 'var(--success-text)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      fontSize: '0.85rem'
+                    }}
+                  >
+                    <CheckCircle2 size={16} />
+                    <span>{wefSuccess}</span>
+                  </div>
+                )}
+
+                {/* Form Card: Add / Edit W.E.F. Revision */}
+                <div
+                  style={{
+                    padding: '1.25rem',
+                    borderRadius: '10px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div 
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '6px',
+                          background: editingWefId ? '#fef3c7' : '#e0f2fe',
+                          color: editingWefId ? '#b45309' : '#0369a1',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        {editingWefId ? <Edit2 size={14} /> : <Plus size={14} />}
+                      </div>
+                      <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: 'var(--slate-800)' }}>
+                        {editingWefId ? 'Edit W.E.F. Revision' : 'Add New W.E.F. Revision'}
+                      </h4>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      {!editingWefId && (
+                        <button
+                          type="button"
+                          onClick={handleResetWefForm}
+                          style={{
+                            padding: '0.35rem 0.65rem',
+                            fontSize: '0.75rem',
+                            fontWeight: '600',
+                            borderRadius: '6px',
+                            border: '1px solid var(--slate-300)',
+                            background: '#ffffff',
+                            color: 'var(--slate-700)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.3rem'
+                          }}
+                        >
+                          <RotateCcw size={12} /> Pre-fill Current Values
+                        </button>
+                      )}
+                      {editingWefId && (
+                        <button
+                          type="button"
+                          onClick={handleResetWefForm}
+                          style={{
+                            padding: '0.35rem 0.65rem',
+                            fontSize: '0.75rem',
+                            fontWeight: '600',
+                            borderRadius: '6px',
+                            border: '1px solid var(--slate-300)',
+                            background: '#ffffff',
+                            color: 'var(--slate-700)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Cancel Edit
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontWeight: '700', color: '#1e3a8a' }}>
+                        Effective Date (W.E.F.) *
+                      </label>
+                      <input 
+                        type="date"
+                        name="effective_date"
+                        value={wefForm.effective_date}
+                        onChange={handleWefFormChange}
+                        className="form-control"
+                        style={{ borderColor: '#93c5fd', fontWeight: '700' }}
+                        required
+                      />
+                      <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Date from which this revision applies</small>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Monthly Salary (₹)</label>
+                      <input 
+                        type="number"
+                        name="salary"
+                        value={wefForm.salary}
+                        onChange={handleWefFormChange}
+                        placeholder="e.g. 25000"
+                        className="form-control"
+                        style={{ fontWeight: '700', color: 'var(--slate-900)' }}
+                      />
+                      <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Effective monthly base salary</small>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Monthly Incentive (₹)</label>
+                      <input 
+                        type="number"
+                        step="0.01"
+                        name="incentive"
+                        value={wefForm.incentive}
+                        onChange={handleWefFormChange}
+                        placeholder="e.g. 1000"
+                        className="form-control"
+                      />
+                      <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Optional monthly incentive</small>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Standard In Time</label>
+                      <input 
+                        type="time"
+                        name="standard_in_time"
+                        value={wefForm.standard_in_time}
+                        onChange={handleWefFormChange}
+                        className="form-control"
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Standard Out Time</label>
+                      <input 
+                        type="time"
+                        name="standard_out_time"
+                        value={wefForm.standard_out_time}
+                        onChange={handleWefFormChange}
+                        className="form-control"
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                        <label className="form-label" style={{ marginBottom: 0 }}>Break Time (HH:MM)</label>
+                        <div style={{ display: 'flex', gap: '0.2rem' }}>
+                          {['00:00', '00:30', '01:00', '02:00'].map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => {
+                                const auto = calculateWorkHoursFromShift(wefForm.standard_in_time, wefForm.standard_out_time, preset);
+                                setWefForm(prev => ({
+                                  ...prev,
+                                  standard_break_time: preset,
+                                  ...(auto ? { standard_work_hours: auto } : {})
+                                }));
+                              }}
+                              style={{
+                                padding: '0.05rem 0.3rem',
+                                fontSize: '0.65rem',
+                                fontWeight: wefForm.standard_break_time === preset ? '700' : '500',
+                                borderRadius: '4px',
+                                border: '1px solid var(--slate-200)',
+                                background: wefForm.standard_break_time === preset ? 'var(--primary-600)' : '#ffffff',
+                                color: wefForm.standard_break_time === preset ? '#ffffff' : 'var(--slate-700)',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {preset}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <input 
+                        type="text"
+                        name="standard_break_time"
+                        value={wefForm.standard_break_time}
+                        onChange={handleWefFormChange}
+                        onBlur={(e) => {
+                          const formatted = formatBreakToHHMM(e.target.value);
+                          setWefForm(prev => {
+                            const auto = calculateWorkHoursFromShift(prev.standard_in_time, prev.standard_out_time, formatted);
+                            return {
+                              ...prev,
+                              standard_break_time: formatted,
+                              ...(auto ? { standard_work_hours: auto } : {})
+                            };
+                          });
+                        }}
+                        className="form-control"
+                        placeholder="00:00"
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Daily Work Hours (HH:MM)</label>
+                      <input 
+                        type="text"
+                        name="standard_work_hours"
+                        value={wefForm.standard_work_hours}
+                        onChange={(e) => setWefForm(prev => ({ ...prev, standard_work_hours: e.target.value }))}
+                        onBlur={(e) => {
+                          const formatted = formatHoursToHHMM(e.target.value);
+                          setWefForm(prev => ({ ...prev, standard_work_hours: formatted }));
+                        }}
+                        className="form-control"
+                        style={{ fontWeight: '700', color: 'var(--primary-700)' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Payment Mode</label>
+                      <select
+                        name="payment_mode"
+                        value={wefForm.payment_mode}
+                        onChange={handleWefFormChange}
+                        className="form-control"
+                      >
+                        <option value="Bank">Bank Transfer</option>
+                        <option value="Cheque">Cheque (CHQ)</option>
+                        <option value="Cash">Cash</option>
+                        <option value="TDS / Cheque">TDS / Cheque</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Revision Remarks / Reason</label>
+                      <input 
+                        type="text"
+                        name="remarks"
+                        value={wefForm.remarks || ''}
+                        onChange={handleWefFormChange}
+                        placeholder="e.g. Annual Increment, Shift timing change, Break revised"
+                        className="form-control"
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={handleSaveWefRevision}
+                      disabled={wefLoading}
+                      className="btn btn-primary btn-sm"
+                      style={{ padding: '0.45rem 1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                    >
+                      <Save size={14} />
+                      {wefLoading ? 'Saving Revision...' : (editingWefId ? 'Update Revision' : 'Save W.E.F. Revision')}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Timeline History Card */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: 'var(--slate-800)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <History size={15} color="var(--primary-600)" />
+                      Revision Timeline ({wefHistory.length} Record{wefHistory.length === 1 ? '' : 's'})
+                    </h4>
+                  </div>
+
+                  {wefHistory.length === 0 ? (
+                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--slate-400)', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                      No W.E.F. revisions created yet. Add one above to start tracking history!
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {wefHistory.map((rev, idx) => {
+                        const isLatest = idx === 0;
+                        const stdHours = rev.standard_work_hours || 12;
+                        const salary = rev.salary || 0;
+                        const dailyRate = salary > 0 ? (salary / 30).toFixed(2) : '0.00';
+                        const hourlyRate = (salary > 0 && stdHours > 0) ? ((salary / 30) / stdHours).toFixed(2) : '0.00';
+
+                        return (
+                          <div
+                            key={rev.id || idx}
+                            style={{
+                              padding: '1rem',
+                              borderRadius: '8px',
+                              border: isLatest ? '1px solid #93c5fd' : '1px solid #e2e8f0',
+                              background: isLatest ? '#f0f9ff' : '#ffffff',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.5rem',
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                <span 
+                                  style={{
+                                    fontWeight: '800',
+                                    fontSize: '0.95rem',
+                                    color: '#0369a1',
+                                    padding: '0.2rem 0.5rem',
+                                    background: '#e0f2fe',
+                                    borderRadius: '6px'
+                                  }}
+                                >
+                                  W.E.F. {rev.effective_date}
+                                </span>
+                                {isLatest && (
+                                  <span 
+                                    style={{
+                                      fontSize: '0.7rem',
+                                      fontWeight: '700',
+                                      padding: '0.15rem 0.45rem',
+                                      borderRadius: '999px',
+                                      background: '#059669',
+                                      color: '#ffffff'
+                                    }}
+                                  >
+                                    Active (Latest)
+                                  </span>
+                                )}
+                                {rev.remarks && (
+                                  <span style={{ fontSize: '0.8rem', color: 'var(--slate-600)', fontStyle: 'italic' }}>
+                                    &bull; {rev.remarks}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div style={{ display: 'flex', gap: '0.35rem' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditWef(rev)}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                                >
+                                  <Edit2 size={12} /> Edit
+                                </button>
+                                {wefHistory.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteWefRevision(rev.id)}
+                                    className="btn btn-danger btn-sm"
+                                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                                  >
+                                    <Trash2 size={12} /> Delete
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.5rem', fontSize: '0.8rem' }}>
+                              <div>
+                                <span style={{ color: 'var(--slate-500)' }}>Salary: </span>
+                                <strong style={{ color: '#059669', fontSize: '0.9rem' }}>₹{rev.salary ? rev.salary.toLocaleString() : '0'}</strong>
+                              </div>
+                              <div>
+                                <span style={{ color: 'var(--slate-500)' }}>Shift: </span>
+                                <strong>{rev.standard_in_time || '08:00'} - {rev.standard_out_time || '20:00'}</strong>
+                              </div>
+                              <div>
+                                <span style={{ color: 'var(--slate-500)' }}>Break: </span>
+                                <strong>{formatBreakToHHMM(rev.standard_break_minutes || 0)}</strong>
+                              </div>
+                              <div>
+                                <span style={{ color: 'var(--slate-500)' }}>Work Target: </span>
+                                <strong>{formatHoursToHHMM(stdHours)} hrs</strong>
+                              </div>
+                              <div>
+                                <span style={{ color: 'var(--slate-500)' }}>Daily / Hourly: </span>
+                                <strong>₹{dailyRate} / ₹{hourlyRate}</strong>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: Special Rules & Bond */}
             {activeTab === 'rules' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--slate-500)', letterSpacing: '0.04em' }}>

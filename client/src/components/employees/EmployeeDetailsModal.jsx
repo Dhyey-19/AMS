@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal } from '../common/Modal';
 import { StatusBadge, DepartmentBadge } from '../common/Badge';
-import { User, Briefcase, Calendar, Shield, CreditCard, Clock, DollarSign, ShieldAlert, FileSpreadsheet, Edit3 } from 'lucide-react';
+import { User, Briefcase, Calendar, Shield, CreditCard, Clock, DollarSign, ShieldAlert, FileSpreadsheet, Edit3, History } from 'lucide-react';
 
 export const EmployeeDetailsModal = ({ isOpen, onClose, employee, onOpenAttendanceSheet, onEditMaster }) => {
   if (!employee) return null;
@@ -66,7 +66,7 @@ export const EmployeeDetailsModal = ({ isOpen, onClose, employee, onOpenAttendan
                   onEditMaster(employee);
                 }}
               >
-                <Edit3 size={15} /> Edit Rules
+                <Edit3 size={15} /> Edit Rules & W.E.F.
               </button>
             )}
             {onOpenAttendanceSheet && (
@@ -212,6 +212,52 @@ export const EmployeeDetailsModal = ({ isOpen, onClose, employee, onOpenAttendan
             </div>
           </div>
         </div>
+
+        {/* Section 2.5: W.E.F. History Timeline */}
+        {employee.wef_history && employee.wef_history.length > 0 && (
+          <div>
+            <h4 style={{ fontSize: '0.9375rem', fontWeight: '700', color: '#0369a1', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <History size={16} color="#0284c7" />
+              With Effect From (W.E.F.) Timeline ({employee.wef_history.length} Revision{employee.wef_history.length === 1 ? '' : 's'})
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {employee.wef_history.map((rev, idx) => (
+                <div 
+                  key={rev.id || idx}
+                  style={{
+                    padding: '0.6rem 0.85rem',
+                    background: idx === 0 ? '#f0f9ff' : '#f8fafc',
+                    border: idx === 0 ? '1px solid #bae6fd' : '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '0.5rem',
+                    fontSize: '0.8125rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontWeight: '700', color: '#0369a1', background: '#e0f2fe', padding: '0.15rem 0.4rem', borderRadius: '4px' }}>
+                      W.E.F. {rev.effective_date}
+                    </span>
+                    {idx === 0 && (
+                      <span style={{ fontSize: '0.7rem', fontWeight: '700', background: '#dcfce7', color: '#15803d', padding: '0.1rem 0.35rem', borderRadius: '999px' }}>
+                        Active
+                      </span>
+                    )}
+                    {rev.remarks && <span style={{ color: '#64748b', fontStyle: 'italic' }}>({rev.remarks})</span>}
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.75rem', color: '#334155' }}>
+                    <span>Salary: <strong style={{ color: '#15803d' }}>₹{rev.salary ? rev.salary.toLocaleString() : '0'}</strong></span>
+                    <span>Shift: <strong>{rev.standard_in_time || '08:00'}-{rev.standard_out_time || '20:00'}</strong></span>
+                    <span>Break: <strong>{formatBreakToHHMM(rev.standard_break_minutes || 0)}</strong></span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Section 3: Special Rules / Bond Conditions */}
         {employee.special_rules && (

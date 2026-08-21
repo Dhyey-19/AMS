@@ -83,6 +83,32 @@ class EmployeeController {
     }
   }
 
+  /**
+   * Export Master Data with all fields and records to XLSX or CSV
+   */
+  static async exportMasterData(req, res) {
+    try {
+      const { format = 'xlsx', search, department, status, gender } = req.query;
+      const { buffer, filename, mimeType } = EmployeeService.exportMasterData({
+        format,
+        search,
+        department,
+        status,
+        gender
+      });
+
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', buffer.length);
+      return res.end(buffer);
+    } catch (err) {
+      console.error('Error exporting master data:', err);
+      return res.status(500).json({
+        success: false,
+        message: err.message || 'Failed to export employee master data'
+      });
+    }
+  }
 
   /**
    * Get filtered & paginated employees
@@ -208,6 +234,84 @@ class EmployeeController {
       });
     } catch (err) {
       return res.status(500).json({
+        success: false,
+        message: err.message
+      });
+    }
+  }
+
+  /**
+   * Get W.E.F. history for employee
+   */
+  static async getWefHistory(req, res) {
+    try {
+      const { code } = req.params;
+      const history = EmployeeService.getWefHistory(code);
+      return res.status(200).json({
+        success: true,
+        data: history
+      });
+    } catch (err) {
+      return res.status(500).json({
+        success: false,
+        message: err.message
+      });
+    }
+  }
+
+  /**
+   * Add W.E.F. revision for employee
+   */
+  static async addWefRevision(req, res) {
+    try {
+      const { code } = req.params;
+      const updated = EmployeeService.addWefRevision(code, req.body);
+      return res.status(201).json({
+        success: true,
+        message: 'W.E.F. revision added successfully',
+        data: updated
+      });
+    } catch (err) {
+      return res.status(400).json({
+        success: false,
+        message: err.message
+      });
+    }
+  }
+
+  /**
+   * Update W.E.F. revision by ID
+   */
+  static async updateWefRevision(req, res) {
+    try {
+      const { id } = req.params;
+      const updated = EmployeeService.updateWefRevision(id, req.body);
+      return res.status(200).json({
+        success: true,
+        message: 'W.E.F. revision updated successfully',
+        data: updated
+      });
+    } catch (err) {
+      return res.status(400).json({
+        success: false,
+        message: err.message
+      });
+    }
+  }
+
+  /**
+   * Delete W.E.F. revision by ID
+   */
+  static async deleteWefRevision(req, res) {
+    try {
+      const { id } = req.params;
+      const result = EmployeeService.deleteWefRevision(id);
+      return res.status(200).json({
+        success: true,
+        message: result.message
+      });
+    } catch (err) {
+      return res.status(400).json({
         success: false,
         message: err.message
       });

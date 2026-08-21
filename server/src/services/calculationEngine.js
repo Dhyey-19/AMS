@@ -208,6 +208,70 @@ class CalculationEngine {
   }
 
   /**
+   * Resolve effective employee parameters for a given date (With Effect From - W.E.F. Logic)
+   * If the employee has multiple W.E.F. revisions in wef_history,
+   * this finds the latest revision where effective_date <= dateIso.
+   */
+  static resolveEffectiveEmployee(emp, dateIso) {
+    if (!emp) return emp;
+    const history = Array.isArray(emp.wef_history) ? emp.wef_history : [];
+    if (history.length === 0 || !dateIso) {
+      return {
+        ...emp,
+        effective_wef_date: emp.wef_date || emp.doj || null,
+        wef_remarks: ''
+      };
+    }
+
+    // Sort by effective_date ascending
+    const sorted = [...history].sort((a, b) => (a.effective_date || '').localeCompare(b.effective_date || ''));
+
+    // Normalize dateIso to YYYY-MM-DD
+    const targetDate = String(dateIso).slice(0, 10);
+
+    // Find the latest revision whose effective_date <= targetDate
+    let activeRevision = null;
+    for (const rev of sorted) {
+      if (rev.effective_date && rev.effective_date <= targetDate) {
+        activeRevision = rev;
+      }
+    }
+
+    // If no revision is <= targetDate (targetDate is before earliest revision), use the earliest revision
+    if (!activeRevision && sorted.length > 0) {
+      activeRevision = sorted[0];
+    }
+
+    if (!activeRevision) {
+      return {
+        ...emp,
+        effective_wef_date: emp.wef_date || emp.doj || null,
+        wef_remarks: ''
+      };
+    }
+
+    return {
+      ...emp,
+      salary: activeRevision.salary !== null && activeRevision.salary !== undefined ? activeRevision.salary : emp.salary,
+      incentive: activeRevision.incentive !== null && activeRevision.incentive !== undefined ? activeRevision.incentive : (emp.incentive || 0),
+      standard_in_time: activeRevision.standard_in_time || emp.standard_in_time || '08:00',
+      standard_out_time: activeRevision.standard_out_time || emp.standard_out_time || '20:00',
+      standard_break_minutes: activeRevision.standard_break_minutes !== null && activeRevision.standard_break_minutes !== undefined ? activeRevision.standard_break_minutes : (emp.standard_break_minutes || 0),
+      standard_work_hours: activeRevision.standard_work_hours !== null && activeRevision.standard_work_hours !== undefined ? activeRevision.standard_work_hours : (emp.standard_work_hours || 12.0),
+      payment_mode: activeRevision.payment_mode || emp.payment_mode || 'Bank',
+      late_grace_minutes: activeRevision.late_grace_minutes !== null && activeRevision.late_grace_minutes !== undefined ? activeRevision.late_grace_minutes : (emp.late_grace_minutes ?? 11),
+      late_deduction_multiplier: activeRevision.late_deduction_multiplier !== null && activeRevision.late_deduction_multiplier !== undefined ? activeRevision.late_deduction_multiplier : (emp.late_deduction_multiplier ?? 0.5),
+      overtime_multiplier: activeRevision.overtime_multiplier !== null && activeRevision.overtime_multiplier !== undefined ? activeRevision.overtime_multiplier : (emp.overtime_multiplier ?? 2.0),
+      overtime_allowed: activeRevision.overtime_allowed !== null && activeRevision.overtime_allowed !== undefined ? activeRevision.overtime_allowed : (emp.overtime_allowed ?? 1),
+      min_overtime_minutes: activeRevision.min_overtime_minutes !== null && activeRevision.min_overtime_minutes !== undefined ? activeRevision.min_overtime_minutes : (emp.min_overtime_minutes || 0),
+      min_overtime_deduction_minutes: activeRevision.min_overtime_deduction_minutes !== null && activeRevision.min_overtime_deduction_minutes !== undefined ? activeRevision.min_overtime_deduction_minutes : (emp.min_overtime_deduction_minutes || 0),
+      special_rules: activeRevision.special_rules !== null && activeRevision.special_rules !== undefined ? activeRevision.special_rules : emp.special_rules,
+      effective_wef_date: activeRevision.effective_date || emp.wef_date || null,
+      wef_remarks: activeRevision.remarks || ''
+    };
+  }
+
+  /**
    * Compute dynamic hourly and daily rates for an employee:
    * 1) PER DAY SALARY = SALARY PER MONTH / NO OF DAYS IN A MONTH
    * 2) PER HOUR SALARY = PER DAY SALARY / STANDARD WORKING HOURS FROM MASTER
@@ -262,25 +326,27 @@ class CalculationEngine {
 
   /**
    * Calculate a single day's attendance record with all 4 duration rules, break rules & salary
+   * Dynamically resolves effective employee parameters for this exact date (W.E.F. resolution).
    */
   static calculateDayRecord(emp, record, daysInMonth = 30) {
-    const { hourlyRate, dailyRate, baseSalary, schedDailyWorkHours } = this.getEmployeeRates(emp, daysInMonth);
+    const effectiveEmp = this.resolveEffectiveEmployee(emp, record.attendance_date_iso || record.attendance_date);
+    const { hourlyRate, dailyRate, baseSalary, schedDailyWorkHours } = this.getEmployeeRates(effectiveEmp, daysInMonth);
 
-    // Standard Shift parameters from Employee Master
-    const stdInTimeStr = emp.standard_in_time || '08:00';
-    const stdOutTimeStr = emp.standard_out_time || '20:00';
-    const stdBreakMins = parseInt(emp.standard_break_minutes, 10) || 0;
+    // Standard Shift parameters from Employee Master (Effective on this date)
+    const stdInTimeStr = effectiveEmp.standard_in_time || '08:00';
+    const stdOutTimeStr = effectiveEmp.standard_out_time || '20:00';
+    const stdBreakMins = parseInt(effectiveEmp.standard_break_minutes, 10) || 0;
     const stdWorkHours = schedDailyWorkHours;
-    const lateGraceMins = parseInt(emp.late_grace_minutes, 10) || 11;
-    const lateMultiplier = !isNaN(parseFloat(emp.late_deduction_multiplier)) ? parseFloat(emp.late_deduction_multiplier) : 0.5;
-    const overtimeMultiplier = !isNaN(parseFloat(emp.overtime_multiplier)) ? parseFloat(emp.overtime_multiplier) : 2.0;
+    const lateGraceMins = parseInt(effectiveEmp.late_grace_minutes, 10) || 11;
+    const lateMultiplier = !isNaN(parseFloat(effectiveEmp.late_deduction_multiplier)) ? parseFloat(effectiveEmp.late_deduction_multiplier) : 0.5;
+    const overtimeMultiplier = !isNaN(parseFloat(effectiveEmp.overtime_multiplier)) ? parseFloat(effectiveEmp.overtime_multiplier) : 2.0;
     
     // Doctor rule: FOR DOCTORS -> NO OVERTIME CALCULATIONS
-    const isDoc = this.isDoctor(emp);
-    const overtimeAllowed = !isDoc && (emp.overtime_allowed !== 0 && emp.overtime_allowed !== false && emp.overtime_allowed !== '0');
+    const isDoc = this.isDoctor(effectiveEmp);
+    const overtimeAllowed = !isDoc && (effectiveEmp.overtime_allowed !== 0 && effectiveEmp.overtime_allowed !== false && effectiveEmp.overtime_allowed !== '0');
     
-    const minOvertimeMins = parseInt(emp.min_overtime_minutes, 10) || 0;
-    const minOvertimeDeductionMins = parseInt(emp.min_overtime_deduction_minutes, 10) || 0;
+    const minOvertimeMins = parseInt(effectiveEmp.min_overtime_minutes, 10) || 0;
+    const minOvertimeDeductionMins = parseInt(effectiveEmp.min_overtime_deduction_minutes, 10) || 0;
 
     const stdInMins = this.timeToMinutes(stdInTimeStr);
     const stdOutMins = this.timeToMinutes(stdOutTimeStr);
@@ -530,6 +596,10 @@ class CalculationEngine {
       penalty_amount: Number(penaltyAmount.toFixed(2)),
       net_daily_salary: Number(netDailySalary.toFixed(2)),
 
+      // W.E.F. Effective Date & Config Reference
+      wef_date: effectiveEmp.effective_wef_date || null,
+      effective_salary: baseSalary,
+
       punch_records: record.punch_records || '',
       remarks: record.remarks || ''
     };
@@ -605,6 +675,10 @@ class CalculationEngine {
 
     const isDoc = this.isDoctor(emp);
 
+    // Multi-W.E.F. Detection (Mid-month rate/timing changes)
+    const uniqueWefDates = Array.from(new Set(dailyCalculations.map(d => d.wef_date).filter(Boolean)));
+    const isMultiWefMonth = uniqueWefDates.length > 1;
+
     const summary = {
       calendarDays: daysInMonth,
       totalDaysRecorded,
@@ -618,6 +692,10 @@ class CalculationEngine {
       attendancePercentage,
       lateDaysCount,
       earlyDaysCount,
+
+      // W.E.F. Multi-Period Flags
+      isMultiWefMonth,
+      wefDatesUsed: uniqueWefDates,
 
       // Master fields included in summary
       wopDays: parseFloat(emp.wop) || weeklyOffPresentDays,
@@ -675,6 +753,7 @@ class CalculationEngine {
         status: emp.status,
         salary: emp.salary,
         incentive: parseFloat(emp.incentive) || 0,
+        wef_date: emp.wef_date || null,
         standard_in_time: emp.standard_in_time || '08:00',
         standard_out_time: emp.standard_out_time || '20:00',
         standard_break_minutes: emp.standard_break_minutes || 0,
@@ -692,7 +771,8 @@ class CalculationEngine {
         min_overtime_minutes: emp.min_overtime_minutes || 0,
         min_overtime_deduction_minutes: emp.min_overtime_deduction_minutes || 0,
         special_rules: emp.special_rules || '',
-        salary_history: emp.salary_history_json ? JSON.parse(emp.salary_history_json) : []
+        salary_history: emp.salary_history_json ? JSON.parse(emp.salary_history_json) : [],
+        wef_history: Array.isArray(emp.wef_history) ? emp.wef_history : []
       },
       month: targetMonth,
       summary,

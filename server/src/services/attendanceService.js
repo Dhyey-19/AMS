@@ -689,16 +689,36 @@ class AttendanceService {
 
 
   /**
+   * Helper to load all employees with their W.E.F. revision histories
+   */
+  static getAllEmployeesWithWef(db) {
+    const allEmployees = db.prepare('SELECT * FROM employees ORDER BY CAST(employee_code AS INTEGER) ASC').all();
+    const allWef = db.prepare('SELECT * FROM employee_wef_history ORDER BY effective_date DESC, id DESC').all();
+    const wefMap = new Map();
+    for (const w of allWef) {
+      const key = String(w.employee_code).toLowerCase().trim();
+      if (!wefMap.has(key)) wefMap.set(key, []);
+      wefMap.get(key).push(w);
+    }
+    allEmployees.forEach(e => {
+      const key = String(e.employee_code).toLowerCase().trim();
+      e.wef_history = wefMap.get(key) || [];
+    });
+    return allEmployees;
+  }
+
+  /**
    * Get Employee-Wise Detailed Attendance Sheet with Dynamic Calculations
    */
   static getEmployeeAttendanceSheet(employeeCode, { month = '', startDate = '', endDate = '' }) {
     const db = getDatabase();
 
-    // 1. Fetch Employee Master Profile
+    // 1. Fetch Employee Master Profile with W.E.F. Revisions
     const emp = db.prepare('SELECT * FROM employees WHERE employee_code = ?').get(employeeCode.toString());
     if (!emp) {
       throw new Error(`Employee with code ${employeeCode} not found in Employee Master`);
     }
+    emp.wef_history = db.prepare('SELECT * FROM employee_wef_history WHERE employee_code = ? ORDER BY effective_date DESC, id DESC').all(employeeCode.toString());
 
     // 2. Determine date filters
     let targetMonth = month;
@@ -1046,8 +1066,8 @@ class AttendanceService {
       ORDER BY CAST(employee_code AS INTEGER) ASC
     `).all(...params);
 
-    // Fetch all employees master data for calculation rates & shift rules
-    const allEmployees = db.prepare('SELECT * FROM employees').all();
+    // Fetch all employees master data with W.E.F. histories for calculation rates & shift rules
+    const allEmployees = this.getAllEmployeesWithWef(db);
     const empMap = new Map();
     allEmployees.forEach(e => {
       if (e.employee_code) empMap.set(String(e.employee_code).toLowerCase().trim(), e);
@@ -1184,8 +1204,8 @@ class AttendanceService {
       empRecordsMap.get(codeKey).push(r);
     });
 
-    // Fetch employee master profiles
-    const allEmployees = db.prepare('SELECT * FROM employees ORDER BY CAST(employee_code AS INTEGER) ASC').all();
+    // Fetch employee master profiles with W.E.F. histories
+    const allEmployees = this.getAllEmployeesWithWef(db);
     const empMasterMap = new Map();
     allEmployees.forEach(e => {
       if (e.employee_code) empMasterMap.set(String(e.employee_code).toLowerCase().trim(), e);
@@ -1359,7 +1379,7 @@ class AttendanceService {
       ORDER BY attendance_date_iso ASC, CAST(employee_code AS INTEGER) ASC
     `).all(...params);
 
-    const allEmployees = db.prepare('SELECT * FROM employees').all();
+    const allEmployees = this.getAllEmployeesWithWef(db);
     const empMap = new Map();
     allEmployees.forEach(e => {
       if (e.employee_code) empMap.set(String(e.employee_code).toLowerCase().trim(), e);
