@@ -145,6 +145,7 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
     standard_out_time: '20:00',
     standard_break_time: '00:00',
     standard_work_hours: '12:00',
+    wop_work_hours: '',
     payment_mode: 'Bank',
     late_grace_minutes: 11,
     late_deduction_multiplier: 0.5,
@@ -213,6 +214,7 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
         standard_break_time: stdBreakHHMM,
         standard_break_minutes: parseBreakToMinutes(stdBreakHHMM),
         standard_work_hours: workHoursHHMM,
+        wop_work_hours: employee.wop_work_hours ? formatHoursToHHMM(employee.wop_work_hours.toString()) : '',
         payment_mode: employee.payment_mode || 'Bank',
         late_grace_minutes: employee.late_grace_minutes || 11,
         late_deduction_multiplier: employee.late_deduction_multiplier ?? 0.5,
@@ -240,6 +242,7 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
         standard_out_time: stdOut,
         standard_break_time: stdBreakHHMM,
         standard_work_hours: workHoursHHMM,
+        wop_work_hours: employee.wop_work_hours ? formatHoursToHHMM(employee.wop_work_hours.toString()) : '',
         payment_mode: employee.payment_mode || 'Bank',
         late_grace_minutes: employee.late_grace_minutes || 11,
         late_deduction_multiplier: employee.late_deduction_multiplier ?? 0.5,
@@ -316,6 +319,7 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
       standard_out_time: formatTimeToHHMM(rev.standard_out_time || '20:00'),
       standard_break_time: formatBreakToHHMM(rev.standard_break_minutes || 0),
       standard_work_hours: formatHoursToHHMM(rev.standard_work_hours || 12),
+      wop_work_hours: rev.wop_work_hours ? formatHoursToHHMM(rev.wop_work_hours.toString()) : '',
       payment_mode: rev.payment_mode || 'Bank',
       late_grace_minutes: rev.late_grace_minutes || 11,
       late_deduction_multiplier: rev.late_deduction_multiplier ?? 0.5,
@@ -340,6 +344,7 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
       standard_out_time: formData.standard_out_time || '20:00',
       standard_break_time: formData.standard_break_time || '00:00',
       standard_work_hours: formData.standard_work_hours || '12:00',
+      wop_work_hours: formData.wop_work_hours || '',
       payment_mode: formData.payment_mode || 'Bank',
       late_grace_minutes: formData.late_grace_minutes || 11,
       late_deduction_multiplier: formData.late_deduction_multiplier ?? 0.5,
@@ -438,6 +443,7 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
         standard_break_time: formData.standard_break_time || '00:00',
         standard_break_minutes: breakMinutes,
         standard_work_hours: parseWorkHoursToDecimal(formData.standard_work_hours),
+        wop_work_hours: formData.wop_work_hours ? parseWorkHoursToDecimal(formData.wop_work_hours) : null,
         late_grace_minutes: parseInt(formData.late_grace_minutes, 10) || 11,
         late_deduction_multiplier: parseFloat(formData.late_deduction_multiplier) || 0.5,
         overtime_multiplier: parseFloat(formData.overtime_multiplier) || 2.0,
@@ -798,28 +804,53 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                     <label className="form-label">WOP (Weekly Off Present - Days)</label>
                     <input 
                       type="number" 
-                      step="0.5"
                       name="wop"
-                      value={formData.wop}
+                      value={formData.wop ?? 0}
                       onChange={handleChange}
-                      placeholder="e.g. 0, 1, 2"
+                      step="0.5"
+                      min="0"
                       className="form-control"
                     />
-                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Days worked on Weekly Off</small>
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Entitlement days allowed per month</small>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">WOP Work Hours (HH:MM)</label>
+                    <input 
+                      type="text" 
+                      name="wop_work_hours"
+                      value={formData.wop_work_hours || ''}
+                      onChange={(e) => {
+                        let val = e.target.value.replace(/[^0-9:]/g, '');
+                        if (val.length > 5) val = val.slice(0, 5);
+                        setFormData(prev => ({ ...prev, wop_work_hours: val }));
+                      }}
+                      onBlur={(e) => {
+                        const formatted = formatHoursToHHMM(e.target.value);
+                        setFormData(prev => ({ ...prev, wop_work_hours: formatted }));
+                      }}
+                      placeholder="06:00 (optional)"
+                      maxLength={5}
+                      className="form-control"
+                      style={{ fontWeight: '700', color: '#0f766e', fontSize: '0.95rem' }}
+                    />
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>
+                      Target work hours on WOP day (e.g. 06:00 or 08:00)
+                    </small>
                   </div>
 
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label">YPL (Yearly Paid Leave - Days)</label>
                     <input 
                       type="number" 
-                      step="0.5"
                       name="ypl"
-                      value={formData.ypl}
+                      value={formData.ypl ?? 0}
                       onChange={handleChange}
-                      placeholder="e.g. 12, 15, 18"
+                      step="0.5"
+                      min="0"
                       className="form-control"
                     />
-                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Total yearly paid leaves entitled</small>
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Yearly paid leave entitlement quota</small>
                   </div>
                 </div>
 
@@ -1238,6 +1269,23 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                         }}
                         className="form-control"
                         style={{ fontWeight: '700', color: 'var(--primary-700)' }}
+                      />
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">WOP Work Hours (HH:MM)</label>
+                      <input 
+                        type="text"
+                        name="wop_work_hours"
+                        value={wefForm.wop_work_hours || ''}
+                        onChange={(e) => setWefForm(prev => ({ ...prev, wop_work_hours: e.target.value }))}
+                        onBlur={(e) => {
+                          const formatted = formatHoursToHHMM(e.target.value);
+                          setWefForm(prev => ({ ...prev, wop_work_hours: formatted }));
+                        }}
+                        placeholder="06:00 (optional)"
+                        className="form-control"
+                        style={{ fontWeight: '700', color: '#0f766e' }}
                       />
                     </div>
                   </div>

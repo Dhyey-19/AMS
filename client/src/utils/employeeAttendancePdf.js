@@ -638,14 +638,16 @@ export const generateEmployeeAttendanceHtml = (sheetData, options = {}) => {
             const isWO = r.status_code === 'WO';
             const isWOP = r.status_code === 'WOP';
             const isAbsent = r.status_code === 'A';
+            const isWopShortfall = r.is_wop_shortfall;
             const isLate = r.is_late;
-            const rowClass = isWO ? 'row-wo' : (isWOP ? 'row-wop' : (isAbsent ? 'row-absent' : ''));
-            const badgeClass = isAbsent ? 'a' : (isWO ? 'wo' : (isWOP ? 'wop' : 'p'));
+            const rowClass = isWopShortfall ? 'row-absent' : (isWO ? 'row-wo' : (isWOP ? 'row-wop' : (isAbsent ? 'row-absent' : '')));
+            const badgeClass = isWopShortfall ? 'a' : (isAbsent ? 'a' : (isWO ? 'wo' : (isWOP ? 'wop' : 'p')));
+            const displayStatus = isWopShortfall ? 'WO (A)' : r.status_code;
 
             return `
             <tr class="${rowClass}">
               <td style="font-weight: 700;">${r.attendance_date || r.attendance_date_iso}</td>
-              <td><span class="tbl-badge ${badgeClass}">${r.status_code}</span></td>
+              <td><span class="tbl-badge ${badgeClass}">${displayStatus}</span></td>
               <td style="font-size: 7.5px; color: #64748b;">${r.calc_mode || 'Normal'}</td>
               <td>${r.scheduled_in_time || '—'}</td>
               <td>${r.scheduled_out_time || '—'}</td>

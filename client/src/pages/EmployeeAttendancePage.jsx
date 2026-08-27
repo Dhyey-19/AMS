@@ -18,7 +18,19 @@ import {
   Upload,
   Sparkles,
   Users,
-  Printer
+  Printer,
+  Pin,
+  Columns,
+  SlidersHorizontal,
+  Eye,
+  EyeOff,
+  Coffee,
+  Layers,
+  Check,
+  X,
+  RotateCcw,
+  Plus,
+  Minus
 } from 'lucide-react';
 import { employeeApi, attendanceApi } from '../services/api';
 import { EditEmployeeMasterModal } from '../components/employees/EditEmployeeMasterModal';
@@ -56,6 +68,33 @@ const formatBreakToHHMM = (val) => {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 };
 
+export const ATTENDANCE_COLUMNS = [
+  { id: 'date', label: 'DATE', width: 120, description: 'Attendance Date' },
+  { id: 'status', label: 'P/A', width: 68, align: 'center', description: 'Status (P/A/WO/WOP)' },
+  { id: 'calc_mode', label: 'CALC MODE', width: 118, description: 'Calculation Mode' },
+  { id: 'sched_in', label: 'SCHED IN', width: 88, description: 'Scheduled In Time' },
+  { id: 'sched_out', label: 'SCHED OUT', width: 88, description: 'Scheduled Out Time' },
+  { id: 'target', label: 'TARGET', width: 82, description: 'Target Shift Duration' },
+  { id: 'std_break', label: 'STD BREAK', width: 88, description: 'Standard Break' },
+  { id: 'sched_work', label: 'WORK TIME', width: 92, description: 'Scheduled Work Time' },
+  { id: 'actual_in', label: 'ACTUAL IN', width: 90, description: 'Actual In Time' },
+  { id: 'actual_out', label: 'ACTUAL OUT', width: 90, description: 'Actual Out Time' },
+  { id: 'actual_duration', label: 'DURATION', width: 90, description: 'Duration' },
+  { id: 'break_out', label: 'BREAK OUT', width: 90, description: 'Break Out' },
+  { id: 'break_in', label: 'BREAK IN', width: 90, description: 'Break In' },
+  { id: 'effective_break', label: 'EFF. BREAK', width: 90, description: 'Effective Break' },
+  { id: 'actual_work', label: 'ACTUAL WORK', width: 95, description: 'Actual Work Time' },
+  { id: 'work_diff', label: 'DIFF (+/-)', width: 85, align: 'center', description: 'Work Difference' },
+  { id: 'late_by', label: 'LATE BY', width: 85, description: 'Late By' },
+  { id: 'overtime', label: 'O.T.', width: 85, description: 'Overtime' },
+  { id: 'rate', label: 'RATE', width: 75, align: 'right', description: 'Hourly Rate' },
+  { id: 'daily_salary', label: 'SALARY', width: 90, align: 'right', description: 'Daily Salary' },
+  { id: 'late_ded', label: 'LATE DED', width: 85, align: 'right', description: 'Late Deduction' },
+  { id: 'ot_pay', label: 'O.T. PAY', width: 85, align: 'right', description: 'Overtime Pay' },
+  { id: 'net_salary', label: 'NET SALARY', width: 105, align: 'right', description: 'Net Daily Salary' },
+  { id: 'action', label: 'ACTION', width: 75, align: 'center', description: 'Edit Record' }
+];
+
 export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmployees }) => {
   const [employees, setEmployees] = useState([]);
   const [selectedEmployeeCode, setSelectedEmployeeCode] = useState(initialEmployeeCode || '');
@@ -78,6 +117,95 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState('attendance'); // 'attendance', 'salary-history'
   const [importMessage, setImportMessage] = useState(null);
+
+  // Column Visibility State
+  const [visibleColumns, setVisibleColumns] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ams_employee_attendance_visible_columns');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return ATTENDANCE_COLUMNS.reduce((acc, col) => ({ ...acc, [col.id]: true }), {});
+  });
+
+  // Column Manager Dropdown Popover State
+  const [isColManagerOpen, setIsColManagerOpen] = useState(false);
+  const [colSearchQuery, setColSearchQuery] = useState('');
+  const colManagerRef = useRef(null);
+
+  // Freeze Columns State (Defaults to 2 columns: DATE and P/A)
+  const [freezeColumnsCount, setFreezeColumnsCount] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ams_employee_attendance_freeze_cols');
+      return saved !== null ? Number(saved) : 2;
+    } catch (e) {
+      return 2;
+    }
+  });
+
+  const handleFreezeColumnsChange = (count) => {
+    setFreezeColumnsCount(count);
+    try {
+      localStorage.setItem('ams_employee_attendance_freeze_cols', String(count));
+    } catch (e) {}
+  };
+
+  // Helper to toggle visibility of an individual column
+  const toggleColumnVisibility = (colId) => {
+    setVisibleColumns(prev => {
+      const next = { ...prev, [colId]: !prev[colId] };
+      try { localStorage.setItem('ams_employee_attendance_visible_columns', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+  };
+
+  // Helper to show all columns
+  const showAllColumns = () => {
+    const allVisible = ATTENDANCE_COLUMNS.reduce((acc, col) => ({ ...acc, [col.id]: true }), {});
+    setVisibleColumns(allVisible);
+    try { localStorage.setItem('ams_employee_attendance_visible_columns', JSON.stringify(allVisible)); } catch (e) {}
+  };
+
+  // Active Visible Columns List
+  const activeVisibleColumns = ATTENDANCE_COLUMNS.filter(col => visibleColumns[col.id]);
+
+  const getStickyStyle = (colId, isHeader = false, isFooter = false, rowBg = '#ffffff', extraStyle = {}) => {
+    const colIndex = activeVisibleColumns.findIndex(c => c.id === colId);
+    if (colIndex === -1 || colIndex >= freezeColumnsCount) {
+      return extraStyle;
+    }
+
+    let left = 0;
+    for (let i = 0; i < colIndex; i++) {
+      left += activeVisibleColumns[i].width || 85;
+    }
+
+    const width = activeVisibleColumns[colIndex].width || 85;
+    const isLastFrozen = colIndex === freezeColumnsCount - 1;
+
+    let bg = rowBg;
+    let zIndex = 5;
+
+    if (isHeader) {
+      bg = '#f1f5f9';
+      zIndex = 25;
+    } else if (isFooter) {
+      bg = 'var(--slate-100)';
+      zIndex = 25;
+    }
+
+    return {
+      ...extraStyle,
+      position: 'sticky',
+      left: `${left}px`,
+      zIndex,
+      backgroundColor: bg,
+      minWidth: `${width}px`,
+      width: `${width}px`,
+      maxWidth: `${width}px`,
+      boxShadow: isLastFrozen ? '4px 0 8px -2px rgba(0, 0, 0, 0.14)' : undefined,
+      borderRight: isLastFrozen ? '1px solid var(--slate-300)' : undefined
+    };
+  };
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -866,46 +994,138 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
           {/* 3. Detailed Attendance & Calculations Table - Clean Light Theme */}
           {activeSubTab === 'attendance' && (
             <div className="card" style={{ overflow: 'hidden' }}>
-              <div className="card-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <FileText size={18} color="var(--primary-600)" />
-                  <span style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--slate-900)' }}>
-                    Individual Attendance Record & Dynamic Formulations
-                  </span>
+              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <FileText size={18} color="var(--primary-600)" />
+                    <span style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--slate-900)' }}>
+                      Individual Attendance Record & Dynamic Formulations
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.775rem', color: 'var(--slate-500)' }}>
+                    All derived values are calculated on the fly
+                  </div>
                 </div>
-                <div style={{ fontSize: '0.775rem', color: 'var(--slate-500)' }}>
-                  All derived values are calculated on the fly
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
+                  {/* Freeze Column Controls */}
+                  <div className="freeze-control-badge" title="Freeze columns while scrolling horizontally">
+                    <Pin size={13} style={{ transform: 'rotate(45deg)', color: 'var(--primary-600)' }} />
+                    <span style={{ fontSize: '0.75rem', color: 'var(--slate-600)' }}>Freeze:</span>
+                    <select
+                      id="employee-attendance-freeze-select"
+                      value={freezeColumnsCount}
+                      onChange={(e) => handleFreezeColumnsChange(Number(e.target.value))}
+                      className="freeze-select"
+                      aria-label="Freeze Columns"
+                    >
+                      <option value={0}>None (0)</option>
+                      <option value={1}>1 (Date)</option>
+                      <option value={2}>2 (Date, P/A) — Default</option>
+                      <option value={3}>3 Columns</option>
+                      <option value={4}>4 Columns</option>
+                      <option value={5}>5 Columns</option>
+                      <option value={6}>6 Columns</option>
+                    </select>
+                  </div>
+
+                  {/* Manage Columns Popover Toggle */}
+                  <div style={{ position: 'relative' }} ref={colManagerRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsColManagerOpen(prev => !prev)}
+                      className={`btn btn-sm ${isColManagerOpen ? 'btn-primary' : 'btn-outline-primary'}`}
+                      style={{ fontSize: '0.75rem', padding: '0.3rem 0.65rem', gap: '0.35rem' }}
+                      title="Hide or Show Columns"
+                    >
+                      <SlidersHorizontal size={13} />
+                      <span>Columns ({activeVisibleColumns.length}/{ATTENDANCE_COLUMNS.length})</span>
+                      <ChevronDown size={12} style={{ transform: isColManagerOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+                    </button>
+
+                    {/* Popover Drawer */}
+                    {isColManagerOpen && (
+                      <div className="col-manager-dropdown" style={{ width: '280px' }}>
+                        <div className="col-manager-header">
+                          <div>
+                            <div style={{ fontWeight: '700', fontSize: '0.825rem', color: 'var(--slate-900)' }}>
+                              Column Visibility
+                            </div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--slate-500)' }}>
+                              Toggle columns to show/hide
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={showAllColumns}
+                            className="btn btn-ghost btn-sm"
+                            style={{ fontSize: '0.7rem', padding: '0.2rem 0.45rem', gap: '0.25rem' }}
+                            title="Show all columns"
+                          >
+                            <RotateCcw size={11} />
+                            <span>Show All</span>
+                          </button>
+                        </div>
+
+                        <div className="col-manager-search">
+                          <div style={{ position: 'relative' }}>
+                            <Search size={13} style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--slate-400)' }} />
+                            <input
+                              type="text"
+                              placeholder="Search columns..."
+                              value={colSearchQuery}
+                              onChange={(e) => setColSearchQuery(e.target.value)}
+                              className="col-manager-search-input"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="col-manager-list" style={{ maxHeight: '300px' }}>
+                          {ATTENDANCE_COLUMNS.filter(c => 
+                            !colSearchQuery || c.label.toLowerCase().includes(colSearchQuery.toLowerCase()) || c.description?.toLowerCase().includes(colSearchQuery.toLowerCase())
+                          ).map(col => {
+                            const isChecked = !!visibleColumns[col.id];
+                            return (
+                              <label
+                                key={col.id}
+                                className="col-item-row"
+                                style={{ padding: '0.4rem 0.85rem' }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => toggleColumnVisibility(col.id)}
+                                  />
+                                  <span style={{ fontWeight: isChecked ? '600' : 'normal' }}>{col.label}</span>
+                                </div>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--slate-400)' }}>{col.description}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
               <div className="table-responsive-wrapper" style={{ border: 'none', borderRadius: 0, maxHeight: '650px', overflowY: 'auto' }}>
-                <table className="data-table">
+                <table className={`data-table ${freezeColumnsCount > 0 ? 'has-frozen-columns' : ''}`}>
                   <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                     <tr>
-                      <th>DATE</th>
-                      <th style={{ textAlign: 'center' }}>P/A</th>
-                      <th>CALC MODE</th>
-                      <th>SCHED IN</th>
-                      <th>SCHED OUT</th>
-                      <th title="Target Shift Duration = Sched Out - Sched In">TARGET</th>
-                      <th title="Standard Master Break Time">STD BREAK</th>
-                      <th title="Scheduled Daily Work Time = Target - Std Break">WORK TIME</th>
-                      <th>ACTUAL IN</th>
-                      <th>ACTUAL OUT</th>
-                      <th title="Duration = IF Late IN >= 11m, (IF Late OUT >= 11m, (Sched OUT + 10m) - Actual IN, Actual OUT - Actual IN), (IF Late OUT >= 11m, (Sched OUT + 10m) - Sched IN, Actual OUT - Sched IN)">DURATION</th>
-                      <th>BREAK OUT</th>
-                      <th>BREAK IN</th>
-                      <th title="Effective Break = Break IN - Break OUT">EFF. BREAK</th>
-                      <th title="Actual Work = If (STD BREAK <= EFF. BREAK) Then DURATION - EFF. BREAK Else DURATION - STD BREAK">ACTUAL WORK</th>
-                      <th style={{ textAlign: 'center' }}>DIFF (+/-)</th>
-                      <th>LATE BY</th>
-                      <th>O.T.</th>
-                      <th style={{ textAlign: 'right' }}>RATE</th>
-                      <th style={{ textAlign: 'right' }}>SALARY</th>
-                      <th style={{ textAlign: 'right', color: 'var(--danger-text)' }}>LATE DED</th>
-                      <th style={{ textAlign: 'right', color: 'var(--success-text)' }}>O.T. PAY</th>
-                      <th style={{ textAlign: 'right', background: 'var(--primary-50)', color: 'var(--primary-800)' }}>NET SALARY</th>
-                      <th style={{ textAlign: 'center', width: '70px' }}>ACTION</th>
+                      {activeVisibleColumns.map(col => (
+                        <th
+                          key={col.id}
+                          style={getStickyStyle(col.id, true, false, undefined, {
+                            textAlign: col.align || 'left',
+                            width: `${col.width}px`
+                          })}
+                          title={col.description}
+                        >
+                          {col.label}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -913,148 +1133,238 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                       const isWO = r.status_code === 'WO';
                       const isWOP = r.status_code === 'WOP';
                       const isAbsent = r.status_code === 'A';
+                      const isWopShortfall = r.is_wop_shortfall;
                       const isLate = r.is_late;
 
                       let rowBg = '#ffffff';
                       if (isWO) rowBg = '#f0f9ff';
                       if (isWOP) rowBg = '#f0fdfa';
-                      if (isAbsent) rowBg = '#fff1f2';
+                      if (isAbsent || isWopShortfall) rowBg = '#fff1f2';
 
                       return (
                         <tr 
                           key={r.attendance_date_iso || idx}
                           style={{ backgroundColor: rowBg }}
                         >
-                          <td style={{ fontWeight: '600', color: 'var(--slate-900)' }}>
-                            {r.attendance_date || r.attendance_date_iso}
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            <span
-                              className="badge"
-                              style={{
-                                backgroundColor: isAbsent ? 'var(--danger-bg)' : (isWO ? 'var(--info-bg)' : (isWOP ? 'var(--teal-50)' : 'var(--success-bg)')),
-                                color: isAbsent ? 'var(--danger-text)' : (isWO ? 'var(--info-text)' : (isWOP ? 'var(--teal-700)' : 'var(--success-text)')),
-                                border: `1px solid ${isAbsent ? 'var(--danger-border)' : (isWO ? 'var(--info-border)' : (isWOP ? '#a7f3d0' : 'var(--success-border)'))}`
-                              }}
+                          {visibleColumns.date && (
+                            <td style={getStickyStyle('date', false, false, rowBg, { fontWeight: '600', color: 'var(--slate-900)' })}>
+                              {r.attendance_date || r.attendance_date_iso}
+                            </td>
+                          )}
+                          {visibleColumns.status && (
+                            <td style={getStickyStyle('status', false, false, rowBg, { textAlign: 'center' })}>
+                              {isWopShortfall ? (
+                                <span
+                                  className="badge"
+                                  style={{
+                                    backgroundColor: '#fee2e2',
+                                    color: '#b91c1c',
+                                    border: '1px solid #fca5a5',
+                                    fontWeight: '700'
+                                  }}
+                                  title={r.wop_shortfall_note || 'Compulsory WOP shortfall: Weekly Off treated as Absent'}
+                                >
+                                  WO (A)
+                                </span>
+                              ) : (
+                                <span
+                                  className="badge"
+                                  style={{
+                                    backgroundColor: isAbsent ? 'var(--danger-bg)' : (isWO ? 'var(--info-bg)' : (isWOP ? 'var(--teal-50)' : 'var(--success-bg)')),
+                                    color: isAbsent ? 'var(--danger-text)' : (isWO ? 'var(--info-text)' : (isWOP ? 'var(--teal-700)' : 'var(--success-text)')),
+                                    border: `1px solid ${isAbsent ? 'var(--danger-border)' : (isWO ? 'var(--info-border)' : (isWOP ? '#a7f3d0' : 'var(--success-border)'))}`
+                                  }}
+                                >
+                                  {r.status_code}
+                                </span>
+                              )}
+                            </td>
+                          )}
+                          {visibleColumns.calc_mode && (
+                            <td style={getStickyStyle('calc_mode', false, false, rowBg)}>
+                              <span 
+                                className={`badge ${
+                                  r.calc_mode === 'Normal' ? 'badge-success' :
+                                  r.calc_mode === 'Both late' ? 'badge-danger' :
+                                  r.calc_mode === 'Late IN only' ? 'badge-warning' :
+                                  r.calc_mode === 'Late OUT only' ? 'badge-info' :
+                                  'badge-secondary'
+                                }`}
+                                style={{ fontSize: '0.7rem', padding: '0.2rem 0.45rem' }}
+                                title={
+                                  r.calc_mode === 'Normal' ? 'Normal Shift' :
+                                  r.calc_mode === 'Both late' ? 'Late IN & Late OUT' :
+                                  r.calc_mode === 'Late IN only' ? 'Late IN only' :
+                                  r.calc_mode === 'Late OUT only' ? 'Late OUT only' :
+                                  r.calc_mode
+                                }
+                              >
+                                {r.calc_mode || 'Normal'}
+                              </span>
+                            </td>
+                          )}
+                          {visibleColumns.sched_in && (
+                            <td style={getStickyStyle('sched_in', false, false, rowBg, { color: 'var(--slate-600)' })}>{r.scheduled_in_time}</td>
+                          )}
+                          {visibleColumns.sched_out && (
+                            <td style={getStickyStyle('sched_out', false, false, rowBg, { color: 'var(--slate-600)' })}>{r.scheduled_out_time}</td>
+                          )}
+                          {visibleColumns.target && (
+                            <td style={getStickyStyle('target', false, false, rowBg, { color: 'var(--slate-600)' })}>{r.scheduled_duration_formatted || '12:00'}</td>
+                          )}
+                          {visibleColumns.std_break && (
+                            <td style={getStickyStyle('std_break', false, false, rowBg, { color: 'var(--slate-600)' })}>{r.scheduled_break_formatted || '00:00'}</td>
+                          )}
+                          {visibleColumns.sched_work && (
+                            <td style={getStickyStyle('sched_work', false, false, rowBg, { fontWeight: '600', color: 'var(--slate-700)' })}>{r.scheduled_work_formatted}</td>
+                          )}
+                          {visibleColumns.actual_in && (
+                            <td style={getStickyStyle('actual_in', false, false, rowBg, { fontWeight: isLate ? '700' : 'normal', color: isLate ? 'var(--warning-text)' : 'var(--slate-900)', background: isLate ? 'var(--warning-bg)' : 'transparent' })}>
+                              {r.actual_in_time || '—'}
+                            </td>
+                          )}
+                          {visibleColumns.actual_out && (
+                            <td style={getStickyStyle('actual_out', false, false, rowBg, { color: 'var(--slate-900)' })}>{r.actual_out_time || '—'}</td>
+                          )}
+                          {visibleColumns.actual_duration && (
+                            <td style={getStickyStyle('actual_duration', false, false, rowBg, { color: 'var(--slate-700)', fontWeight: '600' })} title={`Gross Duration = Actual OUT (${r.actual_out_time}) - Actual IN (${r.actual_in_time}) = ${r.actual_duration_formatted}`}>
+                              {r.actual_duration_formatted}
+                            </td>
+                          )}
+                          {visibleColumns.break_out && (
+                            <td style={getStickyStyle('break_out', false, false, rowBg, { color: 'var(--slate-700)' })}>{r.break_out || '—'}</td>
+                          )}
+                          {visibleColumns.break_in && (
+                            <td style={getStickyStyle('break_in', false, false, rowBg, { color: 'var(--slate-700)' })}>{r.break_in || '—'}</td>
+                          )}
+                          {visibleColumns.effective_break && (
+                            <td style={getStickyStyle('effective_break', false, false, rowBg, { color: r.effective_break_minutes > 0 ? 'var(--primary-700)' : 'var(--slate-400)', fontWeight: r.effective_break_minutes > 0 ? '600' : 'normal' })} title={`Break IN (${r.break_in || '00:00'}) - Break OUT (${r.break_out || '00:00'}) = ${r.effective_break_formatted}`}>
+                              {r.effective_break_minutes > 0 ? r.effective_break_formatted : '—'}
+                            </td>
+                          )}
+                          {visibleColumns.actual_work && (
+                            <td 
+                              style={getStickyStyle('actual_work', false, false, rowBg, { fontWeight: '700', color: 'var(--slate-900)' })}
+                              title={`Actual Work = Duration (${r.actual_duration_formatted}) - Effective Break (${r.effective_break_formatted || '00:00'}) = ${r.actual_work_formatted}`}
                             >
-                              {r.status_code}
-                            </span>
-                          </td>
-                          <td>
-                            <span 
-                              className={`badge ${
-                                r.calc_mode === 'Normal' ? 'badge-success' :
-                                r.calc_mode === 'Both late' ? 'badge-danger' :
-                                r.calc_mode === 'Late IN only' ? 'badge-warning' :
-                                r.calc_mode === 'Late OUT only' ? 'badge-info' :
-                                'badge-secondary'
-                              }`}
-                              style={{ fontSize: '0.7rem', padding: '0.2rem 0.45rem' }}
-                              title={
-                                r.calc_mode === 'Normal' ? 'Normal: A.OUT - Sched IN' :
-                                r.calc_mode === 'Both late' ? 'Both late: (Sched OUT + 10m) - A.IN' :
-                                r.calc_mode === 'Late IN only' ? 'Late IN only: A.OUT - A.IN' :
-                                r.calc_mode === 'Late OUT only' ? 'Late OUT only: (Sched OUT + 10m) - Sched IN' :
-                                r.calc_mode
-                              }
-                            >
-                              {r.calc_mode || 'Normal'}
-                            </span>
-                          </td>
-                          <td style={{ color: 'var(--slate-600)' }}>{r.scheduled_in_time}</td>
-                          <td style={{ color: 'var(--slate-600)' }}>{r.scheduled_out_time}</td>
-                          <td style={{ color: 'var(--slate-600)' }}>{r.scheduled_duration_formatted || '12:00'}</td>
-                          <td style={{ color: 'var(--slate-600)' }}>{r.scheduled_break_formatted || '00:00'}</td>
-                          <td style={{ fontWeight: '600', color: 'var(--slate-700)' }}>{r.scheduled_work_formatted}</td>
-                          <td style={{ fontWeight: isLate ? '700' : 'normal', color: isLate ? 'var(--warning-text)' : 'var(--slate-900)', background: isLate ? 'var(--warning-bg)' : 'transparent' }}>
-                            {r.actual_in_time || '—'}
-                          </td>
-                          <td style={{ color: 'var(--slate-900)' }}>{r.actual_out_time || '—'}</td>
-                          <td style={{ color: 'var(--slate-700)', fontWeight: '600' }}>{r.actual_duration_formatted}</td>
-                          <td style={{ color: 'var(--slate-700)' }}>{r.break_out || '—'}</td>
-                          <td style={{ color: 'var(--slate-700)' }}>{r.break_in || '—'}</td>
-                          <td style={{ color: r.effective_break_minutes > 0 ? 'var(--primary-700)' : 'var(--slate-400)', fontWeight: r.effective_break_minutes > 0 ? '600' : 'normal' }} title={`Break IN (${r.break_in || '00:00'}) - Break OUT (${r.break_out || '00:00'}) = ${r.effective_break_formatted}`}>
-                            {r.effective_break_minutes > 0 ? r.effective_break_formatted : '—'}
-                          </td>
-                          <td 
-                            style={{ fontWeight: '700', color: 'var(--slate-900)' }}
-                            title={`Actual Work = Duration (${r.actual_duration_formatted}) - Break (${r.scheduled_break_minutes <= r.effective_break_minutes ? r.effective_break_formatted : r.scheduled_break_formatted}) = ${r.actual_work_formatted}`}
-                          >
-                            {r.actual_work_formatted}
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            <span style={{ fontWeight: '700', color: r.work_diff_minutes > 0 ? 'var(--success-text)' : (r.work_diff_minutes < 0 ? 'var(--danger-text)' : 'var(--slate-500)') }}>
-                              {r.work_diff_formatted}
-                            </span>
-                          </td>
-                          <td style={{ color: isLate ? 'var(--warning-text)' : 'var(--slate-400)', fontWeight: isLate ? '700' : 'normal' }}>
-                            {isLate ? r.late_formatted : '—'}
-                          </td>
-                          <td style={{ color: r.overtime_minutes > 0 ? 'var(--success-text)' : 'var(--slate-400)', fontWeight: r.overtime_minutes > 0 ? '700' : 'normal' }}>
-                            {r.overtime_minutes > 0 ? r.overtime_formatted : '—'}
-                          </td>
-                          <td style={{ textAlign: 'right', color: 'var(--slate-500)' }} title={r.wef_date ? `W.E.F. Active: ${r.wef_date} • Base Salary: ₹${r.effective_salary || currentEmp?.salary}` : ''}>
-                            ₹{r.hourly_rate}
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: '600' }} title={r.wef_date ? `W.E.F. Active: ${r.wef_date} • Daily Rate: ₹${r.daily_rate}` : ''}>
-                            ₹{r.daily_salary_earned}
-                          </td>
-                          <td style={{ textAlign: 'right', color: r.late_salary_deduction > 0 ? 'var(--danger-text)' : 'var(--slate-400)' }}>
-                            {r.late_salary_deduction > 0 ? `-₹${r.late_salary_deduction}` : '—'}
-                          </td>
-                          <td style={{ textAlign: 'right', color: r.overtime_pay > 0 ? 'var(--success-text)' : 'var(--slate-400)' }}>
-                            {r.overtime_pay > 0 ? `+₹${r.overtime_pay}` : '—'}
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: '700', color: 'var(--primary-700)', background: 'var(--primary-50)' }}>
-                            ₹{r.net_daily_salary}
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedRecordForEdit(r);
-                                setIsDayEditModalOpen(true);
-                              }}
-                              className="btn btn-outline-primary btn-sm"
-                              style={{ padding: '0.2rem 0.45rem', fontSize: '0.725rem', gap: '0.25rem' }}
-                              title="Edit Attendance / Punches / Deductions"
-                            >
-                              <Edit3 size={12} />
-                              <span>Edit</span>
-                            </button>
-                          </td>
+                              {r.actual_work_formatted}
+                            </td>
+                          )}
+                          {visibleColumns.work_diff && (
+                            <td style={getStickyStyle('work_diff', false, false, rowBg, { textAlign: 'center' })}>
+                              <span style={{ fontWeight: '700', color: r.work_diff_minutes > 0 ? 'var(--success-text)' : (r.work_diff_minutes < 0 ? 'var(--danger-text)' : 'var(--slate-500)') }}>
+                                {r.work_diff_formatted}
+                              </span>
+                            </td>
+                          )}
+                          {visibleColumns.late_by && (
+                            <td style={getStickyStyle('late_by', false, false, rowBg, { color: isLate ? 'var(--warning-text)' : 'var(--slate-400)', fontWeight: isLate ? '700' : 'normal' })}>
+                              {isLate ? r.late_formatted : '—'}
+                            </td>
+                          )}
+                          {visibleColumns.overtime && (
+                            <td style={getStickyStyle('overtime', false, false, rowBg, { color: r.overtime_minutes > 0 ? 'var(--success-text)' : 'var(--slate-400)', fontWeight: r.overtime_minutes > 0 ? '700' : 'normal' })}>
+                              {r.overtime_minutes > 0 ? r.overtime_formatted : '—'}
+                            </td>
+                          )}
+                          {visibleColumns.rate && (
+                            <td style={getStickyStyle('rate', false, false, rowBg, { textAlign: 'right', color: 'var(--slate-500)' })} title={r.wef_date ? `W.E.F. Active: ${r.wef_date} • Base Salary: ₹${r.effective_salary || currentEmp?.salary}` : ''}>
+                              ₹{r.hourly_rate}
+                            </td>
+                          )}
+                          {visibleColumns.daily_salary && (
+                            <td style={getStickyStyle('daily_salary', false, false, rowBg, { textAlign: 'right', fontWeight: '600' })} title={r.wef_date ? `W.E.F. Active: ${r.wef_date} • Daily Rate: ₹${r.daily_rate}` : ''}>
+                              ₹{r.daily_salary_earned}
+                            </td>
+                          )}
+                          {visibleColumns.late_ded && (
+                            <td style={getStickyStyle('late_ded', false, false, rowBg, { textAlign: 'right', color: r.late_salary_deduction > 0 ? 'var(--danger-text)' : 'var(--slate-400)' })}>
+                              {r.late_salary_deduction > 0 ? `-₹${r.late_salary_deduction}` : '—'}
+                            </td>
+                          )}
+                          {visibleColumns.ot_pay && (
+                            <td style={getStickyStyle('ot_pay', false, false, rowBg, { textAlign: 'right', color: r.overtime_pay > 0 ? 'var(--success-text)' : 'var(--slate-400)' })}>
+                              {r.overtime_pay > 0 ? `+₹${r.overtime_pay}` : '—'}
+                            </td>
+                          )}
+                          {visibleColumns.net_salary && (
+                            <td style={getStickyStyle('net_salary', false, false, rowBg, { textAlign: 'right', fontWeight: '700', color: 'var(--primary-700)', background: 'var(--primary-50)' })}>
+                              ₹{r.net_daily_salary}
+                            </td>
+                          )}
+                          {visibleColumns.action && (
+                            <td style={getStickyStyle('action', false, false, rowBg, { textAlign: 'center' })}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedRecordForEdit(r);
+                                  setIsDayEditModalOpen(true);
+                                }}
+                                className="btn btn-outline-primary btn-sm"
+                                style={{ padding: '0.2rem 0.45rem', fontSize: '0.725rem', gap: '0.25rem' }}
+                                title="Edit Attendance / Punches / Deductions"
+                              >
+                                <Edit3 size={12} />
+                                <span>Edit</span>
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
                   </tbody>
                   <tfoot style={{ position: 'sticky', bottom: 0, background: 'var(--slate-100)', borderTop: '2px solid var(--slate-300)', fontWeight: '700', zIndex: 10 }}>
                     <tr>
-                      <td>TOTAL</td>
-                      <td style={{ textAlign: 'center' }}>{summary?.presentDays}P/{summary?.absentDays}A</td>
-                      <td>—</td>
-                      <td>—</td>
-                      <td>—</td>
-                      <td>—</td>
-                      <td>—</td>
-                      <td>{summary?.totalExpectedWorkFormatted || '00:00'}</td>
-                      <td>—</td>
-                      <td>—</td>
-                      <td>—</td>
-                      <td>—</td>
-                      <td>—</td>
-                      <td style={{ color: 'var(--primary-700)' }}>{summary?.totalActualBreakFormatted || '00:00'}</td>
-                      <td style={{ color: 'var(--primary-700)' }}>{summary?.totalActualWorkFormatted || '00:00'}</td>
-                      <td style={{ textAlign: 'center', color: Number(summary?.totalWorkDiffHours) >= 0 ? 'var(--success-text)' : 'var(--danger-text)' }}>
-                        {summary?.totalWorkDiffFormatted}
-                      </td>
-                      <td style={{ color: 'var(--warning-text)' }}>{summary?.totalLateFormatted}</td>
-                      <td style={{ color: 'var(--success-text)' }}>{summary?.totalOvertimeFormatted}</td>
-                      <td style={{ textAlign: 'right' }}>—</td>
-                      <td style={{ textAlign: 'right' }}>₹{summary?.grossEarnedSalary}</td>
-                      <td style={{ textAlign: 'right', color: 'var(--danger-text)' }}>-₹{summary?.totalLateDeductions}</td>
-                      <td style={{ textAlign: 'right', color: 'var(--success-text)' }}>+₹{summary?.totalOvertimePay}</td>
-                      <td style={{ textAlign: 'right', color: 'var(--primary-700)', fontSize: '0.95rem', background: 'var(--primary-100)' }}>₹{summary?.netPayableSalary}</td>
-                      <td style={{ textAlign: 'center' }}>—</td>
+                      {visibleColumns.date && (
+                        <td style={getStickyStyle('date', false, true, undefined, { fontWeight: '700' })}>TOTAL</td>
+                      )}
+                      {visibleColumns.status && (
+                        <td style={getStickyStyle('status', false, true, undefined, { textAlign: 'center', fontWeight: '700' })}>{summary?.presentDays}P/{summary?.absentDays}A</td>
+                      )}
+                      {visibleColumns.calc_mode && <td style={getStickyStyle('calc_mode', false, true)}>—</td>}
+                      {visibleColumns.sched_in && <td style={getStickyStyle('sched_in', false, true)}>—</td>}
+                      {visibleColumns.sched_out && <td style={getStickyStyle('sched_out', false, true)}>—</td>}
+                      {visibleColumns.target && <td style={getStickyStyle('target', false, true)}>—</td>}
+                      {visibleColumns.std_break && <td style={getStickyStyle('std_break', false, true)}>—</td>}
+                      {visibleColumns.sched_work && (
+                        <td style={getStickyStyle('sched_work', false, true)}>{summary?.totalExpectedWorkFormatted || '00:00'}</td>
+                      )}
+                      {visibleColumns.actual_in && <td>—</td>}
+                      {visibleColumns.actual_out && <td>—</td>}
+                      {visibleColumns.actual_duration && <td>—</td>}
+                      {visibleColumns.break_out && <td>—</td>}
+                      {visibleColumns.break_in && <td>—</td>}
+                      {visibleColumns.effective_break && (
+                        <td style={{ color: 'var(--primary-700)' }}>{summary?.totalActualBreakFormatted || '00:00'}</td>
+                      )}
+                      {visibleColumns.actual_work && (
+                        <td style={{ color: 'var(--primary-700)' }}>{summary?.totalActualWorkFormatted || '00:00'}</td>
+                      )}
+                      {visibleColumns.work_diff && (
+                        <td style={{ textAlign: 'center', color: Number(summary?.totalWorkDiffHours) >= 0 ? 'var(--success-text)' : 'var(--danger-text)' }}>
+                          {summary?.totalWorkDiffFormatted}
+                        </td>
+                      )}
+                      {visibleColumns.late_by && (
+                        <td style={{ color: 'var(--warning-text)' }}>{summary?.totalLateFormatted}</td>
+                      )}
+                      {visibleColumns.overtime && (
+                        <td style={{ color: 'var(--success-text)' }}>{summary?.totalOvertimeFormatted}</td>
+                      )}
+                      {visibleColumns.rate && <td style={{ textAlign: 'right' }}>—</td>}
+                      {visibleColumns.daily_salary && (
+                        <td style={{ textAlign: 'right' }}>₹{summary?.grossEarnedSalary}</td>
+                      )}
+                      {visibleColumns.late_ded && (
+                        <td style={{ textAlign: 'right', color: 'var(--danger-text)' }}>-₹{summary?.totalLateDeductions}</td>
+                      )}
+                      {visibleColumns.ot_pay && (
+                        <td style={{ textAlign: 'right', color: 'var(--success-text)' }}>+₹{summary?.totalOvertimePay}</td>
+                      )}
+                      {visibleColumns.net_salary && (
+                        <td style={{ textAlign: 'right', color: 'var(--primary-700)', fontSize: '0.95rem', background: 'var(--primary-100)' }}>₹{summary?.netPayableSalary}</td>
+                      )}
+                      {visibleColumns.action && <td style={{ textAlign: 'center' }}>—</td>}
                     </tr>
                   </tfoot>
                 </table>

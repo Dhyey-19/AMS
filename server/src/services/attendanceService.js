@@ -471,29 +471,33 @@ class AttendanceService {
     // 6. Punches & Timings
     let inTimeRaw = getMappedValue('in_time');
     if (inTimeRaw === null) inTimeRaw = normalized['intime'] || normalized['actualin'] || normalized['in'] || '';
-    const inTime = CalculationEngine.formatTimeString(inTimeRaw);
 
     let outTimeRaw = getMappedValue('out_time');
     if (outTimeRaw === null) outTimeRaw = normalized['outtime'] || normalized['actualout'] || normalized['out'] || '';
-    const outTime = CalculationEngine.formatTimeString(outTimeRaw);
 
     let punchRecords = getMappedValue('punch_records');
     if (punchRecords === null) punchRecords = normalized['punchrecords'] || '';
+
+    let breakOutRaw = getMappedValue('break_out');
+    let breakInRaw = getMappedValue('break_in');
+
+    const extractedPunches = CalculationEngine.extractBreakPunches(
+      punchRecords,
+      breakOutRaw !== null ? breakOutRaw : normalized['breakout'],
+      breakInRaw !== null ? breakInRaw : normalized['breakin'],
+      inTimeRaw,
+      outTimeRaw
+    );
+
+    const inTime = extractedPunches.actualIn;
+    const outTime = extractedPunches.actualOut;
+    const breakOut = extractedPunches.breakOut;
+    const breakIn = extractedPunches.breakIn;
 
     if (!punchRecords && (inTime || outTime)) {
       const list = [inTime, outTime].filter(Boolean);
       punchRecords = list.join(', ');
     }
-
-    let breakOutRaw = getMappedValue('break_out');
-    let breakInRaw = getMappedValue('break_in');
-    const extractedBreaks = CalculationEngine.extractBreakPunches(
-      punchRecords,
-      breakOutRaw !== null ? breakOutRaw : normalized['breakout'],
-      breakInRaw !== null ? breakInRaw : normalized['breakin']
-    );
-    const breakOut = extractedBreaks.breakOut;
-    const breakIn = extractedBreaks.breakIn;
 
     // 7. Durations
     let totalDurationRaw = getMappedValue('total_duration');
@@ -1450,13 +1454,13 @@ class AttendanceService {
       }
 
       d.totalWorkingMinutes += calc.actual_work_minutes;
-      d.totalBreakMinutes += calc.actual_break_minutes;
+      d.totalBreakMinutes += (calc.effective_break_minutes !== undefined ? calc.effective_break_minutes : calc.actual_break_minutes);
       d.totalOvertimeMinutes += calc.overtime_minutes;
       d.totalGrossSalary += calc.daily_salary_earned;
       d.totalNetSalary += calc.net_daily_salary;
 
       totalWorkMins += calc.actual_work_minutes;
-      totalBreakMins += calc.actual_break_minutes;
+      totalBreakMins += (calc.effective_break_minutes !== undefined ? calc.effective_break_minutes : calc.actual_break_minutes);
       totalLateMins += calc.late_minutes;
       totalOTMins += calc.overtime_minutes;
       totalGrossSalary += calc.daily_salary_earned;
@@ -1544,16 +1548,42 @@ class AttendanceService {
     const dept = emp?.department || updateData.department || existing?.department || 'General';
     const desig = emp?.designation || updateData.designation || existing?.designation || '';
 
+    const finalIn = inTime !== undefined ? inTime : (existing?.in_time || '');
+    const finalOut = outTime !== undefined ? outTime : (existing?.out_time || '');
+    const finalBreakOut = breakOut !== undefined ? breakOut : (existing?.break_out || '');
+    const finalBreakIn = breakIn !== undefined ? breakIn : (existing?.break_in || '');
+    const finalStatus = (updateData.status_code !== undefined ? updateData.status_code : (existing?.status_code || (finalIn ? 'P' : 'A'))).toUpperCase().trim();
+
+    // Reconstruct / sync punch_records with updated in/out/break times
+    let punchRecords = updateData.punch_records;
+    if (punchRecords === undefined || punchRecords === null || inTime !== undefined || outTime !== undefined || breakOut !== undefined || breakIn !== undefined) {
+      const punchesList = [finalIn, finalBreakOut, finalBreakIn, finalOut].filter(Boolean);
+      punchRecords = punchesList.join(', ');
+    }
+
+    // Calculate duration
+    let totalDuration = '00:00';
+    let totalDurationMinutes = 0;
+    if (finalIn && finalOut && finalIn !== '00:00' && finalOut !== '00:00') {
+      const inM = CalculationEngine.timeToMinutes(finalIn);
+      const outM = CalculationEngine.timeToMinutes(finalOut);
+      const diff = outM >= inM ? (outM - inM) : (1440 - inM + outM);
+      totalDurationMinutes = diff;
+      totalDuration = CalculationEngine.minutesToHHMM(diff);
+    }
+
     const stmt = db.prepare(`
       INSERT INTO attendance (
         employee_code, attendance_date, attendance_date_iso, employee_name,
         designation, department, in_time, out_time, break_out, break_in,
-        status_code, leave_deduction, penalty_amount, overtime_override_minutes,
+        status_code, total_duration, total_duration_minutes,
+        leave_deduction, penalty_amount, overtime_override_minutes,
         punch_records, remarks
       ) VALUES (
         @employee_code, @attendance_date, @attendance_date_iso, @employee_name,
         @designation, @department, @in_time, @out_time, @break_out, @break_in,
-        @status_code, @leave_deduction, @penalty_amount, @overtime_override_minutes,
+        @status_code, @total_duration, @total_duration_minutes,
+        @leave_deduction, @penalty_amount, @overtime_override_minutes,
         @punch_records, @remarks
       )
       ON CONFLICT(employee_code, attendance_date_iso) DO UPDATE SET
@@ -1562,10 +1592,12 @@ class AttendanceService {
         break_out = @break_out,
         break_in = @break_in,
         status_code = @status_code,
+        total_duration = @total_duration,
+        total_duration_minutes = @total_duration_minutes,
         leave_deduction = @leave_deduction,
         penalty_amount = @penalty_amount,
         overtime_override_minutes = @overtime_override_minutes,
-        punch_records = CASE WHEN @punch_records != '' THEN @punch_records ELSE attendance.punch_records END,
+        punch_records = @punch_records,
         remarks = @remarks,
         updated_at = CURRENT_TIMESTAMP
     `);
@@ -1577,15 +1609,17 @@ class AttendanceService {
       employee_name: empName,
       designation: desig,
       department: dept,
-      in_time: inTime !== undefined ? inTime : (existing?.in_time || ''),
-      out_time: outTime !== undefined ? outTime : (existing?.out_time || ''),
-      break_out: breakOut !== undefined ? breakOut : (existing?.break_out || ''),
-      break_in: breakIn !== undefined ? breakIn : (existing?.break_in || ''),
-      status_code: (updateData.status_code !== undefined ? updateData.status_code : (existing?.status_code || 'P')).toUpperCase().trim(),
+      in_time: finalIn,
+      out_time: finalOut,
+      break_out: finalBreakOut,
+      break_in: finalBreakIn,
+      status_code: finalStatus,
+      total_duration: totalDuration,
+      total_duration_minutes: totalDurationMinutes,
       leave_deduction: updateData.leave_deduction !== undefined ? parseFloat(updateData.leave_deduction) || 0 : (existing?.leave_deduction || 0),
       penalty_amount: updateData.penalty_amount !== undefined ? parseFloat(updateData.penalty_amount) || 0 : (existing?.penalty_amount || 0),
       overtime_override_minutes: updateData.overtime_override_minutes !== undefined ? parseInt(updateData.overtime_override_minutes, 10) || 0 : (existing?.overtime_override_minutes || 0),
-      punch_records: updateData.punch_records !== undefined ? updateData.punch_records : (existing?.punch_records || ''),
+      punch_records: punchRecords,
       remarks: updateData.remarks !== undefined ? updateData.remarks : (existing?.remarks || '')
     });
 

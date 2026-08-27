@@ -22,7 +22,8 @@ import {
   Eye,
   EyeOff,
   Coins,
-  Shield
+  Shield,
+  Pin
 } from 'lucide-react';
 
 const formatCurrency = (amount) => {
@@ -48,6 +49,65 @@ export const AttendanceReportsPage = ({ onNavigateToEmployeeAttendance }) => {
     try {
       localStorage.setItem('ams_reports_show_salary', String(val));
     } catch (e) {}
+  };
+
+  // Freeze Columns State for Reports
+  const [freezeCols, setFreezeCols] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ams_reports_freeze_cols');
+      return saved !== null ? Number(saved) : 2;
+    } catch (e) {
+      return 2;
+    }
+  });
+
+  const handleFreezeColsChange = (count) => {
+    setFreezeCols(count);
+    try {
+      localStorage.setItem('ams_reports_freeze_cols', String(count));
+    } catch (e) {}
+  };
+
+  const getStaffStickyStyle = (colIndex, isHeader = false, rowBg = '#ffffff', extra = {}) => {
+    if (colIndex >= freezeCols) return extra;
+    const widths = [90, 180, 140];
+    let left = 0;
+    for (let i = 0; i < colIndex; i++) left += widths[i] || 90;
+    const width = widths[colIndex] || 90;
+    const isLast = colIndex === freezeCols - 1;
+    return {
+      ...extra,
+      position: 'sticky',
+      left: `${left}px`,
+      zIndex: isHeader ? 25 : 5,
+      backgroundColor: isHeader ? '#f1f5f9' : rowBg,
+      minWidth: `${width}px`,
+      width: `${width}px`,
+      maxWidth: `${width}px`,
+      boxShadow: isLast ? '4px 0 8px -2px rgba(0, 0, 0, 0.12)' : undefined,
+      borderRight: isLast ? '1px solid var(--slate-300)' : undefined
+    };
+  };
+
+  const getEmpReportStickyStyle = (colIndex, isHeader = false, rowBg = '#ffffff', extra = {}) => {
+    if (colIndex >= freezeCols) return extra;
+    const widths = [120, 120, 90];
+    let left = 0;
+    for (let i = 0; i < colIndex; i++) left += widths[i] || 90;
+    const width = widths[colIndex] || 90;
+    const isLast = colIndex === freezeCols - 1;
+    return {
+      ...extra,
+      position: 'sticky',
+      left: `${left}px`,
+      zIndex: isHeader ? 25 : 5,
+      backgroundColor: isHeader ? '#f1f5f9' : rowBg,
+      minWidth: `${width}px`,
+      width: `${width}px`,
+      maxWidth: `${width}px`,
+      boxShadow: isLast ? '4px 0 8px -2px rgba(0, 0, 0, 0.12)' : undefined,
+      borderRight: isLast ? '1px solid var(--slate-300)' : undefined
+    };
   };
   
   const [months, setMonths] = useState([]);
@@ -490,7 +550,7 @@ export const AttendanceReportsPage = ({ onNavigateToEmployeeAttendance }) => {
 
           {/* Monthly Roster Table */}
           <div className="card" style={{ overflow: 'hidden' }}>
-            <div className="card-header">
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
                 <Users size={18} color="#0284c7" />
                 <h3 style={{ fontSize: '1.0625rem' }}>
@@ -498,26 +558,44 @@ export const AttendanceReportsPage = ({ onNavigateToEmployeeAttendance }) => {
                 </h3>
               </div>
 
-              <div className="table-search-box" style={{ maxWidth: '260px' }}>
-                <Search className="search-input-icon" size={16} />
-                <input
-                  type="text"
-                  className="table-search-input"
-                  placeholder="Filter staff..."
-                  value={monthlySearch}
-                  onChange={(e) => setMonthlySearch(e.target.value)}
-                  style={{ padding: '0.4rem 0.75rem 0.4rem 2.2rem', fontSize: '0.8125rem' }}
-                />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
+                <div className="freeze-control-badge" title="Freeze columns while scrolling horizontally">
+                  <Pin size={13} style={{ transform: 'rotate(45deg)', color: '#0284c7' }} />
+                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Freeze:</span>
+                  <select
+                    value={freezeCols}
+                    onChange={(e) => handleFreezeColsChange(Number(e.target.value))}
+                    className="freeze-select"
+                    aria-label="Freeze Columns"
+                  >
+                    <option value={0}>None</option>
+                    <option value={1}>1 (Code)</option>
+                    <option value={2}>2 (Code, Name) — Default</option>
+                    <option value={3}>3 (Code, Name, Dept)</option>
+                  </select>
+                </div>
+
+                <div className="table-search-box" style={{ maxWidth: '240px' }}>
+                  <Search className="search-input-icon" size={16} />
+                  <input
+                    type="text"
+                    className="table-search-input"
+                    placeholder="Filter staff..."
+                    value={monthlySearch}
+                    onChange={(e) => setMonthlySearch(e.target.value)}
+                    style={{ padding: '0.4rem 0.75rem 0.4rem 2.2rem', fontSize: '0.8125rem' }}
+                  />
+                </div>
               </div>
             </div>
 
             <div className="table-responsive-wrapper" style={{ border: 'none', borderRadius: 0, maxHeight: '680px' }}>
-              <table className="data-table">
-                <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface-color, #ffffff)' }}>
+              <table className={`data-table ${freezeCols > 0 ? 'has-frozen-columns' : ''}`}>
+                <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--surface-color, #ffffff)' }}>
                   <tr>
-                    <th>Code</th>
-                    <th>Employee Name</th>
-                    <th>Department</th>
+                    <th style={getStaffStickyStyle(0, true, '#f1f5f9')}>Code</th>
+                    <th style={getStaffStickyStyle(1, true, '#f1f5f9')}>Employee Name</th>
+                    <th style={getStaffStickyStyle(2, true, '#f1f5f9')}>Department</th>
                     <th>Designation</th>
                     <th style={{ textAlign: 'center' }}>Total Days</th>
                     <th style={{ textAlign: 'center', color: '#059669' }}>Present</th>
@@ -562,8 +640,8 @@ export const AttendanceReportsPage = ({ onNavigateToEmployeeAttendance }) => {
 
                       return (
                         <tr key={emp.employee_code}>
-                          <td><span className="emp-code-pill">{emp.employee_code}</span></td>
-                          <td>
+                          <td style={getStaffStickyStyle(0, false, '#ffffff')}><span className="emp-code-pill">{emp.employee_code}</span></td>
+                          <td style={getStaffStickyStyle(1, false, '#ffffff')}>
                             {onNavigateToEmployeeAttendance ? (
                               <button
                                 type="button"
@@ -586,7 +664,7 @@ export const AttendanceReportsPage = ({ onNavigateToEmployeeAttendance }) => {
                               <div style={{ fontWeight: '600', color: '#0f172a' }}>{emp.employee_name}</div>
                             )}
                           </td>
-                          <td><DepartmentBadge department={emp.department} /></td>
+                          <td style={getStaffStickyStyle(2, false, '#ffffff')}><DepartmentBadge department={emp.department} /></td>
                           <td><span style={{ fontSize: '0.8125rem', color: '#475569' }}>{emp.designation || '-'}</span></td>
                           <td style={{ textAlign: 'center', fontWeight: '600' }}>{emp.totalDays}</td>
                           <td style={{ textAlign: 'center', fontWeight: '700', color: '#059669' }}>{emp.presentDays}</td>
@@ -953,19 +1031,35 @@ export const AttendanceReportsPage = ({ onNavigateToEmployeeAttendance }) => {
 
           {/* Employee Date-by-Date Records */}
           <div className="card" style={{ overflow: 'hidden' }}>
-            <div className="card-header">
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
               <h3 style={{ fontSize: '1.0625rem' }}>
                 Attendance Timeline, Break Punches & Biometric Logs
               </h3>
+
+              <div className="freeze-control-badge" title="Freeze columns while scrolling horizontally">
+                <Pin size={13} style={{ transform: 'rotate(45deg)', color: '#0284c7' }} />
+                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Freeze:</span>
+                <select
+                  value={freezeCols}
+                  onChange={(e) => handleFreezeColsChange(Number(e.target.value))}
+                  className="freeze-select"
+                  aria-label="Freeze Columns"
+                >
+                  <option value={0}>None</option>
+                  <option value={1}>1 (Date)</option>
+                  <option value={2}>2 (Date, Shift) — Default</option>
+                  <option value={3}>3 (Date, Shift, In)</option>
+                </select>
+              </div>
             </div>
 
             <div className="table-responsive-wrapper" style={{ border: 'none', borderRadius: 0, maxHeight: '680px' }}>
-              <table className="data-table">
-                <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface-color, #ffffff)' }}>
+              <table className={`data-table ${freezeCols > 0 ? 'has-frozen-columns' : ''}`}>
+                <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--surface-color, #ffffff)' }}>
                   <tr>
-                    <th>Date</th>
-                    <th>Shift</th>
-                    <th>In Time</th>
+                    <th style={getEmpReportStickyStyle(0, true, '#f1f5f9')}>Date</th>
+                    <th style={getEmpReportStickyStyle(1, true, '#f1f5f9')}>Shift</th>
+                    <th style={getEmpReportStickyStyle(2, true, '#f1f5f9')}>In Time</th>
                     <th style={{ color: '#6366f1' }}>Break Out</th>
                     <th style={{ color: '#6366f1' }}>Break In</th>
                     <th style={{ color: '#6366f1' }}>Break Time</th>
@@ -1004,9 +1098,9 @@ export const AttendanceReportsPage = ({ onNavigateToEmployeeAttendance }) => {
                   ) : (
                     employeeReportData.records.map((r) => (
                       <tr key={r.attendance_date_iso}>
-                        <td style={{ fontWeight: '600' }}>{r.attendance_date_iso}</td>
-                        <td><span style={{ fontSize: '0.75rem', color: '#64748b' }}>{r.scheduled_in_time ? `${r.scheduled_in_time} - ${r.scheduled_out_time}` : '-'}</span></td>
-                        <td><span style={{ fontWeight: r.actual_in_time ? '600' : 'normal', color: r.is_late ? '#e11d48' : '#0f172a' }}>{r.actual_in_time || '--:--'}</span></td>
+                        <td style={getEmpReportStickyStyle(0, false, '#ffffff', { fontWeight: '600' })}>{r.attendance_date_iso}</td>
+                        <td style={getEmpReportStickyStyle(1, false, '#ffffff')}><span style={{ fontSize: '0.75rem', color: '#64748b' }}>{r.scheduled_in_time ? `${r.scheduled_in_time} - ${r.scheduled_out_time}` : '-'}</span></td>
+                        <td style={getEmpReportStickyStyle(2, false, '#ffffff')}><span style={{ fontWeight: r.actual_in_time ? '600' : 'normal', color: r.is_late ? '#e11d48' : '#0f172a' }}>{r.actual_in_time || '--:--'}</span></td>
                         <td><span style={{ color: r.break_out ? '#6366f1' : '#94a3b8', fontSize: '0.8125rem' }}>{r.break_out || '—'}</span></td>
                         <td><span style={{ color: r.break_in ? '#6366f1' : '#94a3b8', fontSize: '0.8125rem' }}>{r.break_in || '—'}</span></td>
                         <td><span style={{ color: r.actual_break_formatted && r.actual_break_formatted !== '00:00' ? '#6366f1' : '#94a3b8' }}>{r.actual_break_formatted && r.actual_break_formatted !== '00:00' ? r.actual_break_formatted : '—'}</span></td>

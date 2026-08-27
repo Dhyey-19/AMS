@@ -111,7 +111,6 @@ export const EditDayAttendanceModal = ({
         leave_deduction: parseFloat(formData.leave_deduction) || 0,
         penalty_amount: parseFloat(formData.penalty_amount) || 0,
         overtime_override_minutes: parseInt(formData.overtime_override_minutes, 10) || 0,
-        punch_records: formData.punch_records ? formData.punch_records.trim() : '',
         remarks: formData.remarks ? formData.remarks.trim() : ''
       };
 
@@ -122,11 +121,11 @@ export const EditDayAttendanceModal = ({
       setSuccess('Record updated in database! Recalculating sheet...');
       
       if (onUpdated) {
-        setTimeout(() => {
-          onUpdated(res.data);
-          onClose();
-        }, 500);
+        await onUpdated(res.data);
       }
+      setTimeout(() => {
+        onClose();
+      }, 400);
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Failed to update record');
     } finally {

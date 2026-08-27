@@ -227,7 +227,10 @@ class EmployeeService {
       special_rules: normalized['specialrules'] || normalized['rules'] || normalized['bondterms'] || normalized['remarks'] || normalized['notes'] || null,
       salary_history_json: normalized['salaryhistoryjson'] || null,
       wop: normalized['wop'] ? parseFloat(normalized['wop']) : (normalized['weeklyoffpresent'] ? parseFloat(normalized['weeklyoffpresent']) : 0),
-      ypl: normalized['ypl'] ? parseFloat(normalized['ypl']) : (normalized['yearlypaidleave'] ? parseFloat(normalized['yearlypaidleave']) : 0)
+      ypl: normalized['ypl'] ? parseFloat(normalized['ypl']) : (normalized['yearlypaidleave'] ? parseFloat(normalized['yearlypaidleave']) : 0),
+      wop_work_hours: (normalized['wopworkhours'] || normalized['wophours'] || normalized['wopworktime'] || normalized['woptime'] || normalized['woptargethours'])
+        ? this.parseWorkHours(normalized['wopworkhours'] || normalized['wophours'] || normalized['wopworktime'] || normalized['woptime'] || normalized['woptargethours'], null)
+        : null
     };
   }
 
@@ -255,7 +258,7 @@ class EmployeeService {
         rfid, uid_no, pan_no, voter_id_no, status,
         dor, holiday_group, shift_group_code,
         salary, incentive, wef_date, standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
-        payment_mode,
+        wop_work_hours, payment_mode,
         late_grace_minutes, late_deduction_multiplier, overtime_multiplier, overtime_allowed,
         min_overtime_minutes, min_overtime_deduction_minutes, special_rules, salary_history_json,
         wop, ypl
@@ -266,7 +269,7 @@ class EmployeeService {
         @rfid, @uid_no, @pan_no, @voter_id_no, @status,
         @dor, @holiday_group, @shift_group_code,
         @salary, @incentive, @wef_date, @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
-        @payment_mode,
+        @wop_work_hours, @payment_mode,
         @late_grace_minutes, @late_deduction_multiplier, @overtime_multiplier, @overtime_allowed,
         @min_overtime_minutes, @min_overtime_deduction_minutes, @special_rules, @salary_history_json,
         @wop, @ypl
@@ -304,6 +307,7 @@ class EmployeeService {
         standard_out_time = COALESCE(@standard_out_time, standard_out_time),
         standard_break_minutes = COALESCE(@standard_break_minutes, standard_break_minutes),
         standard_work_hours = COALESCE(@standard_work_hours, standard_work_hours),
+        wop_work_hours = COALESCE(@wop_work_hours, wop_work_hours),
         payment_mode = COALESCE(@payment_mode, payment_mode),
         late_grace_minutes = COALESCE(@late_grace_minutes, late_grace_minutes),
         late_deduction_multiplier = COALESCE(@late_deduction_multiplier, late_deduction_multiplier),
@@ -323,13 +327,13 @@ class EmployeeService {
       INSERT INTO employee_wef_history (
         employee_code, effective_date, salary, incentive,
         standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
-        payment_mode, late_grace_minutes, late_deduction_multiplier,
+        wop_work_hours, payment_mode, late_grace_minutes, late_deduction_multiplier,
         overtime_multiplier, overtime_allowed, min_overtime_minutes, min_overtime_deduction_minutes,
         special_rules, remarks
       ) VALUES (
         @employee_code, @effective_date, @salary, @incentive,
         @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
-        @payment_mode, @late_grace_minutes, @late_deduction_multiplier,
+        @wop_work_hours, @payment_mode, @late_grace_minutes, @late_deduction_multiplier,
         @overtime_multiplier, @overtime_allowed, @min_overtime_minutes, @min_overtime_deduction_minutes,
         @special_rules, @remarks
       )
@@ -340,6 +344,7 @@ class EmployeeService {
         standard_out_time = COALESCE(excluded.standard_out_time, employee_wef_history.standard_out_time),
         standard_break_minutes = COALESCE(excluded.standard_break_minutes, employee_wef_history.standard_break_minutes),
         standard_work_hours = COALESCE(excluded.standard_work_hours, employee_wef_history.standard_work_hours),
+        wop_work_hours = COALESCE(excluded.wop_work_hours, employee_wef_history.wop_work_hours),
         payment_mode = COALESCE(excluded.payment_mode, employee_wef_history.payment_mode),
         special_rules = COALESCE(excluded.special_rules, employee_wef_history.special_rules),
         updated_at = CURRENT_TIMESTAMP
@@ -886,6 +891,9 @@ class EmployeeService {
     const stdHours = updateData.standard_work_hours !== undefined
       ? this.parseWorkHours(updateData.standard_work_hours, existing.standard_work_hours || 12.0)
       : existing.standard_work_hours;
+    const wopHours = updateData.wop_work_hours !== undefined
+      ? (updateData.wop_work_hours !== null && updateData.wop_work_hours !== '' ? this.parseWorkHours(updateData.wop_work_hours, null) : null)
+      : (existing.wop_work_hours || null);
     const salary = updateData.salary !== undefined
       ? (updateData.salary !== null && updateData.salary !== '' ? parseFloat(updateData.salary) : null)
       : existing.salary;
@@ -924,6 +932,7 @@ class EmployeeService {
         standard_out_time = COALESCE(@standard_out_time, standard_out_time),
         standard_break_minutes = COALESCE(@standard_break_minutes, standard_break_minutes),
         standard_work_hours = @standard_work_hours,
+        wop_work_hours = @wop_work_hours,
         payment_mode = COALESCE(@payment_mode, payment_mode),
         late_grace_minutes = COALESCE(@late_grace_minutes, late_grace_minutes),
         late_deduction_multiplier = COALESCE(@late_deduction_multiplier, late_deduction_multiplier),
@@ -972,6 +981,7 @@ class EmployeeService {
       standard_out_time: updateData.standard_out_time ?? existing.standard_out_time,
       standard_break_minutes: updateData.standard_break_minutes ?? existing.standard_break_minutes,
       standard_work_hours: stdHours,
+      wop_work_hours: wopHours,
       payment_mode: updateData.payment_mode ?? existing.payment_mode,
       late_grace_minutes: updateData.late_grace_minutes ?? existing.late_grace_minutes,
       late_deduction_multiplier: updateData.late_deduction_multiplier ?? existing.late_deduction_multiplier,
@@ -991,13 +1001,13 @@ class EmployeeService {
         INSERT INTO employee_wef_history (
           employee_code, effective_date, salary, incentive,
           standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
-          payment_mode, late_grace_minutes, late_deduction_multiplier,
+          wop_work_hours, payment_mode, late_grace_minutes, late_deduction_multiplier,
           overtime_multiplier, overtime_allowed, min_overtime_minutes, min_overtime_deduction_minutes,
           special_rules, remarks
         ) VALUES (
           @employee_code, @effective_date, @salary, @incentive,
           @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
-          @payment_mode, @late_grace_minutes, @late_deduction_multiplier,
+          @wop_work_hours, @payment_mode, @late_grace_minutes, @late_deduction_multiplier,
           @overtime_multiplier, @overtime_allowed, @min_overtime_minutes, @min_overtime_deduction_minutes,
           @special_rules, @remarks
         )
@@ -1008,6 +1018,7 @@ class EmployeeService {
           standard_out_time = excluded.standard_out_time,
           standard_break_minutes = excluded.standard_break_minutes,
           standard_work_hours = excluded.standard_work_hours,
+          wop_work_hours = excluded.wop_work_hours,
           payment_mode = excluded.payment_mode,
           late_grace_minutes = excluded.late_grace_minutes,
           late_deduction_multiplier = excluded.late_deduction_multiplier,
@@ -1026,6 +1037,7 @@ class EmployeeService {
         standard_out_time: updateData.standard_out_time ?? existing.standard_out_time ?? '20:00',
         standard_break_minutes: updateData.standard_break_minutes ?? existing.standard_break_minutes ?? 0,
         standard_work_hours: stdHours,
+        wop_work_hours: wopHours,
         payment_mode: updateData.payment_mode ?? existing.payment_mode ?? 'Bank',
         late_grace_minutes: updateData.late_grace_minutes ?? existing.late_grace_minutes ?? 11,
         late_deduction_multiplier: updateData.late_deduction_multiplier ?? existing.late_deduction_multiplier ?? 0.5,
@@ -1060,6 +1072,9 @@ class EmployeeService {
     const stdHours = data.standard_work_hours !== undefined
       ? this.parseWorkHours(data.standard_work_hours, 12.0)
       : 12.0;
+    const wopHours = data.wop_work_hours !== undefined && data.wop_work_hours !== null && data.wop_work_hours !== ''
+      ? this.parseWorkHours(data.wop_work_hours, null)
+      : null;
     const salary = data.salary ? parseFloat(data.salary) : null;
     const incentive = data.incentive ? parseFloat(data.incentive) : 0;
     const effectiveWefDate = data.wef_date || data.doj || '1900-01-01';
@@ -1072,7 +1087,7 @@ class EmployeeService {
         rfid, uid_no, pan_no, voter_id_no, status,
         dor, holiday_group, shift_group_code,
         salary, incentive, wef_date, standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
-        payment_mode,
+        wop_work_hours, payment_mode,
         late_grace_minutes, late_deduction_multiplier, overtime_multiplier, overtime_allowed,
         min_overtime_minutes, min_overtime_deduction_minutes, special_rules, salary_history_json,
         wop, ypl
@@ -1083,7 +1098,7 @@ class EmployeeService {
         @rfid, @uid_no, @pan_no, @voter_id_no, @status,
         @dor, @holiday_group, @shift_group_code,
         @salary, @incentive, @wef_date, @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
-        @payment_mode,
+        @wop_work_hours, @payment_mode,
         @late_grace_minutes, @late_deduction_multiplier, @overtime_multiplier, @overtime_allowed,
         @min_overtime_minutes, @min_overtime_deduction_minutes, @special_rules, @salary_history_json,
         @wop, @ypl
@@ -1121,6 +1136,7 @@ class EmployeeService {
       standard_out_time: data.standard_out_time || '20:00',
       standard_break_minutes: this.parseBreakTimeToMinutes(data.standard_break_time !== undefined ? data.standard_break_time : data.standard_break_minutes),
       standard_work_hours: stdHours,
+      wop_work_hours: wopHours,
       payment_mode: data.payment_mode || 'Bank',
       late_grace_minutes: parseInt(data.late_grace_minutes, 10) || 11,
       late_deduction_multiplier: parseFloat(data.late_deduction_multiplier) || 0.5,
@@ -1140,13 +1156,13 @@ class EmployeeService {
         INSERT OR IGNORE INTO employee_wef_history (
           employee_code, effective_date, salary, incentive,
           standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
-          payment_mode, late_grace_minutes, late_deduction_multiplier,
+          wop_work_hours, payment_mode, late_grace_minutes, late_deduction_multiplier,
           overtime_multiplier, overtime_allowed, min_overtime_minutes, min_overtime_deduction_minutes,
           special_rules, remarks
         ) VALUES (
           @employee_code, @effective_date, @salary, @incentive,
           @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
-          @payment_mode, @late_grace_minutes, @late_deduction_multiplier,
+          @wop_work_hours, @payment_mode, @late_grace_minutes, @late_deduction_multiplier,
           @overtime_multiplier, @overtime_allowed, @min_overtime_minutes, @min_overtime_deduction_minutes,
           @special_rules, @remarks
         )
@@ -1159,6 +1175,7 @@ class EmployeeService {
         standard_out_time: data.standard_out_time || '20:00',
         standard_break_minutes: this.parseBreakTimeToMinutes(data.standard_break_time !== undefined ? data.standard_break_time : data.standard_break_minutes),
         standard_work_hours: stdHours,
+        wop_work_hours: wopHours,
         payment_mode: data.payment_mode || 'Bank',
         late_grace_minutes: parseInt(data.late_grace_minutes, 10) || 11,
         late_deduction_multiplier: parseFloat(data.late_deduction_multiplier) || 0.5,
@@ -1334,6 +1351,9 @@ class EmployeeService {
     const stdHours = wefData.standard_work_hours !== undefined
       ? this.parseWorkHours(wefData.standard_work_hours, emp.standard_work_hours || 12.0)
       : (emp.standard_work_hours || 12.0);
+    const wopHours = wefData.wop_work_hours !== undefined
+      ? (wefData.wop_work_hours !== null && wefData.wop_work_hours !== '' ? this.parseWorkHours(wefData.wop_work_hours, null) : null)
+      : (emp.wop_work_hours || null);
     const salary = wefData.salary !== undefined && wefData.salary !== null && wefData.salary !== ''
       ? parseFloat(wefData.salary)
       : emp.salary;
@@ -1349,13 +1369,13 @@ class EmployeeService {
       INSERT INTO employee_wef_history (
         employee_code, effective_date, salary, incentive,
         standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
-        payment_mode, late_grace_minutes, late_deduction_multiplier,
+        wop_work_hours, payment_mode, late_grace_minutes, late_deduction_multiplier,
         overtime_multiplier, overtime_allowed, min_overtime_minutes, min_overtime_deduction_minutes,
         special_rules, remarks
       ) VALUES (
         @employee_code, @effective_date, @salary, @incentive,
         @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
-        @payment_mode, @late_grace_minutes, @late_deduction_multiplier,
+        @wop_work_hours, @payment_mode, @late_grace_minutes, @late_deduction_multiplier,
         @overtime_multiplier, @overtime_allowed, @min_overtime_minutes, @min_overtime_deduction_minutes,
         @special_rules, @remarks
       )
@@ -1366,6 +1386,7 @@ class EmployeeService {
         standard_out_time = excluded.standard_out_time,
         standard_break_minutes = excluded.standard_break_minutes,
         standard_work_hours = excluded.standard_work_hours,
+        wop_work_hours = excluded.wop_work_hours,
         payment_mode = excluded.payment_mode,
         late_grace_minutes = excluded.late_grace_minutes,
         late_deduction_multiplier = excluded.late_deduction_multiplier,
@@ -1387,6 +1408,7 @@ class EmployeeService {
       standard_out_time: wefData.standard_out_time || emp.standard_out_time || '20:00',
       standard_break_minutes: stdBreak,
       standard_work_hours: stdHours,
+      wop_work_hours: wopHours,
       payment_mode: wefData.payment_mode || emp.payment_mode || 'Bank',
       late_grace_minutes: wefData.late_grace_minutes !== undefined ? parseInt(wefData.late_grace_minutes, 10) : (emp.late_grace_minutes ?? 11),
       late_deduction_multiplier: wefData.late_deduction_multiplier !== undefined ? parseFloat(wefData.late_deduction_multiplier) : (emp.late_deduction_multiplier ?? 0.5),
@@ -1415,6 +1437,9 @@ class EmployeeService {
     const stdHours = wefData.standard_work_hours !== undefined
       ? this.parseWorkHours(wefData.standard_work_hours, existing.standard_work_hours || 12.0)
       : existing.standard_work_hours;
+    const wopHours = wefData.wop_work_hours !== undefined
+      ? (wefData.wop_work_hours !== null && wefData.wop_work_hours !== '' ? this.parseWorkHours(wefData.wop_work_hours, null) : null)
+      : (existing.wop_work_hours || null);
     const salary = wefData.salary !== undefined && wefData.salary !== null && wefData.salary !== ''
       ? parseFloat(wefData.salary)
       : existing.salary;
@@ -1435,6 +1460,7 @@ class EmployeeService {
         standard_out_time = COALESCE(@standard_out_time, standard_out_time),
         standard_break_minutes = @standard_break_minutes,
         standard_work_hours = @standard_work_hours,
+        wop_work_hours = @wop_work_hours,
         payment_mode = COALESCE(@payment_mode, payment_mode),
         late_grace_minutes = COALESCE(@late_grace_minutes, late_grace_minutes),
         late_deduction_multiplier = COALESCE(@late_deduction_multiplier, late_deduction_multiplier),
@@ -1455,6 +1481,7 @@ class EmployeeService {
       standard_out_time: wefData.standard_out_time || existing.standard_out_time,
       standard_break_minutes: stdBreak,
       standard_work_hours: stdHours,
+      wop_work_hours: wopHours,
       payment_mode: wefData.payment_mode || existing.payment_mode,
       late_grace_minutes: wefData.late_grace_minutes !== undefined ? parseInt(wefData.late_grace_minutes, 10) : existing.late_grace_minutes,
       late_deduction_multiplier: wefData.late_deduction_multiplier !== undefined ? parseFloat(wefData.late_deduction_multiplier) : existing.late_deduction_multiplier,
@@ -1514,6 +1541,7 @@ class EmployeeService {
         standard_out_time = @standard_out_time,
         standard_break_minutes = @standard_break_minutes,
         standard_work_hours = @standard_work_hours,
+        wop_work_hours = @wop_work_hours,
         payment_mode = @payment_mode,
         late_grace_minutes = @late_grace_minutes,
         late_deduction_multiplier = @late_deduction_multiplier,
@@ -1533,6 +1561,7 @@ class EmployeeService {
       standard_out_time: latest.standard_out_time || '20:00',
       standard_break_minutes: latest.standard_break_minutes || 0,
       standard_work_hours: latest.standard_work_hours || 12.0,
+      wop_work_hours: latest.wop_work_hours || null,
       payment_mode: latest.payment_mode || 'Bank',
       late_grace_minutes: latest.late_grace_minutes ?? 11,
       late_deduction_multiplier: latest.late_deduction_multiplier ?? 0.5,
@@ -1713,6 +1742,7 @@ class EmployeeService {
       { key: 'standard_break_time', label: 'StandardBreakTime', width: 18 },
       { key: 'standard_break_minutes', label: 'StandardBreakMinutes', width: 20 },
       { key: 'standard_work_hours', label: 'StandardWorkHours', width: 18 },
+      { key: 'wop_work_hours', label: 'WOPWorkHours', width: 18 },
       { key: 'payment_mode', label: 'PaymentMode', width: 16 },
       { key: 'late_grace_minutes', label: 'LateGraceMinutes', width: 18 },
       { key: 'late_deduction_multiplier', label: 'LateDeductionMultiplier', width: 22 },
@@ -1757,6 +1787,7 @@ class EmployeeService {
       standard_break_time: formatBreakHHMM(emp.standard_break_minutes || 0),
       standard_break_minutes: emp.standard_break_minutes || 0,
       standard_work_hours: formatHoursHHMM(emp.standard_work_hours || 12.0),
+      wop_work_hours: emp.wop_work_hours ? formatHoursHHMM(emp.wop_work_hours) : '',
       payment_mode: emp.payment_mode || 'Bank',
       late_grace_minutes: emp.late_grace_minutes ?? 11,
       late_deduction_multiplier: emp.late_deduction_multiplier ?? 0.5,
@@ -1888,6 +1919,7 @@ class EmployeeService {
       ['StandardBreakTime', 'NO', '24-Hr HH:MM (e.g. 00:00, 00:30, 01:00, 02:00)', 'Daily standard lunch / tea break duration'],
       ['StandardBreakMinutes', 'NO', 'Number in minutes (e.g. 0, 30, 60, 120)', 'Standard break in minutes'],
       ['StandardWorkHours', 'NO', 'HH:MM or Decimal (e.g. 12:00, 08:00, 12)', 'Daily target working hours for salary calc'],
+      ['WOPWorkHours', 'NO', 'HH:MM or Decimal (e.g. 06:00, 08:00)', 'Target work hours for Weekly Off Present (WOP) days (defaults to StandardWorkHours if blank)'],
       ['PaymentMode', 'NO', 'Bank / Cheque / Cash / TDS / Cheque', 'Salary disbursement mode'],
       ['LateGraceMinutes', 'NO', 'Number (e.g. 11, 15, 0)', 'Grace minutes allowed before late penalty kicks in'],
       ['LateDeductionMultiplier', 'NO', 'Number (e.g. 0.5 for 50%, 1.0 for 100%)', 'Penalty factor multiplied by hourly rate for late hours'],

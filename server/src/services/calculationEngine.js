@@ -128,70 +128,94 @@ class CalculationEngine {
   }
 
   /**
-   * Parse Punch Records column to extract Break Out and Break In times
-   * Format example: "08:04:17(in);14:05:54(out);15:05:57(in);19:58:43(out);"
+   * Parse Punch Records column to extract:
+   * - actualIn: First punch of the day
+   * - actualOut: Last punch of the day (whether tagged as (in) or (out))
+   * - breakOut: First break departure
+   * - breakIn: First break return
+   * - totalBreakMins: Sum of intermediate break durations
    */
-  static extractBreakPunches(punchRecords, explicitBreakOut = '', explicitBreakIn = '') {
-    if (explicitBreakOut && explicitBreakIn) {
-      const outMins = this.timeToMinutes(explicitBreakOut);
-      const inMins = this.timeToMinutes(explicitBreakIn);
-      const diff = Math.abs(inMins - outMins);
+  static extractBreakPunches(punchRecords, explicitBreakOut = '', explicitBreakIn = '', explicitIn = '', explicitOut = '') {
+    let actualIn = this.formatTimeString(explicitIn);
+    let actualOut = this.formatTimeString(explicitOut);
+    let firstBreakOut = this.formatTimeString(explicitBreakOut);
+    let firstBreakIn = this.formatTimeString(explicitBreakIn);
+    let totalBreakMins = 0;
+
+    if (firstBreakOut && firstBreakIn) {
+      const outMins = this.timeToMinutes(firstBreakOut);
+      const inMins = this.timeToMinutes(firstBreakIn);
+      totalBreakMins = Math.max(0, inMins - outMins);
+    }
+
+    if (!punchRecords || typeof punchRecords !== 'string' || !punchRecords.trim()) {
       return {
-        breakOut: this.formatTimeString(explicitBreakOut),
-        breakIn: this.formatTimeString(explicitBreakIn),
-        totalBreakMins: diff
+        actualIn,
+        actualOut,
+        breakOut: firstBreakOut,
+        breakIn: firstBreakIn,
+        totalBreakMins
       };
     }
 
-    if (!punchRecords || typeof punchRecords !== 'string') {
-      return {
-        breakOut: this.formatTimeString(explicitBreakOut),
-        breakIn: this.formatTimeString(explicitBreakIn),
-        totalBreakMins: 0
-      };
-    }
-
-    // Match all timestamp events like 14:05:54(out) or 15:05:57(in)
-    const regex = /(\d{1,2}:\d{2}(?::\d{2})?)\s*\((in|out)\)/gi;
+    // Match all timestamp events like 14:05:54(out) or 15:05:57(in) or 14:05:54
+    const regex = /(\d{1,2}:\d{2}(?::\d{2})?)(?:\s*\((in|out)\))?/gi;
     const punches = [];
     let match;
     while ((match = regex.exec(punchRecords)) !== null) {
       punches.push({
-        time: match[1],
-        type: match[2].toLowerCase(),
+        time: this.formatTimeString(match[1]),
+        rawTime: match[1],
+        tag: match[2] ? match[2].toLowerCase() : '',
         mins: this.timeToMinutes(match[1])
       });
     }
 
-    if (punches.length < 3) {
-      // Not enough punches for an intermediate break
-      return {
-        breakOut: this.formatTimeString(explicitBreakOut),
-        breakIn: this.formatTimeString(explicitBreakIn),
-        totalBreakMins: 0
-      };
-    }
+    if (punches.length > 0) {
+      // 1) First punch is Actual IN if not explicitly provided
+      if (!actualIn) {
+        actualIn = punches[0].time;
+      }
 
-    // Punches: First is shift IN, last is shift OUT
-    // Any (out) before last OUT is Break Out, followed by (in) which is Break In
-    let firstBreakOut = '';
-    let firstBreakIn = '';
-    let totalBreakMins = 0;
-
-    for (let i = 1; i < punches.length - 1; i++) {
-      if (punches[i].type === 'out' && punches[i + 1] && punches[i + 1].type === 'in') {
-        if (!firstBreakOut) {
-          firstBreakOut = punches[i].time;
-          firstBreakIn = punches[i + 1].time;
-        }
-        const bMins = Math.max(0, punches[i + 1].mins - punches[i].mins);
-        totalBreakMins += bMins;
+      // 2) If 2 or more punches, LAST punch is Actual OUT if not explicitly provided
+      if (!actualOut && punches.length >= 2) {
+        actualOut = punches[punches.length - 1].time;
       }
     }
 
+    // 3) Intermediate Break punches (strictly between first punch 0 and last punch n-1)
+    // Punches available for breaks are from index 1 to index punches.length - 2
+    if (punches.length >= 4) {
+      let calculatedBreakMins = 0;
+      let detectedBreakOut = punches[1].time;
+      let detectedBreakIn = punches[2].time;
+
+      for (let i = 1; i + 1 <= punches.length - 2; i += 2) {
+        const bMins = Math.max(0, punches[i + 1].mins - punches[i].mins);
+        if (punches[i + 1].mins >= punches[i].mins) {
+          calculatedBreakMins += bMins;
+        }
+      }
+
+      if (!firstBreakOut && detectedBreakOut) firstBreakOut = detectedBreakOut;
+      if (!firstBreakIn && detectedBreakIn) firstBreakIn = detectedBreakIn;
+
+      if (totalBreakMins === 0 && calculatedBreakMins > 0) {
+        totalBreakMins = calculatedBreakMins;
+      } else if (totalBreakMins === 0 && firstBreakOut && firstBreakIn) {
+        const outM = this.timeToMinutes(firstBreakOut);
+        const inM = this.timeToMinutes(firstBreakIn);
+        totalBreakMins = Math.max(0, inM - outM);
+      }
+    } else if (punches.length === 3) {
+      if (!firstBreakOut) firstBreakOut = punches[1].time;
+    }
+
     return {
-      breakOut: this.formatTimeString(firstBreakOut || explicitBreakOut),
-      breakIn: this.formatTimeString(firstBreakIn || explicitBreakIn),
+      actualIn,
+      actualOut,
+      breakOut: firstBreakOut,
+      breakIn: firstBreakIn,
       totalBreakMins
     };
   }
@@ -258,6 +282,7 @@ class CalculationEngine {
       standard_out_time: activeRevision.standard_out_time || emp.standard_out_time || '20:00',
       standard_break_minutes: activeRevision.standard_break_minutes !== null && activeRevision.standard_break_minutes !== undefined ? activeRevision.standard_break_minutes : (emp.standard_break_minutes || 0),
       standard_work_hours: activeRevision.standard_work_hours !== null && activeRevision.standard_work_hours !== undefined ? activeRevision.standard_work_hours : (emp.standard_work_hours || 12.0),
+      wop_work_hours: activeRevision.wop_work_hours !== null && activeRevision.wop_work_hours !== undefined ? activeRevision.wop_work_hours : (emp.wop_work_hours || null),
       payment_mode: activeRevision.payment_mode || emp.payment_mode || 'Bank',
       late_grace_minutes: activeRevision.late_grace_minutes !== null && activeRevision.late_grace_minutes !== undefined ? activeRevision.late_grace_minutes : (emp.late_grace_minutes ?? 11),
       late_deduction_multiplier: activeRevision.late_deduction_multiplier !== null && activeRevision.late_deduction_multiplier !== undefined ? activeRevision.late_deduction_multiplier : (emp.late_deduction_multiplier ?? 0.5),
@@ -341,9 +366,9 @@ class CalculationEngine {
     const lateMultiplier = !isNaN(parseFloat(effectiveEmp.late_deduction_multiplier)) ? parseFloat(effectiveEmp.late_deduction_multiplier) : 0.5;
     const overtimeMultiplier = !isNaN(parseFloat(effectiveEmp.overtime_multiplier)) ? parseFloat(effectiveEmp.overtime_multiplier) : 2.0;
     
-    // Doctor rule: FOR DOCTORS -> NO OVERTIME CALCULATIONS
+    // Overtime Eligibility from Employee Master
     const isDoc = this.isDoctor(effectiveEmp);
-    const overtimeAllowed = !isDoc && (effectiveEmp.overtime_allowed !== 0 && effectiveEmp.overtime_allowed !== false && effectiveEmp.overtime_allowed !== '0');
+    const overtimeAllowed = (effectiveEmp.overtime_allowed !== 0 && effectiveEmp.overtime_allowed !== false && effectiveEmp.overtime_allowed !== '0');
     
     const minOvertimeMins = parseInt(effectiveEmp.min_overtime_minutes, 10) || 0;
     const minOvertimeDeductionMins = parseInt(effectiveEmp.min_overtime_deduction_minutes, 10) || 0;
@@ -351,83 +376,118 @@ class CalculationEngine {
     const stdInMins = this.timeToMinutes(stdInTimeStr);
     const stdOutMins = this.timeToMinutes(stdOutTimeStr);
     let schedDurMins = stdOutMins > stdInMins ? stdOutMins - stdInMins : 0;
-    let schedWorkMins = Math.round(stdWorkHours * 60);
-    if (schedWorkMins === 0) {
-      schedWorkMins = Math.max(0, schedDurMins - stdBreakMins);
-    }
 
     // Actual Punches from Raw Attendance Record
     const rawInTime = record.in_time || '';
     const rawOutTime = record.out_time || '';
     const statusCode = (record.status_code || 'A').toUpperCase().trim();
 
-    const actualInMins = this.timeToMinutes(rawInTime);
-    const actualOutMins = this.timeToMinutes(rawOutTime);
+    // Target Scheduled Work Hours:
+    // Regular days (P, HD, etc.) -> stdWorkHours
+    // WOP (Weekly Off Present) -> If effectiveEmp.wop_work_hours is configured, use wop_work_hours!
+    let targetWorkHours = stdWorkHours;
+    if (statusCode === 'WOP' && effectiveEmp.wop_work_hours !== null && effectiveEmp.wop_work_hours !== undefined && effectiveEmp.wop_work_hours !== '') {
+      if (typeof effectiveEmp.wop_work_hours === 'string' && effectiveEmp.wop_work_hours.includes(':')) {
+        const parts = effectiveEmp.wop_work_hours.split(':').map(Number);
+        targetWorkHours = (parts[0] || 0) + (parts[1] || 0) / 60;
+      } else {
+        const parsed = parseFloat(effectiveEmp.wop_work_hours);
+        if (!isNaN(parsed) && parsed > 0) {
+          targetWorkHours = parsed;
+        }
+      }
+    }
 
-    // 3) Break Punches: TAKE BREAK IN - BREAK OUT FROM PUNCH RECORD COLUMN
-    const { breakOut, breakIn, totalBreakMins } = this.extractBreakPunches(
+    let schedWorkMins = Math.round(targetWorkHours * 60);
+    if (schedWorkMins === 0 && statusCode !== 'WOP') {
+      schedWorkMins = Math.max(0, schedDurMins - stdBreakMins);
+    }
+
+    // 3) Punch Records & Break Extraction:
+    // First punch is Actual IN, LAST punch is Actual OUT (whether machine marked (in) or (out))
+    const { actualIn, actualOut, breakOut, breakIn, totalBreakMins } = this.extractBreakPunches(
       record.punch_records,
       record.break_out,
-      record.break_in
+      record.break_in,
+      rawInTime,
+      rawOutTime
     );
+
+    const actualInTimeStr = actualIn || this.formatTimeString(rawInTime);
+    const actualOutTimeStr = actualOut || this.formatTimeString(rawOutTime);
+
+    const actualInMins = this.timeToMinutes(actualInTimeStr);
+    const actualOutMins = this.timeToMinutes(actualOutTimeStr);
 
     const actualBreakMins = totalBreakMins;
 
-    // FORMULA FOR EFF BREAK:
-    // EFF BREAK = BREAK IN - BREAK OUT (Punched Break Duration)
-    const effectiveBreakMins = actualBreakMins;
+    // FORMULA FOR EFF BREAK & BREAK DEDUCTION:
+    // Rule:
+    // 1) If standard break is 00:00 (stdBreakMins === 0):
+    //    - If actual break <= 30 min: don't count it as break hours, do not deduct from actual work hours (0)
+    //    - If actual break > 30 min: only difference (actual break - 30 min) is counted as break hours and deducted
+    // 2) If standard break > 0 (e.g. 60 min):
+    //    - If actual break <= master break: master break is deducted
+    //    - If actual break > master break: actual break is deducted
+    let effectiveBreakMins = 0;
+    let breakDeductionMins = 0;
 
-    // 1) 4 Different Duration Calculations using 11-Minute Threshold and 10-Minute Late OUT Capping:
-    // EXCEL FORMULA: =IF((H3*1440)>=((C3*1440)+11),IF((I3*1440)>=((D3*1440)+11),((D3+TIME(0,10,0))-H3),I3-H3),IF((I3*1440)>=((D3*1440)+11),((D3+TIME(0,10,0))-C3),I3-C3))
-    // - Late IN condition: Actual IN (H3) >= Scheduled IN (C3) + 11 min
-    // - Late OUT condition: Actual OUT (I3) >= Scheduled OUT (D3) + 11 min
+    if (stdBreakMins === 0) {
+      if (actualBreakMins > 30) {
+        effectiveBreakMins = actualBreakMins - 30;
+        breakDeductionMins = actualBreakMins - 30;
+      } else {
+        effectiveBreakMins = 0;
+        breakDeductionMins = 0;
+      }
+    } else {
+      effectiveBreakMins = actualBreakMins >= stdBreakMins ? actualBreakMins : stdBreakMins;
+      breakDeductionMins = effectiveBreakMins;
+    }
+
+    // 1) Duration & Mode Calculations:
+    // - Gross Duration = Actual OUT - Actual IN
+    // - Late IN condition: Actual IN >= Scheduled IN + lateGraceMins (default 11 min)
+    // - Late OUT condition: Actual OUT >= Scheduled OUT + lateGraceMins (default 11 min)
     let isLateIn = false;
     let isLateOut = false;
     let calcMode = 'Normal';
     let rawDurationMins = 0;
 
     if (actualInMins > 0 && stdInMins > 0) {
-      isLateIn = (actualInMins - stdInMins) >= 11;
+      isLateIn = (actualInMins - stdInMins) >= lateGraceMins;
     }
     if (actualOutMins > 0 && stdOutMins > 0) {
-      isLateOut = (actualOutMins - stdOutMins) >= 11;
+      isLateOut = (actualOutMins - stdOutMins) >= lateGraceMins;
     }
 
     if (actualInMins > 0 && actualOutMins > 0) {
-      if (isLateIn) {
-        if (isLateOut) {
-          // Branch 1: Both late -> (Scheduled OUT + 10m) - Actual IN
-          calcMode = 'Both late';
-          rawDurationMins = Math.max(0, (stdOutMins + 10) - actualInMins);
-        } else {
-          // Branch 2: Late IN only -> Actual OUT - Actual IN
-          calcMode = 'Late IN only';
-          rawDurationMins = Math.max(0, actualOutMins - actualInMins);
-        }
+      if (isLateIn && isLateOut) {
+        calcMode = 'Both late';
+      } else if (isLateIn) {
+        calcMode = 'Late IN only';
+      } else if (isLateOut) {
+        calcMode = 'Late OUT only';
       } else {
-        if (isLateOut) {
-          // Branch 3: Late OUT only -> (Scheduled OUT + 10m) - Scheduled IN
-          calcMode = 'Late OUT only';
-          rawDurationMins = Math.max(0, (stdOutMins + 10) - stdInMins);
-        } else {
-          // Branch 4: Normal -> Actual OUT - Scheduled IN
-          calcMode = 'Normal';
-          rawDurationMins = Math.max(0, actualOutMins - stdInMins);
-        }
+        calcMode = 'Normal';
       }
+
+      // Gross Duration = Actual OUT - Actual IN
+      rawDurationMins = actualOutMins >= actualInMins 
+        ? (actualOutMins - actualInMins) 
+        : (1440 - actualInMins + actualOutMins);
     } else if (actualInMins > 0 && actualOutMins === 0) {
       rawDurationMins = 0;
     }
 
     // FORMULA FOR ACTUAL WORK:
-    // IF (STD BREAK <= EFF. BREAK) THEN DURATION - EFF. BREAK ELSE DURATION - STD BREAK
-    const breakDeductionMins = (stdBreakMins <= effectiveBreakMins) ? effectiveBreakMins : stdBreakMins;
-
+    // Actual Work = Gross Duration - Effective Break Deduction
     let actualWorkMins = 0;
     if (rawDurationMins > 0) {
       actualWorkMins = Math.max(0, rawDurationMins - breakDeductionMins);
     } else if (actualInMins > 0 && actualOutMins > 0) {
-      actualWorkMins = Math.max(0, (actualOutMins - actualInMins) - breakDeductionMins);
+      const grossDiff = actualOutMins >= actualInMins ? (actualOutMins - actualInMins) : (1440 - actualInMins + actualOutMins);
+      actualWorkMins = Math.max(0, grossDiff - breakDeductionMins);
     } else {
       if (statusCode === 'P' || statusCode === 'WOP') {
         actualWorkMins = schedWorkMins;
@@ -515,7 +575,7 @@ class CalculationEngine {
       if (actualWorkMins > 0) {
         dailySalaryEarned = (actualWorkMins / 60) * hourlyRate;
       } else {
-        dailySalaryEarned = schedDailyWorkHours * hourlyRate;
+        dailySalaryEarned = targetWorkHours * hourlyRate;
       }
     } else if (statusCode === 'HD') {
       dailySalaryEarned = (schedDailyWorkHours * 0.5) * hourlyRate;
@@ -556,8 +616,8 @@ class CalculationEngine {
       scheduled_work_formatted: this.minutesToHHMM(schedWorkMins),
       
       // Actual Punches
-      actual_in_time: this.formatTimeString(rawInTime),
-      actual_out_time: this.formatTimeString(rawOutTime),
+      actual_in_time: actualInTimeStr,
+      actual_out_time: actualOutTimeStr,
       break_out: breakOut,
       break_in: breakIn,
       actual_break_minutes: actualBreakMins,
@@ -612,10 +672,34 @@ class CalculationEngine {
     const daysInMonth = this.getDaysInMonth(targetMonth || (records[0]?.attendance_date_iso));
     const { hourlyRate, dailyRate, baseSalary, schedDailyWorkHours } = this.getEmployeeRates(emp, daysInMonth);
 
-    // Calculate each daily record
+    // 1) Calculate each daily record initially
     const dailyCalculations = records.map(r => this.calculateDayRecord(emp, r, daysInMonth));
 
-    // Summary counts
+    // 2) Compulsory WOP (Weekly Off Present) Rule:
+    // If master has wop > 0 (e.g. 1 or 2), employee MUST be present on that many weekly off days.
+    // Otherwise, shortfall weekly off days are treated as Absent (unpaid) and salary is deducted.
+    const targetWopDays = Math.max(0, Math.round(parseFloat(emp.wop) || 0));
+    const actualWopDays = dailyCalculations.filter(d => d.status_code === 'WOP' || (d.status_code === 'WO' && d.actual_work_minutes > 0)).length;
+    const wopShortfall = targetWopDays > 0 ? Math.max(0, targetWopDays - actualWopDays) : 0;
+
+    let wopPenaltyDaysCount = 0;
+    if (wopShortfall > 0) {
+      // Find unworked Weekly Off (WO) days in the month (status_code === 'WO' and actual_work_minutes === 0)
+      const unworkedWoDays = dailyCalculations.filter(d => d.status_code === 'WO' && d.actual_work_minutes === 0);
+      
+      // Penalize up to wopShortfall unworked WO days (from the end of the month backwards)
+      const daysToPenalize = unworkedWoDays.slice(-wopShortfall);
+      daysToPenalize.forEach(penalizedDay => {
+        penalizedDay.is_wop_shortfall = true;
+        penalizedDay.wop_shortfall_note = `Compulsory WOP (${targetWopDays} required, ${actualWopDays} worked) not met - Weekly Off treated as Absent (Salary Deducted)`;
+        penalizedDay.daily_salary_earned = 0;
+        penalizedDay.net_daily_salary = Math.max(0, penalizedDay.daily_salary_earned - penalizedDay.late_salary_deduction - penalizedDay.leave_deduction - penalizedDay.penalty_amount + penalizedDay.overtime_pay);
+        penalizedDay.remarks = (penalizedDay.remarks ? penalizedDay.remarks + ' | ' : '') + 'WOP Shortfall: Absent';
+        wopPenaltyDaysCount++;
+      });
+    }
+
+    // 3) Summary counts
     let presentDays = 0;
     let absentDays = 0;
     let weeklyOffDays = 0;
@@ -641,18 +725,26 @@ class CalculationEngine {
 
     dailyCalculations.forEach(day => {
       const code = day.status_code;
-      if (code === 'P') presentDays++;
-      else if (code === 'A') absentDays++;
-      else if (code === 'WO') weeklyOffDays++;
-      else if (code === 'WOP') weeklyOffPresentDays++;
-      else if (code === 'HD') halfDays++;
+      if (day.is_wop_shortfall) {
+        absentDays++;
+      } else if (code === 'P') {
+        presentDays++;
+      } else if (code === 'A') {
+        absentDays++;
+      } else if (code === 'WO') {
+        weeklyOffDays++;
+      } else if (code === 'WOP') {
+        weeklyOffPresentDays++;
+      } else if (code === 'HD') {
+        halfDays++;
+      }
 
       if (day.is_late) lateDaysCount++;
       if (day.is_early) earlyDaysCount++;
 
       totalSchedWorkMins += day.scheduled_work_minutes;
       totalActualWorkMins += day.actual_work_minutes;
-      totalActualBreakMins += (day.actual_break_minutes || 0);
+      totalActualBreakMins += (day.effective_break_minutes !== undefined ? day.effective_break_minutes : (day.actual_break_minutes || 0));
       totalWorkDiffMins += day.work_diff_minutes;
       totalLateMins += day.late_minutes;
       totalEarlyMins += day.early_minutes;
@@ -693,14 +785,21 @@ class CalculationEngine {
       lateDaysCount,
       earlyDaysCount,
 
+      // WOP Compulsory Requirement & Shortfall
+      wopRequired: targetWopDays,
+      wopFulfilled: actualWopDays,
+      wopShortfall,
+      wopPenaltyDays: wopPenaltyDaysCount,
+      wopPenaltyDeduction: Number((wopPenaltyDaysCount * dailyRate).toFixed(2)),
+
       // W.E.F. Multi-Period Flags
       isMultiWefMonth,
       wefDatesUsed: uniqueWefDates,
 
       // Master fields included in summary
-      wopDays: parseFloat(emp.wop) || weeklyOffPresentDays,
+      wopDays: parseFloat(emp.wop) || 0,
       yplDays: parseFloat(emp.ypl) || 0,
-      overtimeAllowed: !isDoc && (emp.overtime_allowed !== 0 && emp.overtime_allowed !== false && emp.overtime_allowed !== '0'),
+      overtimeAllowed: (emp.overtime_allowed !== 0 && emp.overtime_allowed !== false && emp.overtime_allowed !== '0'),
       isDoctor: isDoc,
 
       // Time Durations (in Hours & Minutes)
@@ -766,7 +865,7 @@ class CalculationEngine {
         late_grace_minutes: emp.late_grace_minutes || 11,
         late_deduction_multiplier: emp.late_deduction_multiplier ?? 0.5,
         overtime_multiplier: emp.overtime_multiplier ?? 2.0,
-        overtime_allowed: !isDoc && (emp.overtime_allowed !== 0 && emp.overtime_allowed !== false && emp.overtime_allowed !== '0'),
+        overtime_allowed: (emp.overtime_allowed !== 0 && emp.overtime_allowed !== false && emp.overtime_allowed !== '0'),
         is_doctor: isDoc,
         min_overtime_minutes: emp.min_overtime_minutes || 0,
         min_overtime_deduction_minutes: emp.min_overtime_deduction_minutes || 0,

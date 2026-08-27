@@ -173,6 +173,12 @@ export const EmployeeDetailsModal = ({ isOpen, onClose, employee, onOpenAttendan
               <span className="detail-item-value" style={{ fontWeight: '700', color: '#0284c7' }}>{employee.wop || 0} days</span>
             </div>
             <div className="detail-item">
+              <span className="detail-item-label">WOP Work Hours</span>
+              <span className="detail-item-value" style={{ fontWeight: '700', color: '#0f766e' }}>
+                {employee.wop_work_hours ? `${formatHoursToHHMM(employee.wop_work_hours)} hrs` : 'Default (Standard)'}
+              </span>
+            </div>
+            <div className="detail-item">
               <span className="detail-item-label">YPL (Yearly Paid Leave)</span>
               <span className="detail-item-value" style={{ fontWeight: '700', color: '#059669' }}>{employee.ypl || 0} days</span>
             </div>

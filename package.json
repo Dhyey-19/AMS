@@ -1,6 +1,6 @@
 {
   "name": "global-ivf-ams",
-  "version": "2026.8.21",
+  "version": "2026.8.26",
   "description": "Attendance Management System (AMS) for Global IVF Hospital",
   "main": "electron/main.js",
   "workspaces": [
@@ -86,8 +86,9 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Global IVF Hospital AMS"
+      "shortcutName": "Global IVF Hospital AMS",
+      "differentialPackage": false
     }
   },
-  "appVersionCode": "20260821"
+  "appVersionCode": "20260826"
 }

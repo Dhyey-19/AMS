@@ -115,6 +115,7 @@ function initSchema() {
       salary_history_json TEXT,
       wop REAL DEFAULT 0,
       ypl REAL DEFAULT 0,
+      wop_work_hours REAL DEFAULT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -132,6 +133,7 @@ function initSchema() {
   addColumnIfNotExists('employees', 'standard_out_time', "TEXT DEFAULT '20:00'");
   addColumnIfNotExists('employees', 'standard_break_minutes', 'INTEGER DEFAULT 0');
   addColumnIfNotExists('employees', 'standard_work_hours', 'REAL DEFAULT 12.0');
+  addColumnIfNotExists('employees', 'wop_work_hours', 'REAL DEFAULT NULL');
   addColumnIfNotExists('employees', 'payment_mode', "TEXT DEFAULT 'Bank'");
   addColumnIfNotExists('employees', 'late_grace_minutes', 'INTEGER DEFAULT 11');
   addColumnIfNotExists('employees', 'late_deduction_multiplier', 'REAL DEFAULT 0.5');
@@ -156,6 +158,7 @@ function initSchema() {
       standard_out_time TEXT DEFAULT '20:00',
       standard_break_minutes INTEGER DEFAULT 0,
       standard_work_hours REAL DEFAULT 12.0,
+      wop_work_hours REAL DEFAULT NULL,
       payment_mode TEXT DEFAULT 'Bank',
       late_grace_minutes INTEGER DEFAULT 11,
       late_deduction_multiplier REAL DEFAULT 0.5,
@@ -175,6 +178,7 @@ function initSchema() {
 
   addColumnIfNotExists('employee_wef_history', 'incentive', 'REAL DEFAULT 0');
   addColumnIfNotExists('employee_wef_history', 'remarks', 'TEXT');
+  addColumnIfNotExists('employee_wef_history', 'wop_work_hours', 'REAL DEFAULT NULL');
 
   // Seed baseline W.E.F. records for existing employees if none exist
   try {

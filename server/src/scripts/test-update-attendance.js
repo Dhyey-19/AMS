@@ -49,7 +49,7 @@ console.log('Recalculated Day Record from DB:', {
 });
 
 console.assert(dayRec.calc_mode === 'Normal', 'Calc mode failed');
-console.assert(dayRec.actual_duration_formatted === '12:05', 'Duration failed');
+console.assert(dayRec.actual_duration_formatted === '12:00', 'Duration failed');
 console.assert(dayRec.penalty_amount === 50, 'Penalty in sheet failed');
 
 console.log('✅ Direct database record editing & on-the-fly recalculation tested successfully!');
