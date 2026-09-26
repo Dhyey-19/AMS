@@ -16,7 +16,8 @@ import {
 import { 
   generateEmployeeAttendanceHtml, 
   printEmployeeAttendance, 
-  downloadEmployeeAttendanceHtml 
+  downloadEmployeeAttendanceHtml,
+  downloadEmployeeAttendancePdf
 } from '../../utils/employeeAttendancePdf';
 
 export const EmployeeAttendancePdfModal = ({ isOpen, onClose, sheetData }) => {
@@ -24,6 +25,7 @@ export const EmployeeAttendancePdfModal = ({ isOpen, onClose, sheetData }) => {
   const [showSignatures, setShowSignatures] = useState(true);
   const [showSpecialRules, setShowSpecialRules] = useState(true);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   const emp = sheetData?.employee || {};
   const summary = sheetData?.summary || {};
@@ -51,7 +53,18 @@ export const EmployeeAttendancePdfModal = ({ isOpen, onClose, sheetData }) => {
     }, 1500);
   };
 
-  const handleDownload = () => {
+  const handleDownloadPdf = async () => {
+    setIsDownloadingPdf(true);
+    try {
+      await downloadEmployeeAttendancePdf(sheetData, pdfOptions);
+    } catch (e) {
+      console.error('Download PDF failed:', e);
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
+  const handleDownloadHtml = () => {
     downloadEmployeeAttendanceHtml(sheetData, pdfOptions);
   };
 
@@ -126,32 +139,61 @@ export const EmployeeAttendancePdfModal = ({ isOpen, onClose, sheetData }) => {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '0.75rem' }}>
           <div style={{ fontSize: '0.775rem', color: 'var(--slate-500)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <Sparkles size={14} color="var(--primary-600)" />
-            <span>Select <strong>Save as PDF</strong> in the browser print dialog with <strong>Landscape</strong> orientation.</span>
+            <span>Use <strong>Download PDF</strong> to save statement file, or <strong>Print</strong> for paper printing.</span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
             <button
               type="button"
-              onClick={handleDownload}
+              onClick={handleDownloadHtml}
               className="btn btn-secondary btn-sm"
-              title="Download standalone HTML document"
+              title="Download standalone HTML file"
+              style={{ fontSize: '0.78rem', color: 'var(--slate-600)' }}
             >
-              <Download size={15} />
-              <span>Download HTML</span>
+              <FileText size={14} />
+              <span>HTML</span>
             </button>
 
+            {/* Separate Download PDF Button (Directly saves PDF file without opening print dialog) */}
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={isDownloadingPdf}
+              className="btn btn-primary btn-sm"
+              style={{
+                background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                borderColor: '#059669',
+                boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)',
+                fontWeight: '700',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem'
+              }}
+              title="Save Attendance Statement directly as PDF file"
+            >
+              <Download size={15} />
+              <span>{isDownloadingPdf ? 'Saving PDF...' : 'Download PDF'}</span>
+            </button>
+
+            {/* Separate Print Button (Opens system print dialog for physical printing) */}
             <button
               type="button"
               onClick={handlePrint}
               disabled={isPrinting}
-              className="btn btn-primary btn-sm"
+              className="btn btn-secondary btn-sm"
               style={{
-                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                boxShadow: '0 2px 8px rgba(2, 132, 199, 0.3)'
+                borderColor: 'var(--primary-400)',
+                color: 'var(--primary-700)',
+                backgroundColor: 'var(--primary-50)',
+                fontWeight: '700',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem'
               }}
+              title="Open print dialog box for printer"
             >
               <Printer size={15} />
-              <span>{isPrinting ? 'Opening Print Dialog...' : 'Save as PDF / Print'}</span>
+              <span>{isPrinting ? 'Opening...' : 'Print'}</span>
             </button>
           </div>
         </div>

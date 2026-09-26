@@ -112,16 +112,16 @@ console.log('Scenario B (Actual 90m > Master 60m):', {
 });
 console.assert(rBreakB.effective_break_minutes === 90 && rBreakB.actual_work_minutes === 630, 'Break Scenario B Failed');
 
-// Scenario C: Standard Break 00:00, Actual Break 20 min (< 30 min) -> Effective Break = 0 min, Work = 12:00
+// Scenario C: Standard Break 00:00, Actual Break 25 min (<= 30 min) -> Effective Break = 0 min (no deduction), Work = 12:00
 const empWithZeroBreak = { ...emp1, standard_break_minutes: 0 };
 const rBreakC = CalculationEngine.calculateDayRecord(empWithZeroBreak, {
   attendance_date_iso: '2026-05-05',
   in_time: '08:00',
   out_time: '20:00',
-  punch_records: '08:00(in);13:00(out);13:20(in);20:00(out);',
+  punch_records: '08:00(in);13:00(out);13:25(in);20:00(out);',
   status_code: 'P'
 }, 31);
-console.log('Scenario C (Std 00:00, Actual 20m <= 30m):', {
+console.log('Scenario C (Std 00:00, Break 25m <= 30m):', {
   actualBreak: rBreakC.actual_break_formatted,
   effectiveBreak: rBreakC.effective_break_formatted,
   actualWork: rBreakC.actual_work_formatted,
@@ -129,7 +129,7 @@ console.log('Scenario C (Std 00:00, Actual 20m <= 30m):', {
 });
 console.assert(rBreakC.effective_break_minutes === 0 && rBreakC.actual_work_minutes === 720, 'Break Scenario C Failed');
 
-// Scenario D: Standard Break 00:00, Actual Break 30 min (<= 30 min) -> Effective Break = 0 min, Work = 12:00
+// Scenario D: Standard Break 00:00, Actual Break 30 min (<= 30 min) -> Effective Break = 0 min (no deduction), Work = 12:00
 const rBreakD = CalculationEngine.calculateDayRecord(empWithZeroBreak, {
   attendance_date_iso: '2026-05-05',
   in_time: '08:00',
@@ -137,7 +137,7 @@ const rBreakD = CalculationEngine.calculateDayRecord(empWithZeroBreak, {
   punch_records: '08:00(in);13:00(out);13:30(in);20:00(out);',
   status_code: 'P'
 }, 31);
-console.log('Scenario D (Std 00:00, Actual 30m <= 30m):', {
+console.log('Scenario D (Std 00:00, Break 30m <= 30m):', {
   actualBreak: rBreakD.actual_break_formatted,
   effectiveBreak: rBreakD.effective_break_formatted,
   actualWork: rBreakD.actual_work_formatted,
@@ -145,23 +145,23 @@ console.log('Scenario D (Std 00:00, Actual 30m <= 30m):', {
 });
 console.assert(rBreakD.effective_break_minutes === 0 && rBreakD.actual_work_minutes === 720, 'Break Scenario D Failed');
 
-// Scenario E: Standard Break 00:00, Actual Break 45 min (> 30 min) -> Effective Break = 15 min (45-30), Work = 11:45
+// Scenario E: Standard Break 00:00, Actual Break 35 min (> 30 min) -> Deduct whole 35 min! Work = 11:25
 const rBreakE = CalculationEngine.calculateDayRecord(empWithZeroBreak, {
   attendance_date_iso: '2026-05-05',
   in_time: '08:00',
   out_time: '20:00',
-  punch_records: '08:00(in);13:00(out);13:45(in);20:00(out);',
+  punch_records: '08:00(in);13:00(out);13:35(in);20:00(out);',
   status_code: 'P'
 }, 31);
-console.log('Scenario E (Std 00:00, Actual 45m > 30m):', {
+console.log('Scenario E (Std 00:00, Break 35m > 30m):', {
   actualBreak: rBreakE.actual_break_formatted,
   effectiveBreak: rBreakE.effective_break_formatted,
   actualWork: rBreakE.actual_work_formatted,
-  expectedWork: '11:45'
+  expectedWork: '11:25'
 });
-console.assert(rBreakE.effective_break_minutes === 15 && rBreakE.actual_work_minutes === 705, 'Break Scenario E Failed');
+console.assert(rBreakE.effective_break_minutes === 35 && rBreakE.actual_work_minutes === 685, 'Break Scenario E Failed');
 
-// Scenario F: Standard Break 00:00, Actual Break 60 min (> 30 min) -> Effective Break = 30 min (60-30), Work = 11:30
+// Scenario F: Standard Break 00:00, Actual Break 60 min (> 30 min) -> Deduct whole 60 min! Work = 11:00
 const rBreakF = CalculationEngine.calculateDayRecord(empWithZeroBreak, {
   attendance_date_iso: '2026-05-05',
   in_time: '08:00',
@@ -169,13 +169,13 @@ const rBreakF = CalculationEngine.calculateDayRecord(empWithZeroBreak, {
   punch_records: '08:00(in);13:00(out);14:00(in);20:00(out);',
   status_code: 'P'
 }, 31);
-console.log('Scenario F (Std 00:00, Actual 60m > 30m):', {
+console.log('Scenario F (Std 00:00, Break 60m > 30m):', {
   actualBreak: rBreakF.actual_break_formatted,
   effectiveBreak: rBreakF.effective_break_formatted,
   actualWork: rBreakF.actual_work_formatted,
-  expectedWork: '11:30'
+  expectedWork: '11:00'
 });
-console.assert(rBreakF.effective_break_minutes === 30 && rBreakF.actual_work_minutes === 690, 'Break Scenario F Failed');
+console.assert(rBreakF.effective_break_minutes === 60 && rBreakF.actual_work_minutes === 660, 'Break Scenario F Failed');
 
 // Scenario G: 5 Punches in a Day (Last punch tagged (in) treated as Actual OUT)
 const rBreakG = CalculationEngine.calculateDayRecord(empWithZeroBreak, {
@@ -394,7 +394,7 @@ console.log('Test 9A (Regular P Day Target):', {
 });
 console.assert(rRegDay.scheduled_work_formatted === '12:00', 'Regular day target should be 12:00');
 
-// Test 9B: WOP Day (WOP) uses wop_work_hours (06:00)
+// Test 9B: WOP Day (WOP) uses wop_work_hours (06:00), gives full day salary and NO overtime pay
 const rWOPDay = CalculationEngine.calculateDayRecord(empWOPCustom, {
   attendance_date_iso: '2026-05-17',
   in_time: '08:00',
@@ -408,11 +408,16 @@ console.log('Test 9B (WOP Day Target 6h, Worked 8h):', {
   diff: rWOPDay.work_diff_formatted,
   expectedDiff: '+02:00',
   overtime: rWOPDay.overtime_formatted,
-  expectedOvertime: '02:00'
+  expectedOvertime: '00:00',
+  overtime_pay: rWOPDay.overtime_pay,
+  daily_salary_earned: rWOPDay.daily_salary_earned,
+  daily_rate: rWOPDay.daily_rate
 });
 console.assert(rWOPDay.scheduled_work_formatted === '06:00', 'WOP day target should be 06:00');
 console.assert(rWOPDay.work_diff_formatted === '+02:00', 'WOP day diff should be +02:00');
-console.assert(rWOPDay.overtime_formatted === '02:00', 'WOP day OT should be 02:00');
+console.assert(rWOPDay.overtime_formatted === '00:00', 'WOP day OT should be 00:00 (no overtime pay on WOP)');
+console.assert(rWOPDay.overtime_pay === 0, 'WOP day OT pay should be 0');
+console.assert(rWOPDay.daily_salary_earned === rWOPDay.daily_rate, 'WOP day should give full day salary');
 
 // 10. Compulsory WOP (WOP = 1 and WOP = 2) Monthly Rule Verification:
 console.log('\n--- 10. Compulsory WOP Monthly Rule Verification ---');

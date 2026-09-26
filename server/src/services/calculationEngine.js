@@ -177,9 +177,12 @@ class CalculationEngine {
         actualIn = punches[0].time;
       }
 
-      // 2) If 2 or more punches, LAST punch is Actual OUT if not explicitly provided
-      if (!actualOut && punches.length >= 2) {
-        actualOut = punches[punches.length - 1].time;
+      // 2) If 2 or more punches, LAST punch is Actual OUT if not explicitly provided or if later than actualOut
+      if (punches.length >= 2) {
+        const lastPunch = punches[punches.length - 1];
+        if (!actualOut || lastPunch.mins > this.timeToMinutes(actualOut)) {
+          actualOut = lastPunch.time;
+        }
       }
     }
 
@@ -209,6 +212,22 @@ class CalculationEngine {
       }
     } else if (punches.length === 3) {
       if (!firstBreakOut) firstBreakOut = punches[1].time;
+      if (!firstBreakIn) firstBreakIn = punches[2].time;
+      if (totalBreakMins === 0 && firstBreakOut && firstBreakIn) {
+        const outM = this.timeToMinutes(firstBreakOut);
+        const inM = this.timeToMinutes(firstBreakIn);
+        totalBreakMins = Math.max(0, inM - outM);
+      }
+    }
+
+    // Ensure totalBreakMins does not deduct time outside the actual [actualIn, actualOut] window
+    if (actualIn && actualOut && totalBreakMins > 0 && firstBreakOut && firstBreakIn) {
+      const inM = this.timeToMinutes(actualIn);
+      const outM = this.timeToMinutes(actualOut);
+      const bOutM = this.timeToMinutes(firstBreakOut);
+      const bInM = this.timeToMinutes(firstBreakIn);
+      const overlapMins = Math.max(0, Math.min(bInM, outM) - Math.max(bOutM, inM));
+      totalBreakMins = Math.min(totalBreakMins, overlapMins);
     }
 
     return {
@@ -285,7 +304,7 @@ class CalculationEngine {
       wop_work_hours: activeRevision.wop_work_hours !== null && activeRevision.wop_work_hours !== undefined ? activeRevision.wop_work_hours : (emp.wop_work_hours || null),
       payment_mode: activeRevision.payment_mode || emp.payment_mode || 'Bank',
       late_grace_minutes: activeRevision.late_grace_minutes !== null && activeRevision.late_grace_minutes !== undefined ? activeRevision.late_grace_minutes : (emp.late_grace_minutes ?? 11),
-      late_deduction_multiplier: activeRevision.late_deduction_multiplier !== null && activeRevision.late_deduction_multiplier !== undefined ? activeRevision.late_deduction_multiplier : (emp.late_deduction_multiplier ?? 0.5),
+      late_deduction_multiplier: activeRevision.late_deduction_multiplier !== null && activeRevision.late_deduction_multiplier !== undefined ? activeRevision.late_deduction_multiplier : (emp.late_deduction_multiplier ?? 1.5),
       overtime_multiplier: activeRevision.overtime_multiplier !== null && activeRevision.overtime_multiplier !== undefined ? activeRevision.overtime_multiplier : (emp.overtime_multiplier ?? 2.0),
       overtime_allowed: activeRevision.overtime_allowed !== null && activeRevision.overtime_allowed !== undefined ? activeRevision.overtime_allowed : (emp.overtime_allowed ?? 1),
       min_overtime_minutes: activeRevision.min_overtime_minutes !== null && activeRevision.min_overtime_minutes !== undefined ? activeRevision.min_overtime_minutes : (emp.min_overtime_minutes || 0),
@@ -363,7 +382,7 @@ class CalculationEngine {
     const stdBreakMins = parseInt(effectiveEmp.standard_break_minutes, 10) || 0;
     const stdWorkHours = schedDailyWorkHours;
     const lateGraceMins = parseInt(effectiveEmp.late_grace_minutes, 10) || 11;
-    const lateMultiplier = !isNaN(parseFloat(effectiveEmp.late_deduction_multiplier)) ? parseFloat(effectiveEmp.late_deduction_multiplier) : 0.5;
+    const lateMultiplier = !isNaN(parseFloat(effectiveEmp.late_deduction_multiplier)) ? parseFloat(effectiveEmp.late_deduction_multiplier) : 1.5;
     const overtimeMultiplier = !isNaN(parseFloat(effectiveEmp.overtime_multiplier)) ? parseFloat(effectiveEmp.overtime_multiplier) : 2.0;
     
     // Overtime Eligibility from Employee Master
@@ -424,8 +443,8 @@ class CalculationEngine {
     // FORMULA FOR EFF BREAK & BREAK DEDUCTION:
     // Rule:
     // 1) If standard break is 00:00 (stdBreakMins === 0):
-    //    - If actual break <= 30 min: don't count it as break hours, do not deduct from actual work hours (0)
-    //    - If actual break > 30 min: only difference (actual break - 30 min) is counted as break hours and deducted
+    //    - If actual break <= 30 min: allow up to 30 min free break, no deduction from actual working hours (0)
+    //    - If actual break > 30 min: deduct whole minutes (full actualBreakMins) from actual working hours
     // 2) If standard break > 0 (e.g. 60 min):
     //    - If actual break <= master break: master break is deducted
     //    - If actual break > master break: actual break is deducted
@@ -434,8 +453,8 @@ class CalculationEngine {
 
     if (stdBreakMins === 0) {
       if (actualBreakMins > 30) {
-        effectiveBreakMins = actualBreakMins - 30;
-        breakDeductionMins = actualBreakMins - 30;
+        effectiveBreakMins = actualBreakMins;
+        breakDeductionMins = actualBreakMins;
       } else {
         effectiveBreakMins = 0;
         breakDeductionMins = 0;
@@ -445,21 +464,32 @@ class CalculationEngine {
       breakDeductionMins = effectiveBreakMins;
     }
 
-    // 1) Duration & Mode Calculations:
-    // - Gross Duration = Actual OUT - Actual IN
-    // - Late IN condition: Actual IN >= Scheduled IN + lateGraceMins (default 11 min)
-    // - Late OUT condition: Actual OUT >= Scheduled OUT + lateGraceMins (default 11 min)
-    let isLateIn = false;
-    let isLateOut = false;
+    // 1) Punch Deviations from Master Shift:
+    let lateInMins = 0;
+    let earlyInMins = 0;
+    if (actualInMins > 0 && stdInMins > 0) {
+      if (actualInMins > stdInMins) {
+        lateInMins = actualInMins - stdInMins;
+      } else if (actualInMins < stdInMins) {
+        earlyInMins = stdInMins - actualInMins;
+      }
+    }
+
+    let lateOutMins = 0;
+    let earlyOutMins = 0;
+    if (actualOutMins > 0 && stdOutMins > 0) {
+      if (actualOutMins > stdOutMins) {
+        lateOutMins = actualOutMins - stdOutMins;
+      } else if (actualOutMins < stdOutMins) {
+        earlyOutMins = stdOutMins - actualOutMins;
+      }
+    }
+
+    // 2) Duration & Mode Calculations:
+    let isLateIn = lateInMins > 10;
+    let isLateOut = lateOutMins > 10;
     let calcMode = 'Normal';
     let rawDurationMins = 0;
-
-    if (actualInMins > 0 && stdInMins > 0) {
-      isLateIn = (actualInMins - stdInMins) >= lateGraceMins;
-    }
-    if (actualOutMins > 0 && stdOutMins > 0) {
-      isLateOut = (actualOutMins - stdOutMins) >= lateGraceMins;
-    }
 
     if (actualInMins > 0 && actualOutMins > 0) {
       if (isLateIn && isLateOut) {
@@ -481,13 +511,14 @@ class CalculationEngine {
     }
 
     // FORMULA FOR ACTUAL WORK:
-    // Actual Work = Gross Duration - Effective Break Deduction
+    // Rule 2: If early check-in is <= 30 mins, do NOT calculate early check-in for actual work hours calculation
+    const earlyInWorkExclusion = (earlyInMins > 0 && earlyInMins <= 30) ? earlyInMins : 0;
     let actualWorkMins = 0;
     if (rawDurationMins > 0) {
-      actualWorkMins = Math.max(0, rawDurationMins - breakDeductionMins);
+      actualWorkMins = Math.max(0, rawDurationMins - earlyInWorkExclusion - breakDeductionMins);
     } else if (actualInMins > 0 && actualOutMins > 0) {
       const grossDiff = actualOutMins >= actualInMins ? (actualOutMins - actualInMins) : (1440 - actualInMins + actualOutMins);
-      actualWorkMins = Math.max(0, grossDiff - breakDeductionMins);
+      actualWorkMins = Math.max(0, grossDiff - earlyInWorkExclusion - breakDeductionMins);
     } else {
       if (statusCode === 'P' || statusCode === 'WOP') {
         actualWorkMins = schedWorkMins;
@@ -505,35 +536,6 @@ class CalculationEngine {
       else if (statusCode === 'L') calcMode = 'Leave';
     }
 
-    // Overtime Calculation (Strictly disabled for Doctors)
-    // Rule: If actual work >= target + min OT from master, then Overtime = actual work - target, else 0
-    let overtimeMins = 0;
-
-    if (overtimeAllowed && (statusCode === 'P' || statusCode === 'HD' || statusCode === 'WOP' || statusCode === 'WO')) {
-      if (record.overtime_override_minutes && record.overtime_override_minutes > 0) {
-        // Manual override from admin
-        overtimeMins = record.overtime_override_minutes;
-      } else if (statusCode === 'WO') {
-        // If employee worked on Weekly Off: target is 0, qualify if actualWorkMins >= minOvertimeMins
-        if (actualWorkMins > 0) {
-          if (actualWorkMins >= minOvertimeMins) {
-            overtimeMins = Math.max(0, actualWorkMins - (minOvertimeDeductionMins > 0 ? minOvertimeDeductionMins : 15));
-          } else {
-            overtimeMins = 0;
-          }
-        }
-      } else {
-        // Standard Duty Days (P, WOP, HD):
-        // If actual work >= target + min OT from master then only calculate overtime (actual work - target), else 0
-        const requiredThreshold = schedWorkMins + minOvertimeMins;
-        if (actualWorkMins >= requiredThreshold && actualWorkMins > schedWorkMins) {
-          overtimeMins = actualWorkMins - schedWorkMins;
-        } else {
-          overtimeMins = 0;
-        }
-      }
-    }
-
     // Work Hour Difference (+/-)
     let workDiffMins = 0;
     if (actualWorkMins > 0) {
@@ -544,49 +546,106 @@ class CalculationEngine {
       workDiffMins = -schedWorkMins;
     }
 
-    // Late Arrival Minutes
+    // Rule 1: LATE CHECK-IN DEDUCTION
+    // No deduction up to 10 min late check-in. If late check-in > 10 min, calculate and deduct whole minutes amount by 1.5 times
+    let lateInDeduction = 0;
     let lateMins = 0;
-    if ((statusCode === 'P' || statusCode === 'HD') && actualInMins > 0 && stdInMins > 0) {
-      const diffIn = actualInMins - stdInMins;
-      if (diffIn >= 11) {
-        lateMins = diffIn;
-      }
+    if ((statusCode === 'P' || statusCode === 'HD') && lateInMins > 10) {
+      lateMins = lateInMins;
+      lateInDeduction = (lateInMins / 60) * hourlyRate * 1.5;
     }
 
-    // Early Departure Minutes
+    // Rule 4: EARLY CHECK-OUT DEDUCTION
+    // Calculate and deduct early check-out mins by 1 times (normal)
+    let earlyOutDeduction = 0;
     let earlyMins = 0;
-    if ((statusCode === 'P' || statusCode === 'HD') && actualOutMins > 0 && stdOutMins > 0) {
-      const diffOut = stdOutMins - actualOutMins;
-      if (diffOut >= 11) {
-        earlyMins = diffOut;
+    if ((statusCode === 'P' || statusCode === 'HD') && earlyOutMins > 0) {
+      earlyMins = earlyOutMins;
+      earlyOutDeduction = (earlyOutMins / 60) * hourlyRate * 1.0;
+    }
+
+    // Rule 5: Excess Break Deduction (Standard break formula remains same)
+    let excessBreakMins = 0;
+    if (stdBreakMins === 0) {
+      excessBreakMins = actualBreakMins > 30 ? actualBreakMins : 0;
+    } else {
+      excessBreakMins = Math.max(0, actualBreakMins - stdBreakMins);
+    }
+    let excessBreakDeduction = 0;
+    if ((statusCode === 'P' || statusCode === 'HD') && excessBreakMins > 0) {
+      excessBreakDeduction = (excessBreakMins / 60) * hourlyRate * 1.0;
+    }
+
+    // Total Timing Deductions
+    const lateSalaryDeduction = lateInDeduction + earlyOutDeduction + excessBreakDeduction;
+
+    // Rule 2: EARLY CHECK-IN PAY
+    // If early check-in is > 30 mins then only calculate and pay amount for early mins by 2 times
+    let earlyInPay = 0;
+    let earlyInPaidMins = 0;
+    if (overtimeAllowed && (statusCode === 'P' || statusCode === 'HD') && earlyInMins > 30) {
+      earlyInPaidMins = earlyInMins;
+      earlyInPay = (earlyInMins / 60) * hourlyRate * 2.0;
+    }
+
+    // Rule 3: LATE CHECK-OUT PAY
+    // No pay for up to 10 min late check-out. If late check-out is > 10 min and <= 30 min, then calculate & pay amount by 1 times (normal). If > 30 mins then calculate & pay by 2 times
+    let lateOutPay = 0;
+    let lateOutPaidMins = 0;
+    if (overtimeAllowed && (statusCode === 'P' || statusCode === 'HD')) {
+      if (lateOutMins > 30) {
+        lateOutPaidMins = lateOutMins;
+        lateOutPay = (lateOutMins / 60) * hourlyRate * 2.0;
+      } else if (lateOutMins > (minOvertimeMins > 0 ? minOvertimeMins : 10)) {
+        lateOutPaidMins = lateOutMins;
+        lateOutPay = (lateOutMins / 60) * hourlyRate * 1.0;
       }
     }
 
-    // Financial calculations for the day (all based strictly on hourly rate * hours)
+    // Overtime Calculations for Manual Override & Weekly Off
+    let manualOtPay = 0;
+    let manualOtMins = 0;
+    if (record.overtime_override_minutes && record.overtime_override_minutes > 0) {
+      manualOtMins = record.overtime_override_minutes;
+      manualOtPay = (manualOtMins / 60) * hourlyRate * overtimeMultiplier;
+    }
+
+    let woOtPay = 0;
+    let woOtMins = 0;
+    if (overtimeAllowed && statusCode === 'WO' && actualWorkMins > 0) {
+      if (actualWorkMins >= minOvertimeMins) {
+        woOtMins = Math.max(0, actualWorkMins - (minOvertimeDeductionMins > 0 ? minOvertimeDeductionMins : 15));
+        woOtPay = (woOtMins / 60) * hourlyRate * overtimeMultiplier;
+      }
+    }
+
+    let overtimeMins = 0;
+    let overtimePay = 0;
+    if (manualOtMins > 0) {
+      overtimeMins = manualOtMins;
+      overtimePay = manualOtPay;
+    } else if (statusCode === 'WO') {
+      overtimeMins = woOtMins;
+      overtimePay = woOtPay;
+    } else if (statusCode === 'WOP') {
+      overtimeMins = 0;
+      overtimePay = 0;
+    } else {
+      overtimeMins = earlyInPaidMins + lateOutPaidMins;
+      overtimePay = earlyInPay + lateOutPay;
+    }
+
+    // Financial calculations for the day:
     let dailySalaryEarned = 0;
-    if (statusCode === 'WO') {
-      // NOTE 1: COUNT WEEKLY OFF DAY SALARY -> If worked, calculate based on actual hours, otherwise standard scheduled hours
-      if (actualWorkMins > 0) {
-        dailySalaryEarned = (actualWorkMins / 60) * hourlyRate;
-      } else {
-        dailySalaryEarned = schedDailyWorkHours * hourlyRate;
-      }
-    } else if (statusCode === 'P' || statusCode === 'WOP') {
-      if (actualWorkMins > 0) {
-        dailySalaryEarned = (actualWorkMins / 60) * hourlyRate;
-      } else {
-        dailySalaryEarned = targetWorkHours * hourlyRate;
-      }
+    if (statusCode === 'WO' || statusCode === 'WOP') {
+      dailySalaryEarned = schedDailyWorkHours * hourlyRate;
+    } else if (statusCode === 'P') {
+      dailySalaryEarned = targetWorkHours * hourlyRate;
     } else if (statusCode === 'HD') {
       dailySalaryEarned = (schedDailyWorkHours * 0.5) * hourlyRate;
     } else if (statusCode === 'A') {
       dailySalaryEarned = 0;
     }
-
-    const lateSalaryDeduction = (lateMins / 60) * hourlyRate * lateMultiplier;
-    const overtimePay = (overtimeAllowed && overtimeMins > 0)
-      ? (overtimeMins / 60) * hourlyRate * overtimeMultiplier
-      : 0;
 
     const leaveDeduction = parseFloat(record.leave_deduction) || 0;
     const penaltyAmount = parseFloat(record.penalty_amount) || 0;
@@ -641,6 +700,10 @@ class CalculationEngine {
       early_minutes: earlyMins,
       early_formatted: earlyMins > 0 ? this.minutesToHHMM(earlyMins) : '00:00',
       is_early: earlyMins > 0,
+      early_in_minutes: earlyInMins,
+      early_in_formatted: earlyInMins > 0 ? this.minutesToHHMM(earlyInMins) : '00:00',
+      late_out_minutes: lateOutMins,
+      late_out_formatted: lateOutMins > 0 ? this.minutesToHHMM(lateOutMins) : '00:00',
       overtime_minutes: overtimeMins,
       overtime_formatted: this.minutesToHHMM(overtimeMins),
       is_doctor: isDoc,
@@ -650,7 +713,12 @@ class CalculationEngine {
       hourly_rate: Number(hourlyRate.toFixed(2)),
       daily_rate: Number(dailyRate.toFixed(2)),
       daily_salary_earned: Number(dailySalaryEarned.toFixed(2)),
+      late_in_deduction: Number(lateInDeduction.toFixed(2)),
+      early_out_deduction: Number(earlyOutDeduction.toFixed(2)),
+      excess_break_deduction: Number(excessBreakDeduction.toFixed(2)),
       late_salary_deduction: Number(lateSalaryDeduction.toFixed(2)),
+      early_in_pay: Number(earlyInPay.toFixed(2)),
+      late_out_pay: Number(lateOutPay.toFixed(2)),
       overtime_pay: Number(overtimePay.toFixed(2)),
       leave_deduction: Number(leaveDeduction.toFixed(2)),
       penalty_amount: Number(penaltyAmount.toFixed(2)),
@@ -798,6 +866,7 @@ class CalculationEngine {
 
       // Master fields included in summary
       wopDays: parseFloat(emp.wop) || 0,
+      wopWorkHours: emp.wop_work_hours || null,
       yplDays: parseFloat(emp.ypl) || 0,
       overtimeAllowed: (emp.overtime_allowed !== 0 && emp.overtime_allowed !== false && emp.overtime_allowed !== '0'),
       isDoctor: isDoc,
@@ -841,15 +910,7 @@ class CalculationEngine {
 
     return {
       employee: {
-        employee_code: emp.employee_code,
-        employee_name: emp.employee_name,
-        department: emp.department,
-        designation: emp.designation,
-        company: emp.company,
-        location: emp.location,
-        gender: emp.gender,
-        doj: emp.doj,
-        status: emp.status,
+        ...emp,
         salary: emp.salary,
         incentive: parseFloat(emp.incentive) || 0,
         wef_date: emp.wef_date || null,
@@ -857,20 +918,21 @@ class CalculationEngine {
         standard_out_time: emp.standard_out_time || '20:00',
         standard_break_minutes: emp.standard_break_minutes || 0,
         standard_work_hours: emp.standard_work_hours || 12.0,
+        wop_work_hours: emp.wop_work_hours !== undefined && emp.wop_work_hours !== null && emp.wop_work_hours !== '' ? emp.wop_work_hours : null,
         hourly_rate: hourlyRate,
         daily_rate: dailyRate,
         wop: parseFloat(emp.wop) || 0,
         ypl: parseFloat(emp.ypl) || 0,
         payment_mode: emp.payment_mode || 'Bank',
         late_grace_minutes: emp.late_grace_minutes || 11,
-        late_deduction_multiplier: emp.late_deduction_multiplier ?? 0.5,
+        late_deduction_multiplier: emp.late_deduction_multiplier ?? 1.5,
         overtime_multiplier: emp.overtime_multiplier ?? 2.0,
         overtime_allowed: (emp.overtime_allowed !== 0 && emp.overtime_allowed !== false && emp.overtime_allowed !== '0'),
         is_doctor: isDoc,
         min_overtime_minutes: emp.min_overtime_minutes || 0,
         min_overtime_deduction_minutes: emp.min_overtime_deduction_minutes || 0,
         special_rules: emp.special_rules || '',
-        salary_history: emp.salary_history_json ? JSON.parse(emp.salary_history_json) : [],
+        salary_history: emp.salary_history_json ? (typeof emp.salary_history_json === 'string' ? JSON.parse(emp.salary_history_json) : emp.salary_history_json) : [],
         wef_history: Array.isArray(emp.wef_history) ? emp.wef_history : []
       },
       month: targetMonth,

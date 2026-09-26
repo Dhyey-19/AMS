@@ -500,7 +500,7 @@ export const generateEmployeeAttendanceHtml = (sheetData, options = {}) => {
           </tr>
           <tr>
             <td class="label">Leaves (WOP / YPL):</td>
-            <td class="val">${emp.wop || 0} WOP / ${emp.ypl || 0} YPL</td>
+            <td class="val">${emp.wop || 0} WOP${emp.wop_work_hours ? ` (${emp.wop_work_hours}h)` : ''} / ${emp.ypl || 0} YPL</td>
           </tr>
           <tr>
             <td class="label">Overtime Multiplier:</td>
@@ -810,3 +810,61 @@ export const downloadEmployeeAttendanceHtml = (sheetData, options = {}) => {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 };
+
+/**
+ * Direct Download as PDF file (No print dialog)
+ */
+export const downloadEmployeeAttendancePdf = async (sheetData, options = {}) => {
+  const html = generateEmployeeAttendanceHtml(sheetData, options);
+  if (!html) return;
+
+  const emp = sheetData?.employee || {};
+  const summary = sheetData?.summary || {};
+  const filename = `${emp.employee_code || 'Employee'}_${(emp.employee_name || 'Staff').replace(/\s+/g, '_')}_Attendance_${summary.month || 'Statement'}.pdf`;
+
+  // 1. If running inside Electron desktop app, use native vector printToPDF for highest quality
+  if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.downloadPdf === 'function') {
+    try {
+      const res = await window.electronAPI.downloadPdf({ html, defaultFilename: filename });
+      if (res && (res.success || res.canceled)) {
+        return;
+      }
+    } catch (e) {
+      console.warn('Electron PDF download failed, falling back to html2pdf:', e);
+    }
+  }
+
+  // 2. Browser fallback using html2pdf.js
+  try {
+    const html2pdfModule = await import('html2pdf.js');
+    const html2pdf = html2pdfModule.default || html2pdfModule;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.left = '-9999px';
+    iframe.style.top = '-9999px';
+    iframe.style.width = '1200px';
+    iframe.style.height = '850px';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    const opt = {
+      margin: [6, 6, 6, 6],
+      filename: filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, logging: false },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+    };
+
+    await html2pdf().set(opt).from(doc.body).save();
+    document.body.removeChild(iframe);
+  } catch (err) {
+    console.error('Browser PDF download error:', err);
+    printEmployeeAttendance(sheetData, options);
+  }
+};
+

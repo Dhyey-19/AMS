@@ -11,8 +11,15 @@ const PORT = process.env.PORT || 5050;
 const DEV_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:3000';
 
 function getLogFile() {
-  const logDir = app.isPackaged ? app.getPath('userData') : __dirname;
-  return path.join(logDir, 'electron_app.log');
+  try {
+    const baseDir = app.isPackaged 
+      ? (process.env.PORTABLE_EXECUTABLE_DIR || path.dirname(process.execPath)) 
+      : __dirname;
+    const logPath = path.join(baseDir, 'electron_app.log');
+    return logPath;
+  } catch (e) {
+    return path.join(app.getPath('userData'), 'electron_app.log');
+  }
 }
 
 function logMessage(...args) {
@@ -41,8 +48,8 @@ function getAppStorageDirectory() {
     return path.resolve(__dirname, '..');
   }
 
-  // Check if local installation folder (e.g. C:\ams) is writable
-  const exeDir = path.dirname(process.execPath);
+  // Check if local installation folder or portable exe folder is writable
+  const exeDir = process.env.PORTABLE_EXECUTABLE_DIR || path.dirname(process.execPath);
   const localDataDir = path.join(exeDir, 'data');
   try {
     if (!fs.existsSync(localDataDir)) {
@@ -51,7 +58,7 @@ function getAppStorageDirectory() {
     const testFile = path.join(localDataDir, '.test_write');
     fs.writeFileSync(testFile, '1');
     fs.unlinkSync(testFile);
-    logMessage('Using local installation directory for data storage:', exeDir);
+    logMessage('Using local directory for data storage:', exeDir);
     return exeDir;
   } catch (err) {
     // If not writable (e.g. restricted permissions), fallback to AppData
@@ -74,19 +81,37 @@ function initAppDataDirectory() {
   }
 
   const targetDb = path.join(dataDir, 'ams.db');
+  const rootDb = path.join(baseDir, 'ams.db');
 
-  // If local DB doesn't exist yet, check if there is an existing DB in AppData or bundled template
-  if (!fs.existsSync(targetDb)) {
+  const copyCleanDb = (src, dest) => {
+    fs.copyFileSync(src, dest);
+    const walFile = `${dest}-wal`;
+    const shmFile = `${dest}-shm`;
+    if (fs.existsSync(walFile)) {
+      try { fs.unlinkSync(walFile); } catch (_) {}
+    }
+    if (fs.existsSync(shmFile)) {
+      try { fs.unlinkSync(shmFile); } catch (_) {}
+    }
+  };
+
+  // If local DB doesn't exist yet in data/ams.db (or is empty), copy from source
+  if (!fs.existsSync(targetDb) || fs.statSync(targetDb).size === 0) {
     try {
-      const appDataDb = path.join(app.getPath('userData'), 'data', 'ams.db');
-      if (fs.existsSync(appDataDb)) {
-        fs.copyFileSync(appDataDb, targetDb);
-        logMessage('Migrated existing database from AppData to local data directory:', targetDb);
+      if (fs.existsSync(rootDb) && fs.statSync(rootDb).size > 0) {
+        copyCleanDb(rootDb, targetDb);
+        logMessage('Found ams.db in application root, copied to data directory:', targetDb);
       } else {
-        const rootDb = path.join(__dirname, '../ams.db');
-        if (fs.existsSync(rootDb)) {
-          fs.copyFileSync(rootDb, targetDb);
-          logMessage('Copied initial database template from root to:', targetDb);
+        const appDataDb = path.join(app.getPath('userData'), 'data', 'ams.db');
+        if (fs.existsSync(appDataDb) && fs.statSync(appDataDb).size > 0) {
+          copyCleanDb(appDataDb, targetDb);
+          logMessage('Migrated existing database from AppData to local data directory:', targetDb);
+        } else {
+          const bundledDb = path.join(__dirname, '../ams.db');
+          if (fs.existsSync(bundledDb) && fs.statSync(bundledDb).size > 0) {
+            copyCleanDb(bundledDb, targetDb);
+            logMessage('Copied initial database template from root to:', targetDb);
+          }
         }
       }
     } catch (e) {
@@ -202,15 +227,30 @@ function createWindow() {
     }
   }, 3000);
 
+  const localDistPath = path.join(__dirname, '../client/dist/index.html');
+  const prodServerUrl = `http://127.0.0.1:${PORT}`;
+
   if (isDev) {
-    logMessage('Loading development URL:', DEV_URL);
-    mainWindow.loadURL(DEV_URL).catch((err) => {
-      logMessage('Failed to load dev server URL:', err);
+    waitForServer(DEV_URL, 1200).then((devReady) => {
+      if (devReady) {
+        logMessage('Loading development URL:', DEV_URL);
+        mainWindow.loadURL(DEV_URL).catch((err) => {
+          logMessage('Failed to load dev server URL:', err);
+        });
+      } else {
+        logMessage('Dev server on port 3000 not responding, fallback to local backend/dist');
+        waitForServer(`${prodServerUrl}/api/health`, 4000).then((serverReady) => {
+          if (serverReady) {
+            mainWindow.loadURL(prodServerUrl);
+          } else if (fs.existsSync(localDistPath)) {
+            mainWindow.loadFile(localDistPath);
+          } else {
+            mainWindow.loadURL(DEV_URL);
+          }
+        });
+      }
     });
   } else {
-    const prodServerUrl = `http://127.0.0.1:${PORT}`;
-    const localDistPath = path.join(__dirname, '../client/dist/index.html');
-
     waitForServer(`${prodServerUrl}/api/health`, 5000).then((isReady) => {
       logMessage('Server health check result:', isReady);
       if (isReady) {
@@ -246,10 +286,57 @@ ipcMain.on('window-close', () => {
   if (mainWindow) mainWindow.close();
 });
 
+ipcMain.handle('download-pdf', async (event, { html, defaultFilename }) => {
+  let printWin = null;
+  try {
+    const { dialog } = require('electron');
+    printWin = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+
+    await printWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+
+    const pdfBuffer = await printWin.webContents.printToPDF({
+      landscape: true,
+      pageSize: 'A4',
+      printBackground: true,
+      margins: { top: 0.1, bottom: 0.1, left: 0.1, right: 0.1 }
+    });
+
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: 'Save Attendance Statement as PDF',
+      defaultPath: defaultFilename || 'Employee_Attendance_Statement.pdf',
+      filters: [{ name: 'PDF Document', extensions: ['pdf'] }]
+    });
+
+    if (!canceled && filePath) {
+      fs.writeFileSync(filePath, pdfBuffer);
+      logMessage('PDF exported successfully to:', filePath);
+      return { success: true, filePath };
+    }
+    return { success: false, canceled: true };
+  } catch (err) {
+    logMessage('Error exporting PDF in Electron:', err.message);
+    return { success: false, error: err.message };
+  } finally {
+    if (printWin) {
+      try { printWin.close(); } catch (_) {}
+    }
+  }
+});
+
 app.whenReady().then(async () => {
   logMessage('Electron app ready. isDev:', isDev);
-  if (!isDev) {
+  const backendHealthy = await waitForServer(`http://127.0.0.1:${PORT}/api/health`, 800);
+  if (!backendHealthy) {
+    logMessage('Backend server not detected, starting server inside Electron...');
     await startBackendServer();
+  } else {
+    logMessage(`Backend server is already running on port ${PORT}`);
   }
   createWindow();
 

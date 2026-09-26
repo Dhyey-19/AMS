@@ -1,4 +1,23 @@
-const Database = require('better-sqlite3');
+let Database;
+try {
+  Database = require('better-sqlite3');
+} catch (err) {
+  if (err.message && err.message.includes('NODE_MODULE_VERSION')) {
+    console.warn('⚡ Detected NODE_MODULE_VERSION mismatch in better-sqlite3. Auto-recompiling for current Node environment...');
+    const { execSync } = require('child_process');
+    try {
+      execSync('npm rebuild better-sqlite3', { stdio: 'inherit', cwd: path.resolve(__dirname, '../../..') });
+      delete require.cache[require.resolve('better-sqlite3')];
+      Database = require('better-sqlite3');
+      console.log('✅ Successfully auto-recompiled better-sqlite3 for Node.js', process.version);
+    } catch (rebuildErr) {
+      console.error('Failed to auto-rebuild better-sqlite3:', rebuildErr.message);
+      throw err;
+    }
+  } else {
+    throw err;
+  }
+}
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
@@ -34,12 +53,88 @@ const DB_PATH = targetDbPath;
 
 let db;
 
+function openAndCheckDb(filePath) {
+  const instance = new Database(filePath, { verbose: process.env.NODE_ENV === 'development' ? console.log : null });
+  instance.pragma('journal_mode = WAL');
+  instance.pragma('foreign_keys = ON');
+  try {
+    const check = instance.pragma('quick_check');
+    if (check && check.length > 0 && check[0].quick_check !== 'ok') {
+      throw new Error(`Database corrupted: ${JSON.stringify(check)}`);
+    }
+  } catch (err) {
+    instance.close();
+    throw err;
+  }
+  return instance;
+}
+
 function getDatabase() {
   if (!db) {
-    db = new Database(DB_PATH, { verbose: process.env.NODE_ENV === 'development' ? console.log : null });
-    db.pragma('journal_mode = WAL');
-    db.pragma('foreign_keys = ON');
-    initSchema();
+    try {
+      db = openAndCheckDb(DB_PATH);
+      initSchema();
+    } catch (err) {
+      const isCorrupt = err.message && (
+        err.message.includes('malformed') ||
+        err.message.includes('SQLITE_CORRUPT') ||
+        err.message.includes('corrupt')
+      );
+
+      if (isCorrupt) {
+        console.error('CRITICAL: SQLite database corruption detected at:', DB_PATH, err.message);
+        try {
+          if (db) {
+            try { db.close(); } catch (_) {}
+            db = null;
+          }
+          const timestamp = Date.now();
+          const corruptBackup = `${DB_PATH}.corrupt.${timestamp}`;
+          if (fs.existsSync(DB_PATH)) {
+            try { fs.renameSync(DB_PATH, corruptBackup); } catch (e) { fs.copyFileSync(DB_PATH, corruptBackup); }
+          }
+          if (fs.existsSync(`${DB_PATH}-wal`)) {
+            try { fs.renameSync(`${DB_PATH}-wal`, `${corruptBackup}-wal`); } catch (_) {}
+          }
+          if (fs.existsSync(`${DB_PATH}-shm`)) {
+            try { fs.renameSync(`${DB_PATH}-shm`, `${corruptBackup}-shm`); } catch (_) {}
+          }
+          console.warn(`Moved corrupted database to ${corruptBackup}`);
+
+          // Look for clean backup or template
+          const backupCandidates = [
+            path.resolve(process.cwd(), 'dist/ams.db'),
+            path.resolve(__dirname, '../../../dist/ams.db'),
+            path.resolve(__dirname, '../../../../dist/ams.db'),
+            path.resolve(__dirname, '../../../ams.db'),
+            path.resolve(__dirname, 'ams.db')
+          ];
+
+          for (const cand of backupCandidates) {
+            if (fs.existsSync(cand) && cand !== DB_PATH && cand !== corruptBackup) {
+              try {
+                const testDb = new Database(cand, { readonly: true });
+                const testCheck = testDb.pragma('quick_check');
+                testDb.close();
+                if (testCheck && testCheck.length > 0 && testCheck[0].quick_check === 'ok') {
+                  fs.copyFileSync(cand, DB_PATH);
+                  console.log(`Successfully restored healthy database from backup: ${cand}`);
+                  break;
+                }
+              } catch (_) {}
+            }
+          }
+
+          db = openAndCheckDb(DB_PATH);
+          initSchema();
+        } catch (recoverErr) {
+          console.error('Fatal: Failed to recover corrupted database:', recoverErr.message);
+          throw err;
+        }
+      } else {
+        throw err;
+      }
+    }
   }
   return db;
 }
@@ -106,7 +201,7 @@ function initSchema() {
       standard_work_hours REAL DEFAULT 12.0,
       payment_mode TEXT DEFAULT 'Bank',
       late_grace_minutes INTEGER DEFAULT 11,
-      late_deduction_multiplier REAL DEFAULT 0.5,
+      late_deduction_multiplier REAL DEFAULT 1.5,
       overtime_multiplier REAL DEFAULT 2.0,
       overtime_allowed INTEGER DEFAULT 1,
       min_overtime_minutes INTEGER DEFAULT 0,
@@ -136,7 +231,7 @@ function initSchema() {
   addColumnIfNotExists('employees', 'wop_work_hours', 'REAL DEFAULT NULL');
   addColumnIfNotExists('employees', 'payment_mode', "TEXT DEFAULT 'Bank'");
   addColumnIfNotExists('employees', 'late_grace_minutes', 'INTEGER DEFAULT 11');
-  addColumnIfNotExists('employees', 'late_deduction_multiplier', 'REAL DEFAULT 0.5');
+  addColumnIfNotExists('employees', 'late_deduction_multiplier', 'REAL DEFAULT 1.5');
   addColumnIfNotExists('employees', 'overtime_multiplier', 'REAL DEFAULT 2.0');
   addColumnIfNotExists('employees', 'overtime_allowed', 'INTEGER DEFAULT 1');
   addColumnIfNotExists('employees', 'min_overtime_minutes', 'INTEGER DEFAULT 0');
@@ -161,7 +256,7 @@ function initSchema() {
       wop_work_hours REAL DEFAULT NULL,
       payment_mode TEXT DEFAULT 'Bank',
       late_grace_minutes INTEGER DEFAULT 11,
-      late_deduction_multiplier REAL DEFAULT 0.5,
+      late_deduction_multiplier REAL DEFAULT 1.5,
       overtime_multiplier REAL DEFAULT 2.0,
       overtime_allowed INTEGER DEFAULT 1,
       min_overtime_minutes INTEGER DEFAULT 0,

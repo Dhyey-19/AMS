@@ -124,6 +124,33 @@ const parseWorkHoursToDecimal = (val) => {
   return isNaN(num) ? 12.0 : num;
 };
 
+const formatOptionalHoursToHHMM = (hrs) => {
+  if (hrs === null || hrs === undefined || hrs === '') return '';
+  if (typeof hrs === 'string' && hrs.includes(':')) {
+    const parts = hrs.split(':');
+    const h = parseInt(parts[0], 10) || 0;
+    const m = parseInt(parts[1], 10) || 0;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+  const num = parseFloat(hrs);
+  if (isNaN(num) || num <= 0) return '';
+  const totalMins = Math.round(num * 60);
+  return minutesToHHMM(totalMins);
+};
+
+const parseOptionalWorkHoursToDecimal = (val) => {
+  if (val === null || val === undefined || val === '') return null;
+  if (typeof val === 'string' && val.includes(':')) {
+    const parts = val.split(':');
+    const h = parseInt(parts[0], 10) || 0;
+    const m = parseInt(parts[1], 10) || 0;
+    const dec = Number((h + m / 60).toFixed(4));
+    return dec > 0 ? dec : null;
+  }
+  const num = parseFloat(val);
+  return (isNaN(num) || num <= 0) ? null : num;
+};
+
 export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }) => {
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
@@ -214,7 +241,7 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
         standard_break_time: stdBreakHHMM,
         standard_break_minutes: parseBreakToMinutes(stdBreakHHMM),
         standard_work_hours: workHoursHHMM,
-        wop_work_hours: employee.wop_work_hours ? formatHoursToHHMM(employee.wop_work_hours.toString()) : '',
+        wop_work_hours: employee.wop_work_hours ? formatOptionalHoursToHHMM(employee.wop_work_hours) : '',
         payment_mode: employee.payment_mode || 'Bank',
         late_grace_minutes: employee.late_grace_minutes || 11,
         late_deduction_multiplier: employee.late_deduction_multiplier ?? 0.5,
@@ -242,7 +269,7 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
         standard_out_time: stdOut,
         standard_break_time: stdBreakHHMM,
         standard_work_hours: workHoursHHMM,
-        wop_work_hours: employee.wop_work_hours ? formatHoursToHHMM(employee.wop_work_hours.toString()) : '',
+        wop_work_hours: employee.wop_work_hours ? formatOptionalHoursToHHMM(employee.wop_work_hours) : '',
         payment_mode: employee.payment_mode || 'Bank',
         late_grace_minutes: employee.late_grace_minutes || 11,
         late_deduction_multiplier: employee.late_deduction_multiplier ?? 0.5,
@@ -319,7 +346,7 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
       standard_out_time: formatTimeToHHMM(rev.standard_out_time || '20:00'),
       standard_break_time: formatBreakToHHMM(rev.standard_break_minutes || 0),
       standard_work_hours: formatHoursToHHMM(rev.standard_work_hours || 12),
-      wop_work_hours: rev.wop_work_hours ? formatHoursToHHMM(rev.wop_work_hours.toString()) : '',
+      wop_work_hours: rev.wop_work_hours ? formatOptionalHoursToHHMM(rev.wop_work_hours) : '',
       payment_mode: rev.payment_mode || 'Bank',
       late_grace_minutes: rev.late_grace_minutes || 11,
       late_deduction_multiplier: rev.late_deduction_multiplier ?? 0.5,
@@ -376,6 +403,7 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
         incentive: wefForm.incentive !== '' ? parseFloat(wefForm.incentive) : 0,
         standard_break_minutes: parseBreakToMinutes(wefForm.standard_break_time),
         standard_work_hours: parseWorkHoursToDecimal(wefForm.standard_work_hours),
+        wop_work_hours: parseOptionalWorkHoursToDecimal(wefForm.wop_work_hours),
         late_grace_minutes: parseInt(wefForm.late_grace_minutes, 10) || 11,
         late_deduction_multiplier: parseFloat(wefForm.late_deduction_multiplier) || 0.5,
         overtime_multiplier: parseFloat(wefForm.overtime_multiplier) || 2.0,
@@ -443,7 +471,7 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
         standard_break_time: formData.standard_break_time || '00:00',
         standard_break_minutes: breakMinutes,
         standard_work_hours: parseWorkHoursToDecimal(formData.standard_work_hours),
-        wop_work_hours: formData.wop_work_hours ? parseWorkHoursToDecimal(formData.wop_work_hours) : null,
+        wop_work_hours: parseOptionalWorkHoursToDecimal(formData.wop_work_hours),
         late_grace_minutes: parseInt(formData.late_grace_minutes, 10) || 11,
         late_deduction_multiplier: parseFloat(formData.late_deduction_multiplier) || 0.5,
         overtime_multiplier: parseFloat(formData.overtime_multiplier) || 2.0,
@@ -826,7 +854,8 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                         setFormData(prev => ({ ...prev, wop_work_hours: val }));
                       }}
                       onBlur={(e) => {
-                        const formatted = formatHoursToHHMM(e.target.value);
+                        const trimmed = e.target.value.trim();
+                        const formatted = trimmed ? formatOptionalHoursToHHMM(trimmed) : '';
                         setFormData(prev => ({ ...prev, wop_work_hours: formatted }));
                       }}
                       placeholder="06:00 (optional)"
@@ -1278,9 +1307,14 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                         type="text"
                         name="wop_work_hours"
                         value={wefForm.wop_work_hours || ''}
-                        onChange={(e) => setWefForm(prev => ({ ...prev, wop_work_hours: e.target.value }))}
+                        onChange={(e) => {
+                          let val = e.target.value.replace(/[^0-9:]/g, '');
+                          if (val.length > 5) val = val.slice(0, 5);
+                          setWefForm(prev => ({ ...prev, wop_work_hours: val }));
+                        }}
                         onBlur={(e) => {
-                          const formatted = formatHoursToHHMM(e.target.value);
+                          const trimmed = e.target.value.trim();
+                          const formatted = trimmed ? formatOptionalHoursToHHMM(trimmed) : '';
                           setWefForm(prev => ({ ...prev, wop_work_hours: formatted }));
                         }}
                         placeholder="06:00 (optional)"
@@ -1540,6 +1574,66 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                   <label htmlFor="overtime_allowed" style={{ fontSize: '0.875rem', fontWeight: '500', color: 'var(--slate-800)', cursor: 'pointer' }}>
                     Allow Overtime compensation for this employee
                   </label>
+                </div>
+
+                <div style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--slate-500)', letterSpacing: '0.04em', marginTop: '0.5rem' }}>
+                  Weekly Off Present (WOP) & Leave Entitlements
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">WOP (Weekly Off Present - Days)</label>
+                    <input 
+                      type="number" 
+                      name="wop"
+                      value={formData.wop ?? 0}
+                      onChange={handleChange}
+                      step="0.5"
+                      min="0"
+                      className="form-control"
+                    />
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Entitlement days allowed per month</small>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">WOP Work Hours (HH:MM)</label>
+                    <input 
+                      type="text" 
+                      name="wop_work_hours"
+                      value={formData.wop_work_hours || ''}
+                      onChange={(e) => {
+                        let val = e.target.value.replace(/[^0-9:]/g, '');
+                        if (val.length > 5) val = val.slice(0, 5);
+                        setFormData(prev => ({ ...prev, wop_work_hours: val }));
+                      }}
+                      onBlur={(e) => {
+                        const trimmed = e.target.value.trim();
+                        const formatted = trimmed ? formatOptionalHoursToHHMM(trimmed) : '';
+                        setFormData(prev => ({ ...prev, wop_work_hours: formatted }));
+                      }}
+                      placeholder="06:00 (optional)"
+                      maxLength={5}
+                      className="form-control"
+                      style={{ fontWeight: '700', color: '#0f766e', fontSize: '0.95rem' }}
+                    />
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>
+                      Target work hours on WOP day (e.g. 06:00 or 08:00)
+                    </small>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">YPL (Yearly Paid Leave - Days)</label>
+                    <input 
+                      type="number" 
+                      name="ypl"
+                      value={formData.ypl ?? 0}
+                      onChange={handleChange}
+                      step="0.5"
+                      min="0"
+                      className="form-control"
+                    />
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Yearly paid leave entitlement quota</small>
+                  </div>
                 </div>
 
                 <div className="form-group" style={{ marginTop: '0.5rem', marginBottom: 0 }}>
