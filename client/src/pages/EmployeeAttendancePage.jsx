@@ -73,6 +73,7 @@ const formatBreakToHHMM = (val) => {
 
 export const ATTENDANCE_COLUMNS = [
   { id: 'date', label: 'DATE', width: 120, description: 'Attendance Date' },
+  { id: 'manual', label: 'MANUAL', width: 75, align: 'center', description: 'Manual Record (Type & Save)' },
   { id: 'status', label: 'P/A', width: 68, align: 'center', description: 'Status (P/A/WO/WOP)' },
   { id: 'calc_mode', label: 'CALC MODE', width: 118, description: 'Calculation Mode' },
   { id: 'sched_in', label: 'SCHED IN', width: 88, description: 'Scheduled In Time' },
@@ -121,11 +122,20 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
   const [activeSubTab, setActiveSubTab] = useState('attendance'); // 'attendance', 'salary-history'
   const [importMessage, setImportMessage] = useState(null);
 
+  // Inline editing state for manual type & save
+  const [inlineEditingDate, setInlineEditingDate] = useState(null);
+  const [inlineFormData, setInlineFormData] = useState({});
+  const [inlineSaving, setInlineSaving] = useState(false);
+
   // Column Visibility State
   const [visibleColumns, setVisibleColumns] = useState(() => {
     try {
       const saved = localStorage.getItem('ams_employee_attendance_visible_columns');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.manual === undefined) parsed.manual = true;
+        return parsed;
+      }
     } catch (e) {}
     return ATTENDANCE_COLUMNS.reduce((acc, col) => ({ ...acc, [col.id]: true }), {});
   });
@@ -208,6 +218,110 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
       boxShadow: isLastFrozen ? '4px 0 8px -2px rgba(0, 0, 0, 0.14)' : undefined,
       borderRight: isLastFrozen ? '1px solid var(--slate-300)' : undefined
     };
+  };
+
+  const inlineInputStyle = {
+    width: '100%',
+    padding: '2px 4px',
+    fontSize: '0.75rem',
+    borderRadius: '4px',
+    border: '1px solid var(--primary-500)',
+    backgroundColor: '#ffffff',
+    boxSizing: 'border-box'
+  };
+
+  const handleToggleManual = async (r) => {
+    if (r.is_manual) {
+      if (window.confirm(`Revert record for ${r.attendance_date_iso} to automatic calculations?\n\nDynamic formulas and salary rules will be applied.`)) {
+        try {
+          setLoading(true);
+          await attendanceApi.updateRecord(selectedEmployeeCode, r.attendance_date_iso, { is_manual: 0 });
+          const res = await attendanceApi.getEmployeeSheet(selectedEmployeeCode, { month: selectedMonth });
+          setSheetData(res.data);
+          if (inlineEditingDate === r.attendance_date_iso) {
+            setInlineEditingDate(null);
+          }
+        } catch (err) {
+          alert(err.message || 'Failed to revert record');
+        } finally {
+          setLoading(false);
+        }
+      }
+    } else {
+      // User ticked manual on a record!
+      // Activate inline editing row for direct type & save
+      setInlineEditingDate(r.attendance_date_iso);
+      setInlineFormData({
+        status_code: r.status_code || 'P',
+        calc_mode: r.calc_mode || 'Manual',
+        scheduled_in_time: r.scheduled_in_time || '',
+        scheduled_out_time: r.scheduled_out_time || '',
+        scheduled_duration_formatted: r.scheduled_duration_formatted || '12:00',
+        scheduled_break_formatted: r.scheduled_break_formatted || '00:00',
+        scheduled_work_formatted: r.scheduled_work_formatted || '12:00',
+        in_time: r.actual_in_time || r.in_time || '',
+        out_time: r.actual_out_time || r.out_time || '',
+        actual_duration_formatted: r.actual_duration_formatted || r.total_duration || '00:00',
+        break_out: r.break_out || '',
+        break_in: r.break_in || '',
+        effective_break_formatted: r.effective_break_formatted || '00:00',
+        actual_work_formatted: r.actual_work_formatted || '00:00',
+        work_diff_formatted: r.work_diff_formatted || '00:00',
+        late_formatted: r.late_formatted || '00:00',
+        overtime_formatted: r.overtime_formatted || '00:00',
+        hourly_rate: r.hourly_rate !== undefined && r.hourly_rate !== null ? r.hourly_rate : '',
+        daily_salary_earned: r.daily_salary_earned !== undefined && r.daily_salary_earned !== null ? r.daily_salary_earned : '',
+        late_salary_deduction: r.late_salary_deduction !== undefined && r.late_salary_deduction !== null ? r.late_salary_deduction : 0,
+        overtime_pay: r.overtime_pay !== undefined && r.overtime_pay !== null ? r.overtime_pay : 0,
+        leave_deduction: r.leave_deduction || 0,
+        penalty_amount: r.penalty_amount || 0,
+        net_daily_salary: r.net_daily_salary !== undefined && r.net_daily_salary !== null ? r.net_daily_salary : '',
+        remarks: r.remarks || ''
+      });
+    }
+  };
+
+  const handleSaveInline = async (dateIso) => {
+    try {
+      setInlineSaving(true);
+      const payload = {
+        is_manual: 1,
+        status_code: (inlineFormData.status_code || 'P').toUpperCase().trim(),
+        calc_mode: inlineFormData.calc_mode || 'Manual',
+        scheduled_in_time: inlineFormData.scheduled_in_time || '',
+        scheduled_out_time: inlineFormData.scheduled_out_time || '',
+        scheduled_duration_formatted: inlineFormData.scheduled_duration_formatted || '',
+        scheduled_break_formatted: inlineFormData.scheduled_break_formatted || '',
+        scheduled_work_formatted: inlineFormData.scheduled_work_formatted || '',
+        in_time: inlineFormData.in_time ? inlineFormData.in_time.trim() : '',
+        out_time: inlineFormData.out_time ? inlineFormData.out_time.trim() : '',
+        actual_duration_formatted: inlineFormData.actual_duration_formatted || '',
+        break_out: inlineFormData.break_out ? inlineFormData.break_out.trim() : '',
+        break_in: inlineFormData.break_in ? inlineFormData.break_in.trim() : '',
+        effective_break_formatted: inlineFormData.effective_break_formatted || '',
+        actual_work_formatted: inlineFormData.actual_work_formatted || '',
+        work_diff_formatted: inlineFormData.work_diff_formatted || '',
+        late_formatted: inlineFormData.late_formatted || '',
+        overtime_formatted: inlineFormData.overtime_formatted || '',
+        hourly_rate: inlineFormData.hourly_rate !== '' ? parseFloat(inlineFormData.hourly_rate) : undefined,
+        daily_salary_earned: inlineFormData.daily_salary_earned !== '' ? parseFloat(inlineFormData.daily_salary_earned) : undefined,
+        late_salary_deduction: inlineFormData.late_salary_deduction !== '' ? parseFloat(inlineFormData.late_salary_deduction) : 0,
+        overtime_pay: inlineFormData.overtime_pay !== '' ? parseFloat(inlineFormData.overtime_pay) : 0,
+        leave_deduction: parseFloat(inlineFormData.leave_deduction) || 0,
+        penalty_amount: parseFloat(inlineFormData.penalty_amount) || 0,
+        net_daily_salary: inlineFormData.net_daily_salary !== '' ? parseFloat(inlineFormData.net_daily_salary) : undefined,
+        remarks: inlineFormData.remarks ? inlineFormData.remarks.trim() : ''
+      };
+
+      await attendanceApi.updateRecord(selectedEmployeeCode, dateIso, payload);
+      setInlineEditingDate(null);
+      const res = await attendanceApi.getEmployeeSheet(selectedEmployeeCode, { month: selectedMonth });
+      setSheetData(res.data);
+    } catch (err) {
+      alert(err.message || 'Failed to save manual record');
+    } finally {
+      setInlineSaving(false);
+    }
   };
 
   // Close dropdown on outside click
@@ -1317,30 +1431,75 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                   </thead>
                   <tbody>
                     {records.map((r, idx) => {
+                      const isInlineEditing = inlineEditingDate === r.attendance_date_iso;
                       const isWO = r.status_code === 'WO';
                       const isWOP = r.status_code === 'WOP';
                       const isAbsent = r.status_code === 'A';
                       const isWopShortfall = r.is_wop_shortfall;
                       const isLate = r.is_late;
+                      const isManual = !!r.is_manual;
 
                       let rowBg = '#ffffff';
                       if (isWO) rowBg = '#f0f9ff';
                       if (isWOP) rowBg = '#f0fdfa';
                       if (isAbsent || isWopShortfall) rowBg = '#fff1f2';
+                      if (isManual) rowBg = '#fffdf7';
+                      if (isInlineEditing) rowBg = '#fefce8';
 
                       return (
                         <tr 
                           key={r.attendance_date_iso || idx}
-                          style={{ backgroundColor: rowBg }}
+                          style={{ 
+                            backgroundColor: rowBg,
+                            borderLeft: isInlineEditing ? '4px solid #f59e0b' : (isManual ? '3px solid #f59e0b' : 'none')
+                          }}
                         >
                           {visibleColumns.date && (
                             <td style={getStickyStyle('date', false, false, rowBg, { fontWeight: '600', color: 'var(--slate-900)' })}>
-                              {r.attendance_date || r.attendance_date_iso}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span>{r.attendance_date || r.attendance_date_iso}</span>
+                                {isManual && !isInlineEditing && (
+                                  <span 
+                                    style={{ 
+                                      fontSize: '0.625rem', 
+                                      fontWeight: '700', 
+                                      color: '#b45309', 
+                                      backgroundColor: '#fef3c7', 
+                                      border: '1px solid #fde68a', 
+                                      padding: '1px 4px', 
+                                      borderRadius: '3px' 
+                                    }}
+                                    title="Manual record (Type & Save)"
+                                  >
+                                    Manual
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                          {visibleColumns.manual && (
+                            <td style={getStickyStyle('manual', false, false, rowBg, { textAlign: 'center' })}>
+                              <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', margin: 0 }}>
+                                <input 
+                                  type="checkbox"
+                                  checked={isInlineEditing || isManual}
+                                  onChange={() => handleToggleManual(r)}
+                                  title={isManual ? 'Manual record active (Click to revert to auto rules)' : 'Click to tick manual and edit all fields (No salary rules)'}
+                                  style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#d97706' }}
+                                />
+                              </label>
                             </td>
                           )}
                           {visibleColumns.status && (
                             <td style={getStickyStyle('status', false, false, rowBg, { textAlign: 'center' })}>
-                              {isWopShortfall ? (
+                              {isInlineEditing ? (
+                                <input
+                                  style={{ ...inlineInputStyle, width: '56px', textAlign: 'center', fontWeight: '700' }}
+                                  value={inlineFormData.status_code || ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, status_code: e.target.value.toUpperCase() }))}
+                                  placeholder="P"
+                                />
+                              ) : isWopShortfall ? (
                                 <span
                                   className="badge"
                                   style={{
@@ -1369,144 +1528,373 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                           )}
                           {visibleColumns.calc_mode && (
                             <td style={getStickyStyle('calc_mode', false, false, rowBg)}>
-                              <span 
-                                className={`badge ${
-                                  r.calc_mode === 'Normal' ? 'badge-success' :
-                                  r.calc_mode === 'Both late' ? 'badge-danger' :
-                                  r.calc_mode === 'Late IN only' ? 'badge-warning' :
-                                  r.calc_mode === 'Late OUT only' ? 'badge-info' :
-                                  'badge-secondary'
-                                }`}
-                                style={{ fontSize: '0.7rem', padding: '0.2rem 0.45rem' }}
-                                title={
-                                  r.calc_mode === 'Normal' ? 'Normal Shift' :
-                                  r.calc_mode === 'Both late' ? 'Late IN & Late OUT' :
-                                  r.calc_mode === 'Late IN only' ? 'Late IN only' :
-                                  r.calc_mode === 'Late OUT only' ? 'Late OUT only' :
-                                  r.calc_mode
-                                }
-                              >
-                                {r.calc_mode || 'Normal'}
-                              </span>
+                              {isInlineEditing ? (
+                                <input
+                                  style={{ ...inlineInputStyle, width: '100px' }}
+                                  value={inlineFormData.calc_mode || ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, calc_mode: e.target.value }))}
+                                  placeholder="Manual"
+                                />
+                              ) : (
+                                <span 
+                                  className={`badge ${
+                                    r.calc_mode === 'Normal' ? 'badge-success' :
+                                    r.calc_mode === 'Both late' ? 'badge-danger' :
+                                    r.calc_mode === 'Late IN only' ? 'badge-warning' :
+                                    r.calc_mode === 'Late OUT only' ? 'badge-info' :
+                                    'badge-secondary'
+                                  }`}
+                                  style={{ fontSize: '0.7rem', padding: '0.2rem 0.45rem' }}
+                                  title={r.calc_mode}
+                                >
+                                  {r.calc_mode || 'Normal'}
+                                </span>
+                              )}
                             </td>
                           )}
                           {visibleColumns.sched_in && (
-                            <td style={getStickyStyle('sched_in', false, false, rowBg, { color: 'var(--slate-600)' })}>{r.scheduled_in_time}</td>
+                            <td style={getStickyStyle('sched_in', false, false, rowBg, { color: 'var(--slate-600)' })}>
+                              {isInlineEditing ? (
+                                <input
+                                  style={inlineInputStyle}
+                                  value={inlineFormData.scheduled_in_time || ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, scheduled_in_time: e.target.value }))}
+                                  placeholder="08:00"
+                                />
+                              ) : (
+                                r.scheduled_in_time
+                              )}
+                            </td>
                           )}
                           {visibleColumns.sched_out && (
-                            <td style={getStickyStyle('sched_out', false, false, rowBg, { color: 'var(--slate-600)' })}>{r.scheduled_out_time}</td>
+                            <td style={getStickyStyle('sched_out', false, false, rowBg, { color: 'var(--slate-600)' })}>
+                              {isInlineEditing ? (
+                                <input
+                                  style={inlineInputStyle}
+                                  value={inlineFormData.scheduled_out_time || ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, scheduled_out_time: e.target.value }))}
+                                  placeholder="20:00"
+                                />
+                              ) : (
+                                r.scheduled_out_time
+                              )}
+                            </td>
                           )}
                           {visibleColumns.target && (
-                            <td style={getStickyStyle('target', false, false, rowBg, { color: 'var(--slate-600)' })}>{r.scheduled_duration_formatted || '12:00'}</td>
+                            <td style={getStickyStyle('target', false, false, rowBg, { color: 'var(--slate-600)' })}>
+                              {isInlineEditing ? (
+                                <input
+                                  style={inlineInputStyle}
+                                  value={inlineFormData.scheduled_duration_formatted || ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, scheduled_duration_formatted: e.target.value }))}
+                                  placeholder="12:00"
+                                />
+                              ) : (
+                                r.scheduled_duration_formatted || '12:00'
+                              )}
+                            </td>
                           )}
                           {visibleColumns.std_break && (
-                            <td style={getStickyStyle('std_break', false, false, rowBg, { color: 'var(--slate-600)' })}>{r.scheduled_break_formatted || '00:00'}</td>
+                            <td style={getStickyStyle('std_break', false, false, rowBg, { color: 'var(--slate-600)' })}>
+                              {isInlineEditing ? (
+                                <input
+                                  style={inlineInputStyle}
+                                  value={inlineFormData.scheduled_break_formatted || ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, scheduled_break_formatted: e.target.value }))}
+                                  placeholder="00:00"
+                                />
+                              ) : (
+                                r.scheduled_break_formatted || '00:00'
+                              )}
+                            </td>
                           )}
                           {visibleColumns.sched_work && (
-                            <td style={getStickyStyle('sched_work', false, false, rowBg, { fontWeight: '600', color: 'var(--slate-700)' })}>{r.scheduled_work_formatted}</td>
+                            <td style={getStickyStyle('sched_work', false, false, rowBg, { fontWeight: '600', color: 'var(--slate-700)' })}>
+                              {isInlineEditing ? (
+                                <input
+                                  style={inlineInputStyle}
+                                  value={inlineFormData.scheduled_work_formatted || ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, scheduled_work_formatted: e.target.value }))}
+                                  placeholder="12:00"
+                                />
+                              ) : (
+                                r.scheduled_work_formatted
+                              )}
+                            </td>
                           )}
                           {visibleColumns.actual_in && (
                             <td style={getStickyStyle('actual_in', false, false, rowBg, { fontWeight: isLate ? '700' : 'normal', color: isLate ? 'var(--warning-text)' : 'var(--slate-900)', background: isLate ? 'var(--warning-bg)' : 'transparent' })}>
-                              {r.actual_in_time || '—'}
+                              {isInlineEditing ? (
+                                <input
+                                  style={inlineInputStyle}
+                                  value={inlineFormData.in_time || ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, in_time: e.target.value }))}
+                                  placeholder="08:00"
+                                />
+                              ) : (
+                                r.actual_in_time || '—'
+                              )}
                             </td>
                           )}
                           {visibleColumns.actual_out && (
-                            <td style={getStickyStyle('actual_out', false, false, rowBg, { color: 'var(--slate-900)' })}>{r.actual_out_time || '—'}</td>
+                            <td style={getStickyStyle('actual_out', false, false, rowBg, { color: 'var(--slate-900)' })}>
+                              {isInlineEditing ? (
+                                <input
+                                  style={inlineInputStyle}
+                                  value={inlineFormData.out_time || ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, out_time: e.target.value }))}
+                                  placeholder="20:00"
+                                />
+                              ) : (
+                                r.actual_out_time || '—'
+                              )}
+                            </td>
                           )}
                           {visibleColumns.actual_duration && (
-                            <td style={getStickyStyle('actual_duration', false, false, rowBg, { color: 'var(--slate-700)', fontWeight: '600' })} title={`Gross Duration = Actual OUT (${r.actual_out_time}) - Actual IN (${r.actual_in_time}) = ${r.actual_duration_formatted}`}>
-                              {r.actual_duration_formatted}
+                            <td style={getStickyStyle('actual_duration', false, false, rowBg, { color: 'var(--slate-700)', fontWeight: '600' })}>
+                              {isInlineEditing ? (
+                                <input
+                                  style={inlineInputStyle}
+                                  value={inlineFormData.actual_duration_formatted || ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, actual_duration_formatted: e.target.value }))}
+                                  placeholder="12:00"
+                                />
+                              ) : (
+                                r.actual_duration_formatted
+                              )}
                             </td>
                           )}
                           {visibleColumns.break_out && (
-                            <td style={getStickyStyle('break_out', false, false, rowBg, { color: 'var(--slate-700)' })}>{r.break_out || '—'}</td>
+                            <td style={getStickyStyle('break_out', false, false, rowBg, { color: 'var(--slate-700)' })}>
+                              {isInlineEditing ? (
+                                <input
+                                  style={inlineInputStyle}
+                                  value={inlineFormData.break_out || ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, break_out: e.target.value }))}
+                                  placeholder="13:00"
+                                />
+                              ) : (
+                                r.break_out || '—'
+                              )}
+                            </td>
                           )}
                           {visibleColumns.break_in && (
-                            <td style={getStickyStyle('break_in', false, false, rowBg, { color: 'var(--slate-700)' })}>{r.break_in || '—'}</td>
+                            <td style={getStickyStyle('break_in', false, false, rowBg, { color: 'var(--slate-700)' })}>
+                              {isInlineEditing ? (
+                                <input
+                                  style={inlineInputStyle}
+                                  value={inlineFormData.break_in || ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, break_in: e.target.value }))}
+                                  placeholder="13:30"
+                                />
+                              ) : (
+                                r.break_in || '—'
+                              )}
+                            </td>
                           )}
                           {visibleColumns.effective_break && (
-                            <td style={getStickyStyle('effective_break', false, false, rowBg, { color: r.effective_break_minutes > 0 ? 'var(--primary-700)' : 'var(--slate-400)', fontWeight: r.effective_break_minutes > 0 ? '600' : 'normal' })} title={`Break IN (${r.break_in || '00:00'}) - Break OUT (${r.break_out || '00:00'}) = ${r.effective_break_formatted}`}>
-                              {r.effective_break_minutes > 0 ? r.effective_break_formatted : '—'}
+                            <td style={getStickyStyle('effective_break', false, false, rowBg, { color: r.effective_break_minutes > 0 ? 'var(--primary-700)' : 'var(--slate-400)', fontWeight: r.effective_break_minutes > 0 ? '600' : 'normal' })}>
+                              {isInlineEditing ? (
+                                <input
+                                  style={inlineInputStyle}
+                                  value={inlineFormData.effective_break_formatted || ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, effective_break_formatted: e.target.value }))}
+                                  placeholder="00:00"
+                                />
+                              ) : (
+                                r.effective_break_minutes > 0 ? r.effective_break_formatted : '—'
+                              )}
                             </td>
                           )}
                           {visibleColumns.actual_work && (
-                            <td 
-                              style={getStickyStyle('actual_work', false, false, rowBg, { fontWeight: '700', color: 'var(--slate-900)' })}
-                              title={`Actual Work = Duration (${r.actual_duration_formatted}) - Effective Break (${r.effective_break_formatted || '00:00'}) = ${r.actual_work_formatted}`}
-                            >
-                              {r.actual_work_formatted}
+                            <td style={getStickyStyle('actual_work', false, false, rowBg, { fontWeight: '700', color: 'var(--slate-900)' })}>
+                              {isInlineEditing ? (
+                                <input
+                                  style={{ ...inlineInputStyle, fontWeight: '700' }}
+                                  value={inlineFormData.actual_work_formatted || ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, actual_work_formatted: e.target.value }))}
+                                  placeholder="12:00"
+                                />
+                              ) : (
+                                r.actual_work_formatted
+                              )}
                             </td>
                           )}
                           {visibleColumns.work_diff && (
                             <td style={getStickyStyle('work_diff', false, false, rowBg, { textAlign: 'center' })}>
-                              <span style={{ fontWeight: '700', color: r.work_diff_minutes > 0 ? 'var(--success-text)' : (r.work_diff_minutes < 0 ? 'var(--danger-text)' : 'var(--slate-500)') }}>
-                                {r.work_diff_formatted}
-                              </span>
+                              {isInlineEditing ? (
+                                <input
+                                  style={inlineInputStyle}
+                                  value={inlineFormData.work_diff_formatted || ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, work_diff_formatted: e.target.value }))}
+                                  placeholder="+00:00"
+                                />
+                              ) : (
+                                <span style={{ fontWeight: '700', color: r.work_diff_minutes > 0 ? 'var(--success-text)' : (r.work_diff_minutes < 0 ? 'var(--danger-text)' : 'var(--slate-500)') }}>
+                                  {r.work_diff_formatted}
+                                </span>
+                              )}
                             </td>
                           )}
                           {visibleColumns.late_by && (
                             <td style={getStickyStyle('late_by', false, false, rowBg, { color: isLate ? 'var(--warning-text)' : 'var(--slate-400)', fontWeight: isLate ? '700' : 'normal' })}>
-                              {isLate ? r.late_formatted : '—'}
+                              {isInlineEditing ? (
+                                <input
+                                  style={inlineInputStyle}
+                                  value={inlineFormData.late_formatted || ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, late_formatted: e.target.value }))}
+                                  placeholder="00:00"
+                                />
+                              ) : (
+                                isLate ? r.late_formatted : '—'
+                              )}
                             </td>
                           )}
                           {visibleColumns.overtime && (
                             <td style={getStickyStyle('overtime', false, false, rowBg, { color: r.overtime_minutes > 0 ? 'var(--success-text)' : 'var(--slate-400)', fontWeight: r.overtime_minutes > 0 ? '700' : 'normal' })}>
-                              {r.overtime_minutes > 0 ? r.overtime_formatted : '—'}
+                              {isInlineEditing ? (
+                                <input
+                                  style={inlineInputStyle}
+                                  value={inlineFormData.overtime_formatted || ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, overtime_formatted: e.target.value }))}
+                                  placeholder="00:00"
+                                />
+                              ) : (
+                                r.overtime_minutes > 0 ? r.overtime_formatted : '—'
+                              )}
                             </td>
                           )}
                           {visibleColumns.rate && (
-                            <td style={getStickyStyle('rate', false, false, rowBg, { textAlign: 'right', color: 'var(--slate-500)' })} title={r.wef_date ? `W.E.F. Active: ${r.wef_date} • Base Salary: ₹${r.effective_salary || currentEmp?.salary}` : ''}>
-                              ₹{r.hourly_rate}
+                            <td style={getStickyStyle('rate', false, false, rowBg, { textAlign: 'right', color: 'var(--slate-500)' })}>
+                              {isInlineEditing ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  style={inlineInputStyle}
+                                  value={inlineFormData.hourly_rate ?? ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, hourly_rate: e.target.value }))}
+                                  placeholder="83.33"
+                                />
+                              ) : (
+                                `₹${r.hourly_rate}`
+                              )}
                             </td>
                           )}
                           {visibleColumns.daily_salary && (
-                            <td style={getStickyStyle('daily_salary', false, false, rowBg, { textAlign: 'right', fontWeight: '600' })} title={r.wef_date ? `W.E.F. Active: ${r.wef_date} • Daily Rate: ₹${r.daily_rate}` : ''}>
-                              ₹{r.daily_salary_earned}
+                            <td style={getStickyStyle('daily_salary', false, false, rowBg, { textAlign: 'right', fontWeight: '600' })}>
+                              {isInlineEditing ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  style={{ ...inlineInputStyle, fontWeight: '700' }}
+                                  value={inlineFormData.daily_salary_earned ?? ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, daily_salary_earned: e.target.value }))}
+                                  placeholder="1000.00"
+                                />
+                              ) : (
+                                `₹${r.daily_salary_earned}`
+                              )}
                             </td>
                           )}
                           {visibleColumns.late_ded && (
-                            <td 
-                              style={getStickyStyle('late_ded', false, false, rowBg, { textAlign: 'right', color: r.late_salary_deduction > 0 ? 'var(--danger-text)' : 'var(--slate-400)' })}
-                              title={[
-                                r.late_in_deduction > 0 ? `Late Check-In (${r.late_formatted} @ 1.5x): -₹${r.late_in_deduction}` : '',
-                                r.early_out_deduction > 0 ? `Early Check-Out (${r.early_formatted} @ 1.0x): -₹${r.early_out_deduction}` : '',
-                                r.excess_break_deduction > 0 ? `Excess Break: -₹${r.excess_break_deduction}` : ''
-                              ].filter(Boolean).join(' • ') || 'No timing deductions'}
-                            >
-                              {r.late_salary_deduction > 0 ? `-₹${r.late_salary_deduction}` : '—'}
+                            <td style={getStickyStyle('late_ded', false, false, rowBg, { textAlign: 'right', color: r.late_salary_deduction > 0 ? 'var(--danger-text)' : 'var(--slate-400)' })}>
+                              {isInlineEditing ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  style={{ ...inlineInputStyle, color: 'var(--danger-text)' }}
+                                  value={inlineFormData.late_salary_deduction ?? ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, late_salary_deduction: e.target.value }))}
+                                  placeholder="0.00"
+                                />
+                              ) : (
+                                r.late_salary_deduction > 0 ? `-₹${r.late_salary_deduction}` : '—'
+                              )}
                             </td>
                           )}
                           {visibleColumns.ot_pay && (
-                            <td 
-                              style={getStickyStyle('ot_pay', false, false, rowBg, { textAlign: 'right', color: r.overtime_pay > 0 ? 'var(--success-text)' : 'var(--slate-400)' })}
-                              title={[
-                                r.early_in_pay > 0 ? `Early Check-In (${r.early_in_formatted} @ 2.0x): +₹${r.early_in_pay}` : '',
-                                r.late_out_pay > 0 ? `Late Check-Out (${r.late_out_formatted}): +₹${r.late_out_pay}` : ''
-                              ].filter(Boolean).join(' • ') || 'No overtime pay'}
-                            >
-                              {r.overtime_pay > 0 ? `+₹${r.overtime_pay}` : '—'}
+                            <td style={getStickyStyle('ot_pay', false, false, rowBg, { textAlign: 'right', color: r.overtime_pay > 0 ? 'var(--success-text)' : 'var(--slate-400)' })}>
+                              {isInlineEditing ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  style={{ ...inlineInputStyle, color: 'var(--success-text)' }}
+                                  value={inlineFormData.overtime_pay ?? ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, overtime_pay: e.target.value }))}
+                                  placeholder="0.00"
+                                />
+                              ) : (
+                                r.overtime_pay > 0 ? `+₹${r.overtime_pay}` : '—'
+                              )}
                             </td>
                           )}
                           {visibleColumns.net_salary && (
                             <td style={getStickyStyle('net_salary', false, false, rowBg, { textAlign: 'right', fontWeight: '700', color: 'var(--primary-700)', background: 'var(--primary-50)' })}>
-                              ₹{r.net_daily_salary}
+                              {isInlineEditing ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  style={{ ...inlineInputStyle, fontWeight: '800', color: 'var(--primary-700)', backgroundColor: '#ecfdf5', border: '1.5px solid #10b981' }}
+                                  value={inlineFormData.net_daily_salary ?? ''}
+                                  onChange={e => setInlineFormData(p => ({ ...p, net_daily_salary: e.target.value }))}
+                                  placeholder="1000.00"
+                                />
+                              ) : (
+                                `₹${r.net_daily_salary}`
+                              )}
                             </td>
                           )}
                           {visibleColumns.action && (
                             <td style={getStickyStyle('action', false, false, rowBg, { textAlign: 'center' })}>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedRecordForEdit(r);
-                                  setIsDayEditModalOpen(true);
-                                }}
-                                className="btn btn-outline-primary btn-sm"
-                                style={{ padding: '0.2rem 0.45rem', fontSize: '0.725rem', gap: '0.25rem' }}
-                                title="Edit Attendance / Punches / Deductions"
-                              >
-                                <Edit3 size={12} />
-                                <span>Edit</span>
-                              </button>
+                              {isInlineEditing ? (
+                                <div style={{ display: 'flex', gap: '3px', justifyContent: 'center', alignItems: 'center' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveInline(r.attendance_date_iso)}
+                                    className="btn btn-sm btn-success"
+                                    style={{ padding: '0.2rem 0.4rem', fontSize: '0.7rem' }}
+                                    title="Save manual record (No rules)"
+                                    disabled={inlineSaving}
+                                  >
+                                    <Check size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedRecordForEdit({ ...r, ...inlineFormData, is_manual: 1 });
+                                      setIsDayEditModalOpen(true);
+                                    }}
+                                    className="btn btn-sm btn-outline-primary"
+                                    style={{ padding: '0.2rem 0.4rem', fontSize: '0.7rem' }}
+                                    title="Open full edit modal"
+                                  >
+                                    <Edit3 size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setInlineEditingDate(null)}
+                                    className="btn btn-sm btn-secondary"
+                                    style={{ padding: '0.2rem 0.4rem', fontSize: '0.7rem' }}
+                                    title="Cancel inline edit"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedRecordForEdit(r);
+                                    setIsDayEditModalOpen(true);
+                                  }}
+                                  className="btn btn-outline-primary btn-sm"
+                                  style={{ padding: '0.2rem 0.45rem', fontSize: '0.725rem', gap: '0.25rem' }}
+                                  title="Edit Attendance / Punches / Deductions"
+                                >
+                                  <Edit3 size={12} />
+                                  <span>Edit</span>
+                                </button>
+                              )}
                             </td>
                           )}
                         </tr>
@@ -1517,6 +1905,9 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                     <tr>
                       {visibleColumns.date && (
                         <td style={getStickyStyle('date', false, true, undefined, { fontWeight: '700' })}>TOTAL</td>
+                      )}
+                      {visibleColumns.manual && (
+                        <td style={getStickyStyle('manual', false, true, undefined, { textAlign: 'center' })}>—</td>
                       )}
                       {visibleColumns.status && (
                         <td style={getStickyStyle('status', false, true, undefined, { textAlign: 'center', fontWeight: '700' })}>{summary?.presentDays}P/{summary?.absentDays}A</td>

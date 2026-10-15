@@ -62,29 +62,47 @@ export const EditDayAttendanceModal = ({
   useEffect(() => {
     if (record) {
       setFormData({
+        is_manual: record.is_manual === 1 || record.is_manual === true || record.is_manual === '1',
         status_code: record.status_code || 'P',
+        calc_mode: record.calc_mode || 'Normal',
+        scheduled_in_time: formatTimeToHHMM(record.scheduled_in_time || employee?.standard_in_time || '08:00'),
+        scheduled_out_time: formatTimeToHHMM(record.scheduled_out_time || employee?.standard_out_time || '20:00'),
+        scheduled_duration_formatted: record.scheduled_duration_formatted || '12:00',
+        scheduled_break_formatted: record.scheduled_break_formatted || '00:00',
+        scheduled_work_formatted: record.scheduled_work_formatted || '12:00',
         in_time: formatTimeToHHMM(record.actual_in_time || record.in_time || ''),
         out_time: formatTimeToHHMM(record.actual_out_time || record.out_time || ''),
+        actual_duration_formatted: record.actual_duration_formatted || record.total_duration || '00:00',
         break_out: formatTimeToHHMM(record.break_out || ''),
         break_in: formatTimeToHHMM(record.break_in || ''),
+        effective_break_formatted: record.effective_break_formatted || '00:00',
+        actual_work_formatted: record.actual_work_formatted || '00:00',
+        work_diff_formatted: record.work_diff_formatted || '00:00',
+        late_formatted: record.late_formatted || '00:00',
+        overtime_formatted: record.overtime_formatted || '00:00',
+        hourly_rate: record.hourly_rate !== undefined && record.hourly_rate !== null ? record.hourly_rate : '',
+        daily_salary_earned: record.daily_salary_earned !== undefined && record.daily_salary_earned !== null ? record.daily_salary_earned : '',
+        late_salary_deduction: record.late_salary_deduction !== undefined && record.late_salary_deduction !== null ? record.late_salary_deduction : 0,
+        overtime_pay: record.overtime_pay !== undefined && record.overtime_pay !== null ? record.overtime_pay : 0,
         leave_deduction: record.leave_deduction || 0,
         penalty_amount: record.penalty_amount || 0,
         overtime_override_minutes: record.overtime_override_minutes || 0,
+        net_daily_salary: record.net_daily_salary !== undefined && record.net_daily_salary !== null ? record.net_daily_salary : '',
         punch_records: record.punch_records || '',
         remarks: record.remarks || ''
       });
       setError(null);
       setSuccess(null);
     }
-  }, [record]);
+  }, [record, employee]);
 
   if (!isOpen || !record) return null;
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: type === 'checkbox' ? checked : value
     }));
   };
 
@@ -102,23 +120,59 @@ export const EditDayAttendanceModal = ({
     setSuccess(null);
 
     try {
-      const payload = {
-        status_code: formData.status_code.toUpperCase().trim(),
-        in_time: formData.in_time ? formData.in_time.trim() : '',
-        out_time: formData.out_time ? formData.out_time.trim() : '',
-        break_out: formData.break_out ? formData.break_out.trim() : '',
-        break_in: formData.break_in ? formData.break_in.trim() : '',
-        leave_deduction: parseFloat(formData.leave_deduction) || 0,
-        penalty_amount: parseFloat(formData.penalty_amount) || 0,
-        overtime_override_minutes: parseInt(formData.overtime_override_minutes, 10) || 0,
-        remarks: formData.remarks ? formData.remarks.trim() : ''
-      };
+      const isManual = !!formData.is_manual;
+      let payload;
+
+      if (isManual) {
+        payload = {
+          is_manual: 1,
+          status_code: (formData.status_code || 'P').toUpperCase().trim(),
+          calc_mode: formData.calc_mode || 'Manual',
+          scheduled_in_time: formData.scheduled_in_time || '',
+          scheduled_out_time: formData.scheduled_out_time || '',
+          scheduled_duration_formatted: formData.scheduled_duration_formatted || '',
+          scheduled_break_formatted: formData.scheduled_break_formatted || '',
+          scheduled_work_formatted: formData.scheduled_work_formatted || '',
+          in_time: formData.in_time ? formData.in_time.trim() : '',
+          out_time: formData.out_time ? formData.out_time.trim() : '',
+          actual_duration_formatted: formData.actual_duration_formatted || '',
+          break_out: formData.break_out ? formData.break_out.trim() : '',
+          break_in: formData.break_in ? formData.break_in.trim() : '',
+          effective_break_formatted: formData.effective_break_formatted || '',
+          actual_work_formatted: formData.actual_work_formatted || '',
+          work_diff_formatted: formData.work_diff_formatted || '',
+          late_formatted: formData.late_formatted || '',
+          overtime_formatted: formData.overtime_formatted || '',
+          hourly_rate: formData.hourly_rate !== '' ? parseFloat(formData.hourly_rate) : undefined,
+          daily_salary_earned: formData.daily_salary_earned !== '' ? parseFloat(formData.daily_salary_earned) : undefined,
+          late_salary_deduction: formData.late_salary_deduction !== '' ? parseFloat(formData.late_salary_deduction) : 0,
+          overtime_pay: formData.overtime_pay !== '' ? parseFloat(formData.overtime_pay) : 0,
+          leave_deduction: parseFloat(formData.leave_deduction) || 0,
+          penalty_amount: parseFloat(formData.penalty_amount) || 0,
+          overtime_override_minutes: parseInt(formData.overtime_override_minutes, 10) || 0,
+          net_daily_salary: formData.net_daily_salary !== '' ? parseFloat(formData.net_daily_salary) : undefined,
+          remarks: formData.remarks ? formData.remarks.trim() : ''
+        };
+      } else {
+        payload = {
+          is_manual: 0,
+          status_code: formData.status_code.toUpperCase().trim(),
+          in_time: formData.in_time ? formData.in_time.trim() : '',
+          out_time: formData.out_time ? formData.out_time.trim() : '',
+          break_out: formData.break_out ? formData.break_out.trim() : '',
+          break_in: formData.break_in ? formData.break_in.trim() : '',
+          leave_deduction: parseFloat(formData.leave_deduction) || 0,
+          penalty_amount: parseFloat(formData.penalty_amount) || 0,
+          overtime_override_minutes: parseInt(formData.overtime_override_minutes, 10) || 0,
+          remarks: formData.remarks ? formData.remarks.trim() : ''
+        };
+      }
 
       const dateIso = record.attendance_date_iso;
       const code = employee?.employee_code || record.employee_code;
 
       const res = await attendanceApi.updateRecord(code, dateIso, payload);
-      setSuccess('Record updated in database! Recalculating sheet...');
+      setSuccess(isManual ? 'Manual record saved directly (no calculations applied)!' : 'Record updated in database! Recalculating sheet...');
       
       if (onUpdated) {
         await onUpdated(res.data);
@@ -138,7 +192,7 @@ export const EditDayAttendanceModal = ({
       <div 
         className="modal-dialog modal-md" 
         onClick={(e) => e.stopPropagation()}
-        style={{ display: 'flex', flexDirection: 'column', maxWidth: '600px' }}
+        style={{ display: 'flex', flexDirection: 'column', maxWidth: formData.is_manual ? '780px' : '620px', width: '100%', transition: 'max-width 0.2s ease' }}
       >
         {/* Header */}
         <div 
@@ -240,12 +294,66 @@ export const EditDayAttendanceModal = ({
               gap: '1.25rem'
             }}
           >
-            {/* Quick Status Presets */}
+            {/* Manual Mode Toggle Header Card */}
+            <div 
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.85rem 1rem',
+                borderRadius: '8px',
+                backgroundColor: formData.is_manual ? '#fffbeb' : '#f8fafc',
+                border: formData.is_manual ? '1.5px solid #f59e0b' : '1px solid var(--border-color)',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <input 
+                  type="checkbox"
+                  id="modal_is_manual_toggle"
+                  name="is_manual"
+                  checked={!!formData.is_manual}
+                  onChange={handleChange}
+                  style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: '#d97706' }}
+                />
+                <label htmlFor="modal_is_manual_toggle" style={{ cursor: 'pointer', margin: 0 }}>
+                  <div style={{ fontWeight: '700', fontSize: '0.925rem', color: formData.is_manual ? '#b45309' : 'var(--slate-800)' }}>
+                    Manual Record Mode (Direct Type & Save)
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: formData.is_manual ? '#92400e' : 'var(--slate-500)' }}>
+                    {formData.is_manual 
+                      ? '⚡ Active: All fields unlocked for direct entry. No salary rules or formulas will be applied.' 
+                      : 'Tick to unlock all fields and bypass salary rules & automated calculation.'}
+                  </div>
+                </label>
+              </div>
+              <span 
+                className={`badge ${formData.is_manual ? 'badge-warning' : 'badge-secondary'}`}
+                style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem', fontWeight: '700' }}
+              >
+                {formData.is_manual ? '✏️ MANUAL ACTIVE' : '⚙️ AUTO RULES'}
+              </span>
+            </div>
+
+            {/* Quick Status Presets & Status Code */}
             <div>
-              <label className="form-label" style={{ marginBottom: '0.4rem', display: 'flex', justifyContent: 'space-between' }}>
-                <span>Attendance Status</span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--slate-400)' }}>Select Status</span>
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                <label className="form-label" style={{ margin: 0 }}>Attendance Status (P/A)</label>
+                {formData.is_manual && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--slate-500)' }}>Status Code:</span>
+                    <input 
+                      type="text"
+                      name="status_code"
+                      value={formData.status_code || ''}
+                      onChange={handleChange}
+                      placeholder="P / A / WO"
+                      style={{ width: '80px', padding: '0.2rem 0.4rem', fontSize: '0.8rem', fontWeight: '700', textAlign: 'center' }}
+                      className="form-control"
+                    />
+                  </div>
+                )}
+              </div>
               <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                 {[
                   { code: 'P', label: 'Present (P)', color: 'var(--success-bg)', text: 'var(--success-text)', border: 'var(--success-border)' },
@@ -294,7 +402,7 @@ export const EditDayAttendanceModal = ({
                   onChange={handleChange}
                   className="form-control"
                 />
-                <small style={{ color: 'var(--slate-400)', fontSize: '0.725rem' }}>Scheduled: {employee?.standard_in_time || '08:00'}</small>
+                <small style={{ color: 'var(--slate-400)', fontSize: '0.725rem' }}>Scheduled: {formData.scheduled_in_time || employee?.standard_in_time || '08:00'}</small>
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
@@ -309,7 +417,7 @@ export const EditDayAttendanceModal = ({
                   onChange={handleChange}
                   className="form-control"
                 />
-                <small style={{ color: 'var(--slate-400)', fontSize: '0.725rem' }}>Scheduled: {employee?.standard_out_time || '20:00'}</small>
+                <small style={{ color: 'var(--slate-400)', fontSize: '0.725rem' }}>Scheduled: {formData.scheduled_out_time || employee?.standard_out_time || '20:00'}</small>
               </div>
             </div>
 
@@ -344,46 +452,334 @@ export const EditDayAttendanceModal = ({
               </div>
             </div>
 
-            {/* Financial Adjustments & Overtime Override */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" title="Manual Overtime in minutes">OT Override (Mins)</label>
-                <input 
-                  type="number" 
-                  name="overtime_override_minutes"
-                  value={formData.overtime_override_minutes || ''}
-                  onChange={handleChange}
-                  placeholder="0"
-                  className="form-control"
-                />
-              </div>
+            {/* If Manual Mode is ON: Expose All Additional Fields */}
+            {formData.is_manual && (
+              <>
+                {/* Scheduled Shift Overrides */}
+                <div style={{ padding: '0.85rem', background: 'var(--slate-50)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--slate-700)', marginBottom: '0.65rem' }}>
+                    📅 Scheduled Shift Fields (Manual Edit)
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.65rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem' }}>Sched In</label>
+                      <input 
+                        type="text" 
+                        name="scheduled_in_time"
+                        value={formData.scheduled_in_time || ''}
+                        onChange={handleChange}
+                        placeholder="08:00"
+                        className="form-control"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem' }}>Sched Out</label>
+                      <input 
+                        type="text" 
+                        name="scheduled_out_time"
+                        value={formData.scheduled_out_time || ''}
+                        onChange={handleChange}
+                        placeholder="20:00"
+                        className="form-control"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem' }}>Target (HH:MM)</label>
+                      <input 
+                        type="text" 
+                        name="scheduled_duration_formatted"
+                        value={formData.scheduled_duration_formatted || ''}
+                        onChange={handleChange}
+                        placeholder="12:00"
+                        className="form-control"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem' }}>Std Break</label>
+                      <input 
+                        type="text" 
+                        name="scheduled_break_formatted"
+                        value={formData.scheduled_break_formatted || ''}
+                        onChange={handleChange}
+                        placeholder="00:00"
+                        className="form-control"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem' }}>Work Time</label>
+                      <input 
+                        type="text" 
+                        name="scheduled_work_formatted"
+                        value={formData.scheduled_work_formatted || ''}
+                        onChange={handleChange}
+                        placeholder="12:00"
+                        className="form-control"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem' }}
+                      />
+                    </div>
+                  </div>
+                </div>
 
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Leave Ded (₹)</label>
-                <input 
-                  type="number" 
-                  step="0.01"
-                  name="leave_deduction"
-                  value={formData.leave_deduction || ''}
-                  onChange={handleChange}
-                  placeholder="0.00"
-                  className="form-control"
-                />
-              </div>
+                {/* Timing Deviations & Calculations Overrides */}
+                <div style={{ padding: '0.85rem', background: 'var(--slate-50)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--slate-700)', marginBottom: '0.65rem' }}>
+                    ⏱️ Work & Duration Fields (Type Directly — No Formulas)
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.65rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem' }}>Calc Mode</label>
+                      <input 
+                        type="text" 
+                        name="calc_mode"
+                        value={formData.calc_mode || ''}
+                        onChange={handleChange}
+                        placeholder="Normal"
+                        className="form-control"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem' }}>Duration</label>
+                      <input 
+                        type="text" 
+                        name="actual_duration_formatted"
+                        value={formData.actual_duration_formatted || ''}
+                        onChange={handleChange}
+                        placeholder="12:00"
+                        className="form-control"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem' }}>Eff. Break</label>
+                      <input 
+                        type="text" 
+                        name="effective_break_formatted"
+                        value={formData.effective_break_formatted || ''}
+                        onChange={handleChange}
+                        placeholder="00:00"
+                        className="form-control"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem' }}>Actual Work</label>
+                      <input 
+                        type="text" 
+                        name="actual_work_formatted"
+                        value={formData.actual_work_formatted || ''}
+                        onChange={handleChange}
+                        placeholder="12:00"
+                        className="form-control"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem', fontWeight: '700' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem' }}>Diff (+/-)</label>
+                      <input 
+                        type="text" 
+                        name="work_diff_formatted"
+                        value={formData.work_diff_formatted || ''}
+                        onChange={handleChange}
+                        placeholder="+00:00"
+                        className="form-control"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem' }}>Late By</label>
+                      <input 
+                        type="text" 
+                        name="late_formatted"
+                        value={formData.late_formatted || ''}
+                        onChange={handleChange}
+                        placeholder="00:00"
+                        className="form-control"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem' }}>Overtime</label>
+                      <input 
+                        type="text" 
+                        name="overtime_formatted"
+                        value={formData.overtime_formatted || ''}
+                        onChange={handleChange}
+                        placeholder="00:00"
+                        className="form-control"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem' }}
+                      />
+                    </div>
+                  </div>
+                </div>
 
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Penalty (₹)</label>
-                <input 
-                  type="number" 
-                  step="0.01"
-                  name="penalty_amount"
-                  value={formData.penalty_amount || ''}
-                  onChange={handleChange}
-                  placeholder="0.00"
-                  className="form-control"
-                />
+                {/* Direct Salary & Financials Overrides (No rules!) */}
+                <div style={{ padding: '0.85rem', background: '#ecfdf5', borderRadius: '8px', border: '1px solid #a7f3d0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
+                    <div style={{ fontSize: '0.8rem', fontWeight: '700', color: '#047857' }}>
+                      💰 Direct Salary & Pay Overrides (No Salary Rules)
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sal = parseFloat(formData.daily_salary_earned) || 0;
+                        const late = parseFloat(formData.late_salary_deduction) || 0;
+                        const ot = parseFloat(formData.overtime_pay) || 0;
+                        const leave = parseFloat(formData.leave_deduction) || 0;
+                        const pen = parseFloat(formData.penalty_amount) || 0;
+                        const computed = Math.max(0, sal - late + ot - leave - pen);
+                        setFormData(prev => ({ ...prev, net_daily_salary: Number(computed.toFixed(2)) }));
+                      }}
+                      className="btn btn-sm btn-outline-success"
+                      style={{ padding: '0.15rem 0.45rem', fontSize: '0.7rem' }}
+                      title="Quick Auto-Sum Net = Salary - Late + OT - Leave - Penalty"
+                    >
+                      Auto-Sum Net Salary
+                    </button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.65rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem' }}>Rate (₹/hr)</label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        name="hourly_rate"
+                        value={formData.hourly_rate ?? ''}
+                        onChange={handleChange}
+                        placeholder="83.33"
+                        className="form-control"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem' }}>Daily Salary (₹)</label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        name="daily_salary_earned"
+                        value={formData.daily_salary_earned ?? ''}
+                        onChange={handleChange}
+                        placeholder="1000.00"
+                        className="form-control"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem', fontWeight: '600' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem', color: 'var(--danger-text)' }}>Late Ded (₹)</label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        name="late_salary_deduction"
+                        value={formData.late_salary_deduction ?? ''}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        className="form-control"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem', color: 'var(--danger-text)' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem', color: 'var(--success-text)' }}>OT Pay (₹)</label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        name="overtime_pay"
+                        value={formData.overtime_pay ?? ''}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        className="form-control"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem', color: 'var(--success-text)' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem' }}>Leave Ded (₹)</label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        name="leave_deduction"
+                        value={formData.leave_deduction ?? ''}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        className="form-control"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem' }}>Penalty (₹)</label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        name="penalty_amount"
+                        value={formData.penalty_amount ?? ''}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        className="form-control"
+                        style={{ fontSize: '0.8rem', padding: '0.35rem 0.5rem' }}
+                      />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.725rem', fontWeight: '700', color: 'var(--primary-700)' }}>Net Daily Salary (₹)</label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        name="net_daily_salary"
+                        value={formData.net_daily_salary ?? ''}
+                        onChange={handleChange}
+                        placeholder="1000.00"
+                        className="form-control"
+                        style={{ fontSize: '0.85rem', padding: '0.35rem 0.5rem', fontWeight: '800', color: 'var(--primary-700)', background: '#ffffff', border: '2px solid var(--primary-500)' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Standard Financial Adjustments & Overtime Override (if auto mode) */}
+            {!formData.is_manual && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" title="Manual Overtime in minutes">OT Override (Mins)</label>
+                  <input 
+                    type="number" 
+                    name="overtime_override_minutes"
+                    value={formData.overtime_override_minutes || ''}
+                    onChange={handleChange}
+                    placeholder="0"
+                    className="form-control"
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Leave Ded (₹)</label>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    name="leave_deduction"
+                    value={formData.leave_deduction || ''}
+                    onChange={handleChange}
+                    placeholder="0.00"
+                    className="form-control"
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Penalty (₹)</label>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    name="penalty_amount"
+                    value={formData.penalty_amount || ''}
+                    onChange={handleChange}
+                    placeholder="0.00"
+                    className="form-control"
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Remarks / Reason */}
             <div className="form-group" style={{ marginBottom: 0 }}>
@@ -393,30 +789,51 @@ export const EditDayAttendanceModal = ({
                 value={formData.remarks || ''}
                 onChange={handleChange}
                 rows={2}
-                placeholder="e.g. Punch missed, verified by supervisor, shift adjusted..."
+                placeholder="e.g. Manual data entry, verified by admin..."
                 className="form-control"
                 style={{ resize: 'vertical' }}
               />
             </div>
 
-            <div 
-              style={{
-                padding: '0.75rem 1rem',
-                backgroundColor: 'var(--primary-50)',
-                border: '1px solid var(--primary-200)',
-                borderRadius: '6px',
-                fontSize: '0.8rem',
-                color: 'var(--primary-800)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem'
-              }}
-            >
-              <Sparkles size={16} color="var(--primary-600)" style={{ flexShrink: 0 }} />
-              <span>
-                <strong>Dynamic Recalculation:</strong> Saving will immediately update this record in SQLite and recompute all duration cases, late deductions, break adjustments, and monthly salary on the fly.
-              </span>
-            </div>
+            {formData.is_manual ? (
+              <div 
+                style={{
+                  padding: '0.75rem 1rem',
+                  backgroundColor: '#fffbeb',
+                  border: '1px solid #fde68a',
+                  borderRadius: '6px',
+                  fontSize: '0.8rem',
+                  color: '#92400e',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}
+              >
+                <Sparkles size={16} color="#d97706" style={{ flexShrink: 0 }} />
+                <span>
+                  <strong>Manual Type & Save Mode:</strong> Saving will store these exact typed values in the database. No formulas, timing rules, or salary calculations will alter what you typed.
+                </span>
+              </div>
+            ) : (
+              <div 
+                style={{
+                  padding: '0.75rem 1rem',
+                  backgroundColor: 'var(--primary-50)',
+                  border: '1px solid var(--primary-200)',
+                  borderRadius: '6px',
+                  fontSize: '0.8rem',
+                  color: 'var(--primary-800)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem'
+                }}
+              >
+                <Sparkles size={16} color="var(--primary-600)" style={{ flexShrink: 0 }} />
+                <span>
+                  <strong>Dynamic Recalculation:</strong> Saving will immediately update this record in SQLite and recompute all duration cases, late deductions, break adjustments, and monthly salary on the fly.
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Modal Footer */}
@@ -431,10 +848,11 @@ export const EditDayAttendanceModal = ({
             <button
               type="submit"
               disabled={loading}
-              className="btn btn-primary"
+              className={`btn ${formData.is_manual ? 'btn-warning' : 'btn-primary'}`}
+              style={formData.is_manual ? { backgroundColor: '#d97706', borderColor: '#b45309', color: '#ffffff', fontWeight: '700' } : {}}
             >
               <Save size={16} />
-              {loading ? 'Saving...' : 'Save to Database'}
+              {loading ? 'Saving...' : (formData.is_manual ? 'Save Manual Record (No Rules)' : 'Save to Database')}
             </button>
           </div>
         </form>

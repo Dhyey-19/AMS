@@ -376,6 +376,127 @@ class CalculationEngine {
     const effectiveEmp = this.resolveEffectiveEmployee(emp, record.attendance_date_iso || record.attendance_date);
     const { hourlyRate, dailyRate, baseSalary, schedDailyWorkHours } = this.getEmployeeRates(effectiveEmp, daysInMonth);
 
+    const isManual = record.is_manual === 1 || record.is_manual === '1' || record.is_manual === true;
+    if (isManual) {
+      // Direct Type & Save Mode:
+      // NO CALCULATION REQUIRED FOR ANY FIELDS, NO SALARY RULES APPLIED.
+      let manual = {};
+      if (record.manual_data) {
+        try {
+          manual = typeof record.manual_data === 'string' ? JSON.parse(record.manual_data) : record.manual_data;
+        } catch (e) {
+          manual = {};
+        }
+      }
+
+      const status = (manual.status_code || record.status_code || 'P').toUpperCase().trim();
+      const schedIn = manual.scheduled_in_time !== undefined ? manual.scheduled_in_time : (record.scheduled_in_time || effectiveEmp.standard_in_time || '08:00');
+      const schedOut = manual.scheduled_out_time !== undefined ? manual.scheduled_out_time : (record.scheduled_out_time || effectiveEmp.standard_out_time || '20:00');
+      const schedDur = manual.scheduled_duration_formatted || manual.scheduled_duration || '12:00';
+      const schedBreak = manual.scheduled_break_formatted || manual.scheduled_break || '00:00';
+      const schedWork = manual.scheduled_work_formatted || manual.scheduled_work || (schedDailyWorkHours ? `${String(Math.floor(schedDailyWorkHours)).padStart(2, '0')}:${String(Math.round((schedDailyWorkHours % 1) * 60)).padStart(2, '0')}` : '12:00');
+
+      const actIn = manual.actual_in_time !== undefined ? manual.actual_in_time : (record.in_time || '');
+      const actOut = manual.actual_out_time !== undefined ? manual.actual_out_time : (record.out_time || '');
+      const brkOut = manual.break_out !== undefined ? manual.break_out : (record.break_out || '');
+      const brkIn = manual.break_in !== undefined ? manual.break_in : (record.break_in || '');
+      const actBreak = manual.actual_break_formatted || manual.actual_break || '00:00';
+      const effBreak = manual.effective_break_formatted || manual.effective_break || record.effective_break || '00:00';
+      const actDur = manual.actual_duration_formatted || manual.actual_duration || record.actual_duration || record.total_duration || '00:00';
+      const actWork = manual.actual_work_formatted || manual.actual_work || record.actual_work || '00:00';
+      const workDiff = manual.work_diff_formatted || manual.work_diff || record.work_diff || '00:00';
+      const lateBy = manual.late_formatted || manual.late_by || record.late_by || '00:00';
+      const ot = manual.overtime_formatted || manual.overtime || record.over_time || '00:00';
+
+      const hrRate = manual.hourly_rate !== undefined && manual.hourly_rate !== '' ? parseFloat(manual.hourly_rate) : (record.hourly_rate !== undefined && record.hourly_rate !== null ? parseFloat(record.hourly_rate) : Number(hourlyRate.toFixed(2)));
+      const dailyRateVal = manual.daily_rate !== undefined && manual.daily_rate !== '' ? parseFloat(manual.daily_rate) : Number(dailyRate.toFixed(2));
+      const dailySal = manual.daily_salary_earned !== undefined && manual.daily_salary_earned !== '' ? parseFloat(manual.daily_salary_earned) : (manual.daily_salary !== undefined && manual.daily_salary !== '' ? parseFloat(manual.daily_salary) : (record.daily_salary !== undefined && record.daily_salary !== null ? parseFloat(record.daily_salary) : 0));
+      const lateDed = manual.late_salary_deduction !== undefined && manual.late_salary_deduction !== '' ? parseFloat(manual.late_salary_deduction) : (manual.late_deduction !== undefined && manual.late_deduction !== '' ? parseFloat(manual.late_deduction) : (record.late_deduction !== undefined && record.late_deduction !== null ? parseFloat(record.late_deduction) : 0));
+      const otPay = manual.overtime_pay !== undefined && manual.overtime_pay !== '' ? parseFloat(manual.overtime_pay) : (record.overtime_pay !== undefined && record.overtime_pay !== null ? parseFloat(record.overtime_pay) : 0);
+      const leaveDed = manual.leave_deduction !== undefined && manual.leave_deduction !== '' ? parseFloat(manual.leave_deduction) : (record.leave_deduction !== undefined && record.leave_deduction !== null ? parseFloat(record.leave_deduction) : 0);
+      const penAmt = manual.penalty_amount !== undefined && manual.penalty_amount !== '' ? parseFloat(manual.penalty_amount) : (record.penalty_amount !== undefined && record.penalty_amount !== null ? parseFloat(record.penalty_amount) : 0);
+      const netSal = manual.net_daily_salary !== undefined && manual.net_daily_salary !== '' ? parseFloat(manual.net_daily_salary) : (record.net_daily_salary !== undefined && record.net_daily_salary !== null ? parseFloat(record.net_daily_salary) : (dailySal - lateDed + otPay - leaveDed - penAmt));
+
+      const actWorkMins = this.timeToMinutes(actWork);
+      const schedWorkMins = this.timeToMinutes(schedWork);
+      const workDiffMins = this.timeToMinutes(workDiff);
+      const lateMins = this.timeToMinutes(lateBy);
+      const otMins = this.timeToMinutes(ot);
+      const actDurMins = this.timeToMinutes(actDur);
+      const effBreakMins = this.timeToMinutes(effBreak);
+      const isDoc = this.isDoctor(effectiveEmp);
+      const overtimeAllowed = (effectiveEmp.overtime_allowed !== 0 && effectiveEmp.overtime_allowed !== false && effectiveEmp.overtime_allowed !== '0');
+
+      return {
+        is_manual: 1,
+        employee_code: emp.employee_code,
+        attendance_date: record.attendance_date || record.attendance_date_iso,
+        attendance_date_iso: record.attendance_date_iso,
+        status_code: status,
+        calc_mode: manual.calc_mode || record.calc_mode || 'Manual',
+
+        scheduled_in_time: schedIn,
+        scheduled_out_time: schedOut,
+        scheduled_duration_minutes: this.timeToMinutes(schedDur),
+        scheduled_duration_formatted: schedDur,
+        scheduled_break_minutes: this.timeToMinutes(schedBreak),
+        scheduled_break_formatted: schedBreak,
+        scheduled_work_minutes: schedWorkMins,
+        scheduled_work_formatted: schedWork,
+
+        actual_in_time: actIn,
+        actual_out_time: actOut,
+        break_out: brkOut,
+        break_in: brkIn,
+        actual_break_minutes: this.timeToMinutes(actBreak),
+        actual_break_formatted: actBreak,
+        effective_break_minutes: effBreakMins,
+        effective_break_formatted: effBreak,
+
+        actual_duration_minutes: actDurMins,
+        actual_duration_formatted: actDur,
+        actual_work_minutes: actWorkMins,
+        actual_work_formatted: actWork,
+
+        work_diff_minutes: workDiffMins,
+        work_diff_formatted: workDiff,
+        late_minutes: lateMins,
+        late_formatted: lateBy,
+        is_late: lateMins > 0,
+        early_minutes: 0,
+        early_formatted: '00:00',
+        is_early: false,
+        early_in_minutes: 0,
+        early_in_formatted: '00:00',
+        late_out_minutes: 0,
+        late_out_formatted: '00:00',
+        overtime_minutes: otMins,
+        overtime_formatted: ot,
+        is_doctor: isDoc,
+        overtime_allowed: overtimeAllowed,
+
+        hourly_rate: Number((isNaN(hrRate) ? 0 : hrRate).toFixed(2)),
+        daily_rate: Number((isNaN(dailyRateVal) ? 0 : dailyRateVal).toFixed(2)),
+        daily_salary_earned: Number((isNaN(dailySal) ? 0 : dailySal).toFixed(2)),
+        late_in_deduction: 0,
+        early_out_deduction: 0,
+        excess_break_deduction: 0,
+        late_salary_deduction: Number((isNaN(lateDed) ? 0 : lateDed).toFixed(2)),
+        early_in_pay: 0,
+        late_out_pay: 0,
+        overtime_pay: Number((isNaN(otPay) ? 0 : otPay).toFixed(2)),
+        leave_deduction: Number((isNaN(leaveDed) ? 0 : leaveDed).toFixed(2)),
+        penalty_amount: Number((isNaN(penAmt) ? 0 : penAmt).toFixed(2)),
+        net_daily_salary: Number((isNaN(netSal) ? 0 : netSal).toFixed(2)),
+
+        wef_date: effectiveEmp.effective_wef_date || null,
+        effective_salary: baseSalary,
+
+        punch_records: manual.punch_records !== undefined ? manual.punch_records : (record.punch_records || ''),
+        remarks: manual.remarks !== undefined ? manual.remarks : (record.remarks || '')
+      };
+    }
+
     // Standard Shift parameters from Employee Master (Effective on this date)
     const stdInTimeStr = effectiveEmp.standard_in_time || '08:00';
     const stdOutTimeStr = effectiveEmp.standard_out_time || '20:00';
@@ -729,7 +850,8 @@ class CalculationEngine {
       effective_salary: baseSalary,
 
       punch_records: record.punch_records || '',
-      remarks: record.remarks || ''
+      remarks: record.remarks || '',
+      is_manual: 0
     };
   }
 
@@ -753,7 +875,7 @@ class CalculationEngine {
     let wopPenaltyDaysCount = 0;
     if (wopShortfall > 0) {
       // Find unworked Weekly Off (WO) days in the month (status_code === 'WO' and actual_work_minutes === 0)
-      const unworkedWoDays = dailyCalculations.filter(d => d.status_code === 'WO' && d.actual_work_minutes === 0);
+      const unworkedWoDays = dailyCalculations.filter(d => !d.is_manual && d.status_code === 'WO' && d.actual_work_minutes === 0);
       
       // Penalize up to wopShortfall unworked WO days (from the end of the month backwards)
       const daysToPenalize = unworkedWoDays.slice(-wopShortfall);

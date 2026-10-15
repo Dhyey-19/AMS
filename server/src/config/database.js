@@ -362,6 +362,21 @@ function initSchema() {
       leave_deduction REAL DEFAULT 0,
       penalty_amount REAL DEFAULT 0,
       overtime_override_minutes INTEGER DEFAULT 0,
+      is_manual INTEGER DEFAULT 0,
+      manual_data TEXT,
+      calc_mode TEXT,
+      scheduled_in_time TEXT,
+      scheduled_out_time TEXT,
+      scheduled_work TEXT,
+      actual_duration TEXT,
+      effective_break TEXT,
+      actual_work TEXT,
+      work_diff TEXT,
+      hourly_rate REAL,
+      daily_salary REAL,
+      late_deduction REAL,
+      overtime_pay REAL,
+      net_daily_salary REAL,
       remarks TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -380,6 +395,21 @@ function initSchema() {
   addColumnIfNotExists('attendance', 'leave_deduction', 'REAL DEFAULT 0');
   addColumnIfNotExists('attendance', 'penalty_amount', 'REAL DEFAULT 0');
   addColumnIfNotExists('attendance', 'overtime_override_minutes', 'INTEGER DEFAULT 0');
+  addColumnIfNotExists('attendance', 'is_manual', 'INTEGER DEFAULT 0');
+  addColumnIfNotExists('attendance', 'manual_data', 'TEXT');
+  addColumnIfNotExists('attendance', 'calc_mode', 'TEXT');
+  addColumnIfNotExists('attendance', 'scheduled_in_time', 'TEXT');
+  addColumnIfNotExists('attendance', 'scheduled_out_time', 'TEXT');
+  addColumnIfNotExists('attendance', 'scheduled_work', 'TEXT');
+  addColumnIfNotExists('attendance', 'actual_duration', 'TEXT');
+  addColumnIfNotExists('attendance', 'effective_break', 'TEXT');
+  addColumnIfNotExists('attendance', 'actual_work', 'TEXT');
+  addColumnIfNotExists('attendance', 'work_diff', 'TEXT');
+  addColumnIfNotExists('attendance', 'hourly_rate', 'REAL');
+  addColumnIfNotExists('attendance', 'daily_salary', 'REAL');
+  addColumnIfNotExists('attendance', 'late_deduction', 'REAL');
+  addColumnIfNotExists('attendance', 'overtime_pay', 'REAL');
+  addColumnIfNotExists('attendance', 'net_daily_salary', 'REAL');
   addColumnIfNotExists('attendance', 'remarks', 'TEXT');
 
   // Import logs table

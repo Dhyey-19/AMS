@@ -1542,6 +1542,14 @@ class AttendanceService {
 
     const existing = db.prepare('SELECT * FROM attendance WHERE employee_code = ? AND attendance_date_iso = ?').get(String(employeeCode).trim(), dateIso);
 
+    // Determine manual flag
+    let isManual = 0;
+    if (updateData.is_manual !== undefined) {
+      isManual = (updateData.is_manual === 1 || updateData.is_manual === true || updateData.is_manual === '1') ? 1 : 0;
+    } else if (existing?.is_manual) {
+      isManual = existing.is_manual ? 1 : 0;
+    }
+
     // Get employee master details for fallback metadata
     const emp = db.prepare('SELECT * FROM employees WHERE employee_code = ?').get(String(employeeCode).trim());
     const empName = emp?.employee_name || updateData.employee_name || existing?.employee_name || '';
@@ -1561,10 +1569,13 @@ class AttendanceService {
       punchRecords = punchesList.join(', ');
     }
 
-    // Calculate duration
+    // Duration calculation or manual duration
     let totalDuration = '00:00';
     let totalDurationMinutes = 0;
-    if (finalIn && finalOut && finalIn !== '00:00' && finalOut !== '00:00') {
+    if (isManual && (updateData.actual_duration_formatted || updateData.actual_duration || updateData.total_duration)) {
+      totalDuration = updateData.actual_duration_formatted || updateData.actual_duration || updateData.total_duration;
+      totalDurationMinutes = CalculationEngine.timeToMinutes(totalDuration);
+    } else if (finalIn && finalOut && finalIn !== '00:00' && finalOut !== '00:00') {
       const inM = CalculationEngine.timeToMinutes(finalIn);
       const outM = CalculationEngine.timeToMinutes(finalOut);
       const diff = outM >= inM ? (outM - inM) : (1440 - inM + outM);
@@ -1572,18 +1583,49 @@ class AttendanceService {
       totalDuration = CalculationEngine.minutesToHHMM(diff);
     }
 
+    // Save manual data snapshot if manual
+    let manualDataJson = null;
+    if (isManual) {
+      let existingManualData = {};
+      if (existing?.manual_data) {
+        try { existingManualData = JSON.parse(existing.manual_data); } catch (e) {}
+      }
+      manualDataJson = JSON.stringify({
+        ...existingManualData,
+        ...updateData,
+        is_manual: 1,
+        status_code: finalStatus,
+        in_time: finalIn,
+        out_time: finalOut,
+        break_out: finalBreakOut,
+        break_in: finalBreakIn,
+        actual_duration_formatted: totalDuration,
+        punch_records: punchRecords
+      });
+    }
+
     const stmt = db.prepare(`
       INSERT INTO attendance (
         employee_code, attendance_date, attendance_date_iso, employee_name,
         designation, department, in_time, out_time, break_out, break_in,
+        late_by, over_time,
         status_code, total_duration, total_duration_minutes,
         leave_deduction, penalty_amount, overtime_override_minutes,
+        is_manual, manual_data, calc_mode,
+        scheduled_in_time, scheduled_out_time, scheduled_work,
+        actual_duration, effective_break, actual_work, work_diff,
+        hourly_rate, daily_salary, late_deduction, overtime_pay, net_daily_salary,
         punch_records, remarks
       ) VALUES (
         @employee_code, @attendance_date, @attendance_date_iso, @employee_name,
         @designation, @department, @in_time, @out_time, @break_out, @break_in,
+        @late_by, @over_time,
         @status_code, @total_duration, @total_duration_minutes,
         @leave_deduction, @penalty_amount, @overtime_override_minutes,
+        @is_manual, @manual_data, @calc_mode,
+        @scheduled_in_time, @scheduled_out_time, @scheduled_work,
+        @actual_duration, @effective_break, @actual_work, @work_diff,
+        @hourly_rate, @daily_salary, @late_deduction, @overtime_pay, @net_daily_salary,
         @punch_records, @remarks
       )
       ON CONFLICT(employee_code, attendance_date_iso) DO UPDATE SET
@@ -1591,12 +1633,29 @@ class AttendanceService {
         out_time = @out_time,
         break_out = @break_out,
         break_in = @break_in,
+        late_by = @late_by,
+        over_time = @over_time,
         status_code = @status_code,
         total_duration = @total_duration,
         total_duration_minutes = @total_duration_minutes,
         leave_deduction = @leave_deduction,
         penalty_amount = @penalty_amount,
         overtime_override_minutes = @overtime_override_minutes,
+        is_manual = @is_manual,
+        manual_data = @manual_data,
+        calc_mode = @calc_mode,
+        scheduled_in_time = @scheduled_in_time,
+        scheduled_out_time = @scheduled_out_time,
+        scheduled_work = @scheduled_work,
+        actual_duration = @actual_duration,
+        effective_break = @effective_break,
+        actual_work = @actual_work,
+        work_diff = @work_diff,
+        hourly_rate = @hourly_rate,
+        daily_salary = @daily_salary,
+        late_deduction = @late_deduction,
+        overtime_pay = @overtime_pay,
+        net_daily_salary = @net_daily_salary,
         punch_records = @punch_records,
         remarks = @remarks,
         updated_at = CURRENT_TIMESTAMP
@@ -1613,12 +1672,29 @@ class AttendanceService {
       out_time: finalOut,
       break_out: finalBreakOut,
       break_in: finalBreakIn,
+      late_by: updateData.late_formatted !== undefined ? updateData.late_formatted : (updateData.late_by !== undefined ? updateData.late_by : (existing?.late_by || '00:00')),
+      over_time: updateData.overtime_formatted !== undefined ? updateData.overtime_formatted : (updateData.overtime !== undefined ? updateData.overtime : (existing?.over_time || '00:00')),
       status_code: finalStatus,
       total_duration: totalDuration,
       total_duration_minutes: totalDurationMinutes,
       leave_deduction: updateData.leave_deduction !== undefined ? parseFloat(updateData.leave_deduction) || 0 : (existing?.leave_deduction || 0),
       penalty_amount: updateData.penalty_amount !== undefined ? parseFloat(updateData.penalty_amount) || 0 : (existing?.penalty_amount || 0),
       overtime_override_minutes: updateData.overtime_override_minutes !== undefined ? parseInt(updateData.overtime_override_minutes, 10) || 0 : (existing?.overtime_override_minutes || 0),
+      is_manual: isManual,
+      manual_data: manualDataJson,
+      calc_mode: updateData.calc_mode || existing?.calc_mode || (isManual ? 'Manual' : null),
+      scheduled_in_time: updateData.scheduled_in_time !== undefined ? updateData.scheduled_in_time : (existing?.scheduled_in_time || null),
+      scheduled_out_time: updateData.scheduled_out_time !== undefined ? updateData.scheduled_out_time : (existing?.scheduled_out_time || null),
+      scheduled_work: updateData.scheduled_work_formatted !== undefined ? updateData.scheduled_work_formatted : (updateData.scheduled_work || existing?.scheduled_work || null),
+      actual_duration: updateData.actual_duration_formatted !== undefined ? updateData.actual_duration_formatted : (updateData.actual_duration || totalDuration),
+      effective_break: updateData.effective_break_formatted !== undefined ? updateData.effective_break_formatted : (updateData.effective_break || existing?.effective_break || null),
+      actual_work: updateData.actual_work_formatted !== undefined ? updateData.actual_work_formatted : (updateData.actual_work || existing?.actual_work || null),
+      work_diff: updateData.work_diff_formatted !== undefined ? updateData.work_diff_formatted : (updateData.work_diff || existing?.work_diff || null),
+      hourly_rate: updateData.hourly_rate !== undefined && updateData.hourly_rate !== '' ? parseFloat(updateData.hourly_rate) : (existing?.hourly_rate || null),
+      daily_salary: updateData.daily_salary_earned !== undefined && updateData.daily_salary_earned !== '' ? parseFloat(updateData.daily_salary_earned) : (updateData.daily_salary !== undefined && updateData.daily_salary !== '' ? parseFloat(updateData.daily_salary) : (existing?.daily_salary || null)),
+      late_deduction: updateData.late_salary_deduction !== undefined && updateData.late_salary_deduction !== '' ? parseFloat(updateData.late_salary_deduction) : (updateData.late_deduction !== undefined && updateData.late_deduction !== '' ? parseFloat(updateData.late_deduction) : (existing?.late_deduction || 0)),
+      overtime_pay: updateData.overtime_pay !== undefined && updateData.overtime_pay !== '' ? parseFloat(updateData.overtime_pay) : (existing?.overtime_pay || 0),
+      net_daily_salary: updateData.net_daily_salary !== undefined && updateData.net_daily_salary !== '' ? parseFloat(updateData.net_daily_salary) : (existing?.net_daily_salary || null),
       punch_records: punchRecords,
       remarks: updateData.remarks !== undefined ? updateData.remarks : (existing?.remarks || '')
     });
