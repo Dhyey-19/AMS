@@ -291,9 +291,16 @@ export const EmployeeTable = ({
                     </span>
                   </td>
                   <td>
-                    <span style={{ fontSize: '0.8125rem', fontWeight: '600', color: emp.salary ? '#15803d' : '#94a3b8' }}>
-                      {emp.salary ? `₹${Number(emp.salary).toLocaleString()}` : '-'}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ fontSize: '0.8125rem', fontWeight: '600', color: emp.salary ? '#15803d' : '#94a3b8' }}>
+                        {emp.salary ? `₹${Number(emp.salary).toLocaleString()}` : '-'}
+                      </span>
+                      {Boolean(emp.is_fixed_per_day_salary) && (
+                        <span style={{ fontSize: '0.675rem', fontWeight: '700', color: '#0369a1', background: '#e0f2fe', padding: '0.1rem 0.35rem', borderRadius: '4px', width: 'fit-content' }}>
+                          Fixed / Day
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td>
                     <span style={{ fontSize: '0.75rem', fontWeight: '600', display: 'inline-flex', gap: '0.35rem' }}>

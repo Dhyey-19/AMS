@@ -167,11 +167,14 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
   const [wefForm, setWefForm] = useState({
     effective_date: '',
     salary: '',
+    salary_basis: 'Monthly',
+    is_fixed_per_day_salary: 0,
     incentive: '',
     standard_in_time: '08:00',
     standard_out_time: '20:00',
     standard_break_time: '00:00',
-    standard_work_hours: '12:00',
+    weekly_off_days: 'Sunday',
+    wop: 0,
     wop_work_hours: '',
     payment_mode: 'Bank',
     late_grace_minutes: 11,
@@ -235,6 +238,8 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
         doj: employee.doj || '',
         wef_date: employee.wef_date || employee.doj || '',
         salary: employee.salary !== null && employee.salary !== undefined ? employee.salary : '',
+        salary_basis: employee.salary_basis || 'Monthly',
+        is_fixed_per_day_salary: employee.is_fixed_per_day_salary ? 1 : 0,
         incentive: employee.incentive !== null && employee.incentive !== undefined ? employee.incentive : '',
         standard_in_time: stdIn,
         standard_out_time: stdOut,
@@ -250,6 +255,7 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
         min_overtime_minutes: employee.min_overtime_minutes !== undefined && employee.min_overtime_minutes !== null ? employee.min_overtime_minutes : 0,
         min_overtime_deduction_minutes: employee.min_overtime_deduction_minutes !== undefined && employee.min_overtime_deduction_minutes !== null ? employee.min_overtime_deduction_minutes : 0,
         special_rules: employee.special_rules || '',
+        weekly_off_days: employee.weekly_off_days || 'Sunday',
         wop: employee.wop !== undefined && employee.wop !== null ? employee.wop : 0,
         ypl: employee.ypl !== undefined && employee.ypl !== null ? employee.ypl : 0,
         uid_no: employee.uid_no || '',
@@ -264,11 +270,15 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
       setWefForm({
         effective_date: '',
         salary: employee.salary !== null && employee.salary !== undefined ? employee.salary : '',
+        salary_basis: employee.salary_basis || 'Monthly',
+        is_fixed_per_day_salary: employee.is_fixed_per_day_salary ? 1 : 0,
         incentive: employee.incentive !== null && employee.incentive !== undefined ? employee.incentive : '',
         standard_in_time: stdIn,
         standard_out_time: stdOut,
         standard_break_time: stdBreakHHMM,
         standard_work_hours: workHoursHHMM,
+        weekly_off_days: employee.weekly_off_days || 'Sunday',
+        wop: employee.wop !== undefined && employee.wop !== null ? employee.wop : 0,
         wop_work_hours: employee.wop_work_hours ? formatOptionalHoursToHHMM(employee.wop_work_hours) : '',
         payment_mode: employee.payment_mode || 'Bank',
         late_grace_minutes: employee.late_grace_minutes || 11,
@@ -341,11 +351,14 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
     setWefForm({
       effective_date: rev.effective_date || '',
       salary: rev.salary !== null && rev.salary !== undefined ? rev.salary : '',
+      salary_basis: rev.salary_basis || 'Monthly',
+      is_fixed_per_day_salary: rev.is_fixed_per_day_salary ? 1 : 0,
       incentive: rev.incentive !== null && rev.incentive !== undefined ? rev.incentive : '',
       standard_in_time: formatTimeToHHMM(rev.standard_in_time || '08:00'),
       standard_out_time: formatTimeToHHMM(rev.standard_out_time || '20:00'),
       standard_break_time: formatBreakToHHMM(rev.standard_break_minutes || 0),
-      standard_work_hours: formatHoursToHHMM(rev.standard_work_hours || 12),
+      weekly_off_days: rev.weekly_off_days || employee.weekly_off_days || 'Sunday',
+      wop: rev.wop !== undefined && rev.wop !== null ? rev.wop : (employee.wop || 0),
       wop_work_hours: rev.wop_work_hours ? formatOptionalHoursToHHMM(rev.wop_work_hours) : '',
       payment_mode: rev.payment_mode || 'Bank',
       late_grace_minutes: rev.late_grace_minutes || 11,
@@ -366,11 +379,15 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
     setWefForm({
       effective_date: '',
       salary: formData.salary || '',
+      salary_basis: formData.salary_basis || 'Monthly',
+      is_fixed_per_day_salary: formData.is_fixed_per_day_salary ? 1 : 0,
       incentive: formData.incentive || '',
       standard_in_time: formData.standard_in_time || '08:00',
       standard_out_time: formData.standard_out_time || '20:00',
       standard_break_time: formData.standard_break_time || '00:00',
       standard_work_hours: formData.standard_work_hours || '12:00',
+      weekly_off_days: formData.weekly_off_days || 'Sunday',
+      wop: formData.wop || 0,
       wop_work_hours: formData.wop_work_hours || '',
       payment_mode: formData.payment_mode || 'Bank',
       late_grace_minutes: formData.late_grace_minutes || 11,
@@ -400,9 +417,13 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
       const payload = {
         ...wefForm,
         salary: wefForm.salary !== '' ? parseFloat(wefForm.salary) : null,
+        salary_basis: wefForm.salary_basis || 'Monthly',
+        is_fixed_per_day_salary: wefForm.is_fixed_per_day_salary ? 1 : 0,
         incentive: wefForm.incentive !== '' ? parseFloat(wefForm.incentive) : 0,
         standard_break_minutes: parseBreakToMinutes(wefForm.standard_break_time),
         standard_work_hours: parseWorkHoursToDecimal(wefForm.standard_work_hours),
+        weekly_off_days: wefForm.weekly_off_days || 'Sunday',
+        wop: parseFloat(wefForm.wop) || 0,
         wop_work_hours: parseOptionalWorkHoursToDecimal(wefForm.wop_work_hours),
         late_grace_minutes: parseInt(wefForm.late_grace_minutes, 10) || 11,
         late_deduction_multiplier: parseFloat(wefForm.late_deduction_multiplier) || 0.5,
@@ -467,10 +488,13 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
       const payload = {
         ...formData,
         salary: formData.salary !== '' ? parseFloat(formData.salary) : null,
+        salary_basis: formData.salary_basis || 'Monthly',
+        is_fixed_per_day_salary: formData.is_fixed_per_day_salary ? 1 : 0,
         incentive: formData.incentive !== '' ? parseFloat(formData.incentive) : 0,
         standard_break_time: formData.standard_break_time || '00:00',
         standard_break_minutes: breakMinutes,
         standard_work_hours: parseWorkHoursToDecimal(formData.standard_work_hours),
+        weekly_off_days: formData.weekly_off_days || 'Sunday',
         wop_work_hours: parseOptionalWorkHoursToDecimal(formData.wop_work_hours),
         late_grace_minutes: parseInt(formData.late_grace_minutes, 10) || 11,
         late_deduction_multiplier: parseFloat(formData.late_deduction_multiplier) || 0.5,
@@ -829,17 +853,41 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">WOP (Weekly Off Present - Days)</label>
+                    <label className="form-label" style={{ fontWeight: '700', color: 'var(--slate-800)' }}>Weekly Off / Holiday Schedule</label>
+                    <select
+                      name="weekly_off_days"
+                      value={formData.weekly_off_days || 'Sunday'}
+                      onChange={handleChange}
+                      className="form-control"
+                      style={{ fontWeight: '700', color: '#0369a1' }}
+                    >
+                      <option value="Sunday">Sunday (1-Day Weekend)</option>
+                      <option value="Saturday, Sunday">Saturday & Sunday (2-Day Weekend)</option>
+                      <option value="All 7 Days Working">All 7 Days Working (No Weekly Off)</option>
+                    </select>
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>
+                      Designated paid weekly holidays for this employee
+                    </small>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontWeight: '700', color: 'var(--slate-800)' }}>
+                      Compulsory Holiday Present (WOP - Days)
+                    </label>
                     <input 
                       type="number" 
                       name="wop"
                       value={formData.wop ?? 0}
                       onChange={handleChange}
-                      step="0.5"
+                      step="1"
                       min="0"
+                      max="10"
                       className="form-control"
+                      style={{ fontWeight: '700', color: '#0284c7' }}
                     />
-                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Entitlement days allowed per month</small>
+                    <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>
+                      Must work on this many holidays in month (e.g. 1 or 2); shortfall treated as absent.
+                    </small>
                   </div>
 
                   <div className="form-group" style={{ marginBottom: 0 }}>
@@ -881,6 +929,34 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                     />
                     <small style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>Yearly paid leave entitlement quota</small>
                   </div>
+                </div>
+
+                {/* Holiday & Sandwich Leave Rules Notice */}
+                <div 
+                  style={{
+                    padding: '0.85rem 1rem',
+                    background: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    borderRadius: '8px',
+                    fontSize: '0.825rem',
+                    color: '#166534',
+                    lineHeight: '1.45'
+                  }}
+                >
+                  <strong style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem' }}>
+                    🏖️ Holiday Pay & Sandwich Leave Rules:
+                  </strong>
+                  <ul style={{ margin: 0, paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <li>
+                      <strong>Paid Holidays:</strong> Standard salary is given on set weekly off days ({formData.weekly_off_days || 'Sunday'}).
+                    </li>
+                    <li>
+                      <strong>Sandwich Leave Rule:</strong> If an employee is absent on both sides of a holiday or contiguous holidays (e.g., absent on Saturday and Monday around Sunday, or Friday and Monday around Saturday & Sunday), or during continuous leaves spanning across holidays, the intervening holiday(s) are treated as Absent (no salary).
+                    </li>
+                    <li>
+                      <strong>Compulsory WOP Requirement:</strong> If set to 1 or 2 days, employee must remain present on at least that many holidays in the month. If not present, shortfall holidays are treated as Absent with salary deducted.
+                    </li>
+                  </ul>
                 </div>
 
                 <div 
@@ -955,50 +1031,124 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                   </div>
                 </div>
 
+                {/* Fix Per Day Salary Policy Card */}
+                <div 
+                  style={{
+                    padding: '1rem',
+                    borderRadius: '8px',
+                    border: formData.is_fixed_per_day_salary ? '2px solid #0284c7' : '1px solid var(--border-color)',
+                    background: formData.is_fixed_per_day_salary ? '#f0f9ff' : '#f8fafc',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', cursor: 'pointer', margin: 0, flex: 1 }}>
+                      <input 
+                        type="checkbox"
+                        name="is_fixed_per_day_salary"
+                        checked={Boolean(formData.is_fixed_per_day_salary)}
+                        onChange={handleChange}
+                        style={{ width: '18px', height: '18px', marginTop: '2px', accentColor: '#0284c7', cursor: 'pointer' }}
+                      />
+                      <div>
+                        <span style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--slate-900)' }}>
+                          Fix Per Day Salary (Fixed Daily Wage Policy)
+                        </span>
+                        <p style={{ margin: '0.2rem 0 0', fontSize: '0.785rem', color: 'var(--slate-600)', lineHeight: '1.4' }}>
+                          If ticked, hours calculation is fully retained (tracking in/out, duration, deficit/surplus, late & early minutes). The per day salary amount is fixed: <strong>Full day salary</strong> when Present (P, WO, WOP), <strong>Half day salary</strong> when HD, and <strong>Zero (₹0)</strong> when Absent (A). No late arrival or early departure deductions are deducted from the daily wage.
+                        </p>
+                      </div>
+                    </label>
+                    {Boolean(formData.is_fixed_per_day_salary) && (
+                      <span style={{ fontSize: '0.75rem', fontWeight: '700', background: '#0284c7', color: '#ffffff', padding: '0.25rem 0.55rem', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                        Fixed Per Day Active
+                      </span>
+                    )}
+                  </div>
+
+                  {Boolean(formData.is_fixed_per_day_salary) && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', paddingTop: '0.65rem', borderTop: '1px solid #bae6fd' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: '600' }}>Salary Input Basis</label>
+                        <select
+                          name="salary_basis"
+                          value={formData.salary_basis || 'Monthly'}
+                          onChange={handleChange}
+                          className="form-control"
+                          style={{ fontSize: '0.85rem' }}
+                        >
+                          <option value="Monthly">Monthly Base (Daily Rate = Salary ÷ Days In Month)</option>
+                          <option value="Daily">Daily Fixed Rate (Salary entered is already fixed per-day rate)</option>
+                        </select>
+                        <small style={{ color: 'var(--slate-500)', fontSize: '0.725rem' }}>
+                          {formData.salary_basis === 'Daily' 
+                            ? 'The salary amount is paid directly in full for each present day.'
+                            : 'The monthly salary is divided by total days in the month (e.g. 30 or 31) to derive the full day amount.'}
+                        </small>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Dynamic Rate Formulation Preview */}
                 {(() => {
                   const base = parseFloat(formData.salary) || 0;
                   const stdHours = parseWorkHoursToDecimal(formData.standard_work_hours) || 12.0;
-                  const estDailyRate30 = base > 0 ? (base / 30).toFixed(2) : '0.00';
-                  const estDailyRate31 = base > 0 ? (base / 31).toFixed(2) : '0.00';
-                  const estHourlyRate30 = base > 0 && stdHours > 0 ? ((base / 30) / stdHours).toFixed(2) : '0.00';
-                  const estHourlyRate31 = base > 0 && stdHours > 0 ? ((base / 31) / stdHours).toFixed(2) : '0.00';
+                  const isFixed = Boolean(formData.is_fixed_per_day_salary);
+                  const isDailyBasis = formData.salary_basis === 'Daily';
+
+                  const estDailyRate30 = isDailyBasis ? base.toFixed(2) : (base > 0 ? (base / 30).toFixed(2) : '0.00');
+                  const estDailyRate31 = isDailyBasis ? base.toFixed(2) : (base > 0 ? (base / 31).toFixed(2) : '0.00');
+                  const estHourlyRate30 = base > 0 && stdHours > 0 ? (parseFloat(estDailyRate30) / stdHours).toFixed(2) : '0.00';
+                  const estHourlyRate31 = base > 0 && stdHours > 0 ? (parseFloat(estDailyRate31) / stdHours).toFixed(2) : '0.00';
 
                   return (
                     <div 
                       style={{
                         padding: '1rem',
-                        background: '#f8fafc',
-                        border: '1px solid var(--border-color)',
+                        background: isFixed ? '#f0f9ff' : '#f8fafc',
+                        border: isFixed ? '1px solid #bae6fd' : '1px solid var(--border-color)',
                         borderRadius: '8px',
                         display: 'flex',
                         flexDirection: 'column',
                         gap: '0.5rem'
                       }}
                     >
-                      <div style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--slate-800)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <Sparkles size={14} color="var(--primary-600)" /> Dynamic Rate Formulation (Auto-Computed per Month)
+                      <div style={{ fontWeight: '700', fontSize: '0.85rem', color: isFixed ? '#0369a1' : 'var(--slate-800)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Sparkles size={14} color={isFixed ? '#0284c7' : 'var(--primary-600)'} /> 
+                        {isFixed ? 'Fixed Per Day Policy Rate Preview' : 'Dynamic Rate Formulation (Auto-Computed per Month)'}
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', fontSize: '0.8125rem' }}>
                         <div style={{ background: '#ffffff', padding: '0.6rem 0.75rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                          <span style={{ color: 'var(--slate-500)', display: 'block', fontSize: '0.75rem' }}>Daily Rate (31-day month)</span>
+                          <span style={{ color: 'var(--slate-500)', display: 'block', fontSize: '0.75rem' }}>Full Day Rate (31-day month)</span>
                           <strong style={{ color: 'var(--primary-700)', fontSize: '1rem' }}>₹{estDailyRate31}</strong> / day
                         </div>
                         <div style={{ background: '#ffffff', padding: '0.6rem 0.75rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                          <span style={{ color: 'var(--slate-500)', display: 'block', fontSize: '0.75rem' }}>Hourly Rate (31-day month)</span>
+                          <span style={{ color: 'var(--slate-500)', display: 'block', fontSize: '0.75rem' }}>Hourly OT Rate (31-day month)</span>
                           <strong style={{ color: 'var(--primary-700)', fontSize: '1rem' }}>₹{estHourlyRate31}</strong> / hr
                         </div>
                         <div style={{ background: '#ffffff', padding: '0.6rem 0.75rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                          <span style={{ color: 'var(--slate-500)', display: 'block', fontSize: '0.75rem' }}>Daily Rate (30-day month)</span>
+                          <span style={{ color: 'var(--slate-500)', display: 'block', fontSize: '0.75rem' }}>Full Day Rate (30-day month)</span>
                           <strong style={{ color: 'var(--slate-800)', fontSize: '1rem' }}>₹{estDailyRate30}</strong> / day
                         </div>
                         <div style={{ background: '#ffffff', padding: '0.6rem 0.75rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                          <span style={{ color: 'var(--slate-500)', display: 'block', fontSize: '0.75rem' }}>Hourly Rate (30-day month)</span>
+                          <span style={{ color: 'var(--slate-500)', display: 'block', fontSize: '0.75rem' }}>Hourly OT Rate (30-day month)</span>
                           <strong style={{ color: 'var(--slate-800)', fontSize: '1rem' }}>₹{estHourlyRate30}</strong> / hr
                         </div>
                       </div>
-                      <small style={{ color: 'var(--slate-500)', fontSize: '0.725rem', marginTop: '0.25rem' }}>
-                        Rates are calculated dynamically: <code>Daily Rate = Salary / Days In Month</code> and <code>Hourly Rate = Daily Rate / Standard Work Hours ({formData.standard_work_hours || '12:00'})</code>.
+                      <small style={{ color: isFixed ? '#0369a1' : 'var(--slate-500)', fontSize: '0.725rem', marginTop: '0.25rem' }}>
+                        {isFixed ? (
+                          <>
+                            <strong>Fixed Per Day Policy:</strong> Present = 100% Full Day (₹{estDailyRate30} - ₹{estDailyRate31}), Absent = ₹0. Hourly tracking is recorded normally; overtime pay adds on top if applicable.
+                          </>
+                        ) : (
+                          <>
+                            Rates are calculated dynamically: <code>Daily Rate = Salary / Days In Month</code> and <code>Hourly Rate = Daily Rate / Standard Work Hours ({formData.standard_work_hours || '12:00'})</code>.
+                          </>
+                        )}
                       </small>
                     </div>
                   );
@@ -1324,7 +1474,36 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Weekly Off Schedule</label>
+                      <select
+                        name="weekly_off_days"
+                        value={wefForm.weekly_off_days || 'Sunday'}
+                        onChange={handleWefFormChange}
+                        className="form-control"
+                        style={{ fontWeight: '600', color: '#0369a1' }}
+                      >
+                        <option value="Sunday">Sunday (1-Day Weekend)</option>
+                        <option value="Saturday, Sunday">Saturday & Sunday (2-Day Weekend)</option>
+                        <option value="All 7 Days Working">All 7 Days Working</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Compulsory Holiday Present (WOP)</label>
+                      <input 
+                        type="number"
+                        name="wop"
+                        value={wefForm.wop ?? 0}
+                        onChange={handleWefFormChange}
+                        step="1"
+                        min="0"
+                        max="10"
+                        className="form-control"
+                      />
+                    </div>
+
                     <div className="form-group" style={{ marginBottom: 0 }}>
                       <label className="form-label">Payment Mode</label>
                       <select
@@ -1341,9 +1520,22 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                     </div>
 
                     <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Salary Basis</label>
+                      <select
+                        name="salary_basis"
+                        value={wefForm.salary_basis || 'Monthly'}
+                        onChange={handleWefFormChange}
+                        className="form-control"
+                      >
+                        <option value="Monthly">Monthly Base</option>
+                        <option value="Daily">Daily Fixed Rate</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: 0 }}>
                       <label className="form-label">Revision Remarks / Reason</label>
                       <input 
-                        type="text"
+                        type="text" 
                         name="remarks"
                         value={wefForm.remarks || ''}
                         onChange={handleWefFormChange}
@@ -1351,6 +1543,22 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                         className="form-control"
                       />
                     </div>
+                  </div>
+
+                  {/* Fix Per Day Checkbox in WEF form */}
+                  <div style={{ marginBottom: '1rem', padding: '0.65rem 0.85rem', background: '#ffffff', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, cursor: 'pointer', fontSize: '0.85rem' }}>
+                      <input
+                        type="checkbox"
+                        name="is_fixed_per_day_salary"
+                        checked={Boolean(wefForm.is_fixed_per_day_salary)}
+                        onChange={handleWefFormChange}
+                        style={{ width: '16px', height: '16px', accentColor: '#0284c7', cursor: 'pointer' }}
+                      />
+                      <span style={{ fontWeight: '700', color: 'var(--slate-800)' }}>
+                        Fix Per Day Salary Option (Full Day on Present, Zero on Absent)
+                      </span>
+                    </label>
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
@@ -1386,8 +1594,9 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                         const isLatest = idx === 0;
                         const stdHours = rev.standard_work_hours || 12;
                         const salary = rev.salary || 0;
-                        const dailyRate = salary > 0 ? (salary / 30).toFixed(2) : '0.00';
-                        const hourlyRate = (salary > 0 && stdHours > 0) ? ((salary / 30) / stdHours).toFixed(2) : '0.00';
+                        const isDaily = rev.salary_basis === 'Daily';
+                        const dailyRate = isDaily ? salary.toFixed(2) : (salary > 0 ? (salary / 30).toFixed(2) : '0.00');
+                        const hourlyRate = (salary > 0 && stdHours > 0) ? ((parseFloat(dailyRate)) / stdHours).toFixed(2) : '0.00';
 
                         return (
                           <div
@@ -1404,7 +1613,7 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                             }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
                                 <span 
                                   style={{
                                     fontWeight: '800',
@@ -1429,6 +1638,20 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                                     }}
                                   >
                                     Active (Latest)
+                                  </span>
+                                )}
+                                {Boolean(rev.is_fixed_per_day_salary) && (
+                                  <span 
+                                    style={{
+                                      fontSize: '0.7rem',
+                                      fontWeight: '700',
+                                      padding: '0.15rem 0.45rem',
+                                      borderRadius: '4px',
+                                      background: '#dbeafe',
+                                      color: '#1e40af'
+                                    }}
+                                  >
+                                    Fix Per Day Salary
                                   </span>
                                 )}
                                 {rev.remarks && (
@@ -1476,6 +1699,14 @@ export const EditEmployeeMasterModal = ({ employee, isOpen, onClose, onUpdated }
                               <div>
                                 <span style={{ color: 'var(--slate-500)' }}>Work Target: </span>
                                 <strong>{formatHoursToHHMM(stdHours)} hrs</strong>
+                              </div>
+                              <div>
+                                <span style={{ color: 'var(--slate-500)' }}>Weekly Off: </span>
+                                <strong style={{ color: '#0369a1' }}>{rev.weekly_off_days || employee.weekly_off_days || 'Sunday'}</strong>
+                              </div>
+                              <div>
+                                <span style={{ color: 'var(--slate-500)' }}>WOP Target: </span>
+                                <strong style={{ color: '#0284c7' }}>{rev.wop !== undefined && rev.wop !== null ? rev.wop : (employee.wop || 0)}d</strong>
                               </div>
                               <div>
                                 <span style={{ color: 'var(--slate-500)' }}>Daily / Hourly: </span>

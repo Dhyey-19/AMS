@@ -233,7 +233,7 @@ const rDoc = CalculationEngine.calculateDayRecord(empDoctorOT, {
   out_time: '22:00', // 2 hours after standard out (14 hours total, 12h target -> 2h OT)
   status_code: 'P'
 }, 31);
-console.log('Doctor OT with OT Allowed:', rDoc.overtime_minutes, 'OT Pay:', rDoc.overtime_pay, '(Expected: 120m, 333.32)');
+console.log('Doctor OT with OT Allowed:', rDoc.overtime_minutes, 'OT Pay:', rDoc.overtime_pay, '(Expected: 120m, 319.43)');
 console.assert(rDoc.overtime_minutes === 120, 'Doctor Overtime Rule Failed');
 
 const empNoOT = {

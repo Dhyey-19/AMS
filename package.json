@@ -1,6 +1,6 @@
 {
   "name": "global-ivf-ams",
-  "version": "2026.9.26",
+  "version": "2026.10.21",
   "description": "Attendance Management System (AMS) for Global IVF Hospital",
   "main": "electron/main.js",
   "workspaces": [
@@ -92,7 +92,7 @@
       "differentialPackage": false
     }
   },
-  "appVersionCode": "20260926",
+  "appVersionCode": "20261021",
   "allowScripts": {
     "better-sqlite3@11.10.0": true,
     "electron@32.2.8": true,

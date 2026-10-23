@@ -169,6 +169,12 @@ export const EmployeeDetailsModal = ({ isOpen, onClose, employee, onOpenAttendan
               <span className="detail-item-value">{employee.overtime_multiplier ?? 2.0}x</span>
             </div>
             <div className="detail-item">
+              <span className="detail-item-label">Weekly Off Schedule</span>
+              <span className="detail-item-value" style={{ fontWeight: '700', color: '#0369a1' }}>
+                {employee.weekly_off_days || 'Sunday'}
+              </span>
+            </div>
+            <div className="detail-item">
               <span className="detail-item-label">WOP (Weekly Off Present)</span>
               <span className="detail-item-value" style={{ fontWeight: '700', color: '#0284c7' }}>{employee.wop || 0} days</span>
             </div>
@@ -216,7 +222,24 @@ export const EmployeeDetailsModal = ({ isOpen, onClose, employee, onOpenAttendan
               <span className="detail-item-label">Payment Mode</span>
               <span className="detail-item-value">{employee.payment_mode || 'Bank'}</span>
             </div>
+            <div className="detail-item">
+              <span className="detail-item-label">Salary Policy</span>
+              <span className="detail-item-value">
+                {employee.is_fixed_per_day_salary ? (
+                  <span style={{ color: '#0369a1', fontWeight: '700' }}>
+                    Fixed Per Day ({employee.salary_basis === 'Daily' ? 'Daily Rate' : 'Monthly Basis'})
+                  </span>
+                ) : (
+                  <span style={{ color: '#475569' }}>Standard Monthly</span>
+                )}
+              </span>
+            </div>
           </div>
+          {Boolean(employee.is_fixed_per_day_salary) && (
+            <div style={{ marginTop: '0.75rem', padding: '0.5rem 0.75rem', background: '#e0f2fe', borderRadius: '6px', fontSize: '0.75rem', color: '#0369a1' }}>
+              💡 <strong>Fixed Per Day Policy:</strong> Hours worked/deficit/late are tracked normally. Present days receive full day wage, absent days receive ₹0, and late arrival minutes are not deducted from base daily wage.
+            </div>
+          )}
         </div>
 
         {/* Section 2.5: W.E.F. History Timeline */}
@@ -243,13 +266,18 @@ export const EmployeeDetailsModal = ({ isOpen, onClose, employee, onOpenAttendan
                     fontSize: '0.8125rem'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <span style={{ fontWeight: '700', color: '#0369a1', background: '#e0f2fe', padding: '0.15rem 0.4rem', borderRadius: '4px' }}>
                       W.E.F. {rev.effective_date}
                     </span>
                     {idx === 0 && (
                       <span style={{ fontSize: '0.7rem', fontWeight: '700', background: '#dcfce7', color: '#15803d', padding: '0.1rem 0.35rem', borderRadius: '999px' }}>
                         Active
+                      </span>
+                    )}
+                    {Boolean(rev.is_fixed_per_day_salary) && (
+                      <span style={{ fontSize: '0.7rem', fontWeight: '700', background: '#dbeafe', color: '#1e40af', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
+                        Fixed / Day
                       </span>
                     )}
                     {rev.remarks && <span style={{ color: '#64748b', fontStyle: 'italic' }}>({rev.remarks})</span>}

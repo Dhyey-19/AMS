@@ -15,6 +15,7 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { attendanceApi } from '../../services/api';
+import { calculateDayRule } from '../../utils/attendanceCalculator';
 
 const formatTimeToHHMM = (timeStr) => {
   if (!timeStr) return '';
@@ -42,6 +43,16 @@ export const EditDayAttendanceModal = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+
+  const daysInMonth = React.useMemo(() => {
+    if (record?.attendance_date_iso) {
+      const parts = record.attendance_date_iso.split('-');
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (!isNaN(y) && !isNaN(m)) return new Date(y, m, 0).getDate();
+    }
+    return 30;
+  }, [record]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -100,17 +111,36 @@ export const EditDayAttendanceModal = ({
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+    const newVal = type === 'checkbox' ? checked : value;
+    setFormData((prev) => {
+      const updated = {
+        ...prev,
+        [name]: newVal
+      };
+      if (name === 'is_manual') {
+        if (newVal) {
+          return calculateDayRule(updated, employee, daysInMonth, null);
+        }
+        return updated;
+      }
+      if (updated.is_manual) {
+        return calculateDayRule(updated, employee, daysInMonth, name);
+      }
+      return updated;
+    });
   };
 
   const handleStatusChange = (newStatus) => {
-    setFormData((prev) => ({
-      ...prev,
-      status_code: newStatus
-    }));
+    setFormData((prev) => {
+      const updated = {
+        ...prev,
+        status_code: newStatus
+      };
+      if (updated.is_manual) {
+        return calculateDayRule(updated, employee, daysInMonth, 'status_code');
+      }
+      return updated;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -172,7 +202,7 @@ export const EditDayAttendanceModal = ({
       const code = employee?.employee_code || record.employee_code;
 
       const res = await attendanceApi.updateRecord(code, dateIso, payload);
-      setSuccess(isManual ? 'Manual record saved directly (no calculations applied)!' : 'Record updated in database! Recalculating sheet...');
+      setSuccess(isManual ? 'Manual record saved with rule calculations applied!' : 'Record updated in database! Recalculating sheet...');
       
       if (onUpdated) {
         await onUpdated(res.data);
@@ -318,12 +348,12 @@ export const EditDayAttendanceModal = ({
                 />
                 <label htmlFor="modal_is_manual_toggle" style={{ cursor: 'pointer', margin: 0 }}>
                   <div style={{ fontWeight: '700', fontSize: '0.925rem', color: formData.is_manual ? '#b45309' : 'var(--slate-800)' }}>
-                    Manual Record Mode (Direct Type & Save)
+                    Manual Record Mode (Rule Calculated & Fully Editable)
                   </div>
                   <div style={{ fontSize: '0.75rem', color: formData.is_manual ? '#92400e' : 'var(--slate-500)' }}>
                     {formData.is_manual 
-                      ? '⚡ Active: All fields unlocked for direct entry. No salary rules or formulas will be applied.' 
-                      : 'Tick to unlock all fields and bypass salary rules & automated calculation.'}
+                      ? '⚡ Active: All columns unlocked for editing. Dynamic rule calculations run in real-time as you type!' 
+                      : 'Tick to unlock all columns for manual editing while calculating rules dynamically.'}
                   </div>
                 </label>
               </div>
@@ -527,7 +557,7 @@ export const EditDayAttendanceModal = ({
                 {/* Timing Deviations & Calculations Overrides */}
                 <div style={{ padding: '0.85rem', background: 'var(--slate-50)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                   <div style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--slate-700)', marginBottom: '0.65rem' }}>
-                    ⏱️ Work & Duration Fields (Type Directly — No Formulas)
+                    ⏱️ Work & Duration Fields (Auto-Calculated as per rules — Fully Editable)
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.65rem' }}>
                     <div className="form-group" style={{ marginBottom: 0 }}>
@@ -621,7 +651,7 @@ export const EditDayAttendanceModal = ({
                 <div style={{ padding: '0.85rem', background: '#ecfdf5', borderRadius: '8px', border: '1px solid #a7f3d0' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
                     <div style={{ fontSize: '0.8rem', fontWeight: '700', color: '#047857' }}>
-                      💰 Direct Salary & Pay Overrides (No Salary Rules)
+                      💰 Salary & Pay Details (Auto-Calculated as per rules — Fully Editable)
                     </div>
                     <button
                       type="button"
@@ -852,7 +882,7 @@ export const EditDayAttendanceModal = ({
               style={formData.is_manual ? { backgroundColor: '#d97706', borderColor: '#b45309', color: '#ffffff', fontWeight: '700' } : {}}
             >
               <Save size={16} />
-              {loading ? 'Saving...' : (formData.is_manual ? 'Save Manual Record (No Rules)' : 'Save to Database')}
+              {loading ? 'Saving...' : (formData.is_manual ? 'Save Manual Record' : 'Save to Database')}
             </button>
           </div>
         </form>

@@ -211,6 +211,9 @@ function initSchema() {
       wop REAL DEFAULT 0,
       ypl REAL DEFAULT 0,
       wop_work_hours REAL DEFAULT NULL,
+      weekly_off_days TEXT DEFAULT 'Sunday',
+      is_fixed_per_day_salary INTEGER DEFAULT 0,
+      salary_basis TEXT DEFAULT 'Monthly',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -240,6 +243,9 @@ function initSchema() {
   addColumnIfNotExists('employees', 'salary_history_json', 'TEXT');
   addColumnIfNotExists('employees', 'wop', 'REAL DEFAULT 0');
   addColumnIfNotExists('employees', 'ypl', 'REAL DEFAULT 0');
+  addColumnIfNotExists('employees', 'weekly_off_days', "TEXT DEFAULT 'Sunday'");
+  addColumnIfNotExists('employees', 'is_fixed_per_day_salary', 'INTEGER DEFAULT 0');
+  addColumnIfNotExists('employees', 'salary_basis', "TEXT DEFAULT 'Monthly'");
 
   // Employee W.E.F. (With Effect From) Revisions History table
   db.exec(`
@@ -263,6 +269,10 @@ function initSchema() {
       min_overtime_deduction_minutes INTEGER DEFAULT 0,
       special_rules TEXT,
       remarks TEXT,
+      wop REAL DEFAULT 0,
+      weekly_off_days TEXT DEFAULT 'Sunday',
+      is_fixed_per_day_salary INTEGER DEFAULT 0,
+      salary_basis TEXT DEFAULT 'Monthly',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(employee_code, effective_date)
@@ -273,7 +283,11 @@ function initSchema() {
 
   addColumnIfNotExists('employee_wef_history', 'incentive', 'REAL DEFAULT 0');
   addColumnIfNotExists('employee_wef_history', 'remarks', 'TEXT');
+  addColumnIfNotExists('employee_wef_history', 'wop', 'REAL DEFAULT 0');
   addColumnIfNotExists('employee_wef_history', 'wop_work_hours', 'REAL DEFAULT NULL');
+  addColumnIfNotExists('employee_wef_history', 'weekly_off_days', "TEXT DEFAULT 'Sunday'");
+  addColumnIfNotExists('employee_wef_history', 'is_fixed_per_day_salary', 'INTEGER DEFAULT 0');
+  addColumnIfNotExists('employee_wef_history', 'salary_basis', "TEXT DEFAULT 'Monthly'");
 
   // Seed baseline W.E.F. records for existing employees if none exist
   try {
@@ -291,13 +305,13 @@ function initSchema() {
           standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
           payment_mode, late_grace_minutes, late_deduction_multiplier,
           overtime_multiplier, overtime_allowed, min_overtime_minutes, min_overtime_deduction_minutes,
-          special_rules, remarks
+          special_rules, remarks, wop, weekly_off_days, is_fixed_per_day_salary, salary_basis
         ) VALUES (
           @employee_code, @effective_date, @salary, @incentive,
           @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
           @payment_mode, @late_grace_minutes, @late_deduction_multiplier,
           @overtime_multiplier, @overtime_allowed, @min_overtime_minutes, @min_overtime_deduction_minutes,
-          @special_rules, @remarks
+          @special_rules, @remarks, @wop, @weekly_off_days, @is_fixed_per_day_salary, @salary_basis
         )
       `);
 
@@ -321,7 +335,11 @@ function initSchema() {
             min_overtime_minutes: emp.min_overtime_minutes || 0,
             min_overtime_deduction_minutes: emp.min_overtime_deduction_minutes || 0,
             special_rules: emp.special_rules || null,
-            remarks: 'Initial Baseline Master Configuration'
+            remarks: 'Initial Baseline Master Configuration',
+            wop: emp.wop || 0,
+            weekly_off_days: emp.weekly_off_days || 'Sunday',
+            is_fixed_per_day_salary: emp.is_fixed_per_day_salary ?? 0,
+            salary_basis: emp.salary_basis || 'Monthly'
           });
         }
       });

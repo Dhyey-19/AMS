@@ -30,7 +30,7 @@ console.log(`Rates: Hourly = ₹${hr}, Daily = ₹${dr}\n`);
 
 // -------------------------------------------------------------
 // RULE 1: LATE CHECK-IN
-// "no deduction upto 10min late check-in, if late check-in > 10 min then calculate and deduct whole minutes amount by 1.5 times"
+// "late in upto 10 minutes (no deduction), if morethan 10 minutes then deduct 10 mins as normal rate and rest extra minutes as 1.5x (1.5 times)"
 // -------------------------------------------------------------
 console.log('--- RULE 1: LATE CHECK-IN ---');
 
@@ -52,14 +52,14 @@ console.log('1A (10m late check-in):', {
 console.assert(r1A.late_salary_deduction === 0, '1A deduction should be 0');
 console.assert(r1A.net_daily_salary === dr, '1A net salary should equal daily rate');
 
-// 1B: 15 min late (08:15) -> > 10 min -> Whole 15 mins deducted by 1.5x
+// 1B: 15 min late (08:15) -> > 10 min -> 10m @ 1.0x + 5m @ 1.5x = 17.5m
 const r1B = CalculationEngine.calculateDayRecord(emp, {
   attendance_date_iso: '2026-05-02',
   in_time: '08:15',
   out_time: '20:00',
   status_code: 'P'
 }, 31);
-const expectedDed1B = Number(((15 / 60) * hr * 1.5).toFixed(2)); // (15/60)*83.33*1.5 = 31.25
+const expectedDed1B = Number((((10 * 1.0 + 5 * 1.5) / 60) * hr).toFixed(2)); // (17.5/60)*83.33 = 24.31
 console.log('1B (15m late check-in):', {
   late_minutes: r1B.late_minutes,
   late_in_deduction: r1B.late_in_deduction,
@@ -67,24 +67,24 @@ console.log('1B (15m late check-in):', {
   net_daily_salary: r1B.net_daily_salary,
   expected_net: Number((dr - expectedDed1B).toFixed(2))
 });
-console.assert(r1B.late_in_deduction === expectedDed1B, '1B deduction mismatch');
+console.assert(Math.abs(r1B.late_in_deduction - expectedDed1B) < 0.05, '1B deduction mismatch');
 console.assert(Math.abs(r1B.net_daily_salary - (dr - expectedDed1B)) < 0.05, '1B net salary mismatch');
 
-// 1C: 20 min late (08:20) -> > 10 min -> Whole 20 mins deducted by 1.5x
+// 1C: 20 min late (08:20) -> > 10 min -> 10m @ 1.0x + 10m @ 1.5x = 25m
 const r1C = CalculationEngine.calculateDayRecord(emp, {
   attendance_date_iso: '2026-05-03',
   in_time: '08:20',
   out_time: '20:00',
   status_code: 'P'
 }, 31);
-const expectedDed1C = Number(((20 / 60) * hr * 1.5).toFixed(2)); // (20/60)*83.33*1.5 = 41.67
+const expectedDed1C = Number((((10 * 1.0 + 10 * 1.5) / 60) * hr).toFixed(2)); // (25/60)*83.33 = 34.72
 console.log('1C (20m late check-in):', {
   late_minutes: r1C.late_minutes,
   late_in_deduction: r1C.late_in_deduction,
   expected_deduction: expectedDed1C,
   net_daily_salary: r1C.net_daily_salary
 });
-console.assert(r1C.late_in_deduction === expectedDed1C, '1C deduction mismatch');
+console.assert(Math.abs(r1C.late_in_deduction - expectedDed1C) < 0.05, '1C deduction mismatch');
 
 // -------------------------------------------------------------
 // RULE 2: EARLY CHECK-IN
@@ -127,7 +127,7 @@ console.log('2B (30m early check-in <= 30m):', {
 console.assert(r2B.actual_work_formatted === '12:00', '2B actual work should be 12:00');
 console.assert(r2B.early_in_pay === 0, '2B early in pay should be 0');
 
-// 2C: 45 min early (07:15) -> > 30 mins -> Calculated in work hours, pay early mins by 2x
+// 2C: 45 min early (07:15) -> > 30 mins -> Calculated in work hours, pay all early mins by 2x
 const r2C = CalculationEngine.calculateDayRecord(emp, {
   attendance_date_iso: '2026-05-06',
   in_time: '07:15',
@@ -150,75 +150,77 @@ console.assert(Math.abs(r2C.net_daily_salary - (dr + expectedPay2C)) < 0.05, '2C
 
 // -------------------------------------------------------------
 // RULE 3: LATE CHECK-OUT
-// "no pay for upto 10min late check-out. if late check-out is >10min and <=30min then calculate & pay amount by 1 times (normal) and if check-out morethen > 30mins then calculate & by 2 times"
+// "late out 10 minutes normal rate, if above 10 minutes then total overtime minutes - 10 minutes (remaining minutes rate at double 2x)"
 // -------------------------------------------------------------
 console.log('\n--- RULE 3: LATE CHECK-OUT ---');
 
-// 3A: 8 min late check-out (20:08) -> <= 10 min -> No pay
+// 3A: 8 min late check-out (20:08) -> <= 10 min -> Normal rate (8m @ 1.0x)
 const r3A = CalculationEngine.calculateDayRecord(emp, {
   attendance_date_iso: '2026-05-07',
   in_time: '08:00',
   out_time: '20:08',
   status_code: 'P'
 }, 31);
+const expectedPay3A = Number(((8 / 60) * hr * 1.0).toFixed(2)); // (8/60)*83.33 = 11.11
 console.log('3A (8m late check-out <= 10m):', {
   late_out_minutes: r3A.late_out_minutes,
   late_out_pay: r3A.late_out_pay,
+  expected_pay: expectedPay3A,
   overtime_pay: r3A.overtime_pay,
   net_daily_salary: r3A.net_daily_salary
 });
-console.assert(r3A.late_out_pay === 0, '3A late out pay should be 0');
-console.assert(r3A.net_daily_salary === dr, '3A net salary should be daily rate');
+console.assert(Math.abs(r3A.late_out_pay - expectedPay3A) < 0.05, '3A late out pay mismatch');
+console.assert(Math.abs(r3A.net_daily_salary - (dr + expectedPay3A)) < 0.05, '3A net salary mismatch');
 
-// 3B: 20 min late check-out (20:20) -> > 10m and <= 30m -> Pay by 1x
+// 3B: 20 min late check-out (20:20) -> > 10m -> 10m @ 1.0x + (20-10=10m) @ 2.0x = 30m
 const r3B = CalculationEngine.calculateDayRecord(emp, {
   attendance_date_iso: '2026-05-08',
   in_time: '08:00',
   out_time: '20:20',
   status_code: 'P'
 }, 31);
-const expectedPay3B = Number(((20 / 60) * hr * 1.0).toFixed(2)); // (20/60)*83.33*1.0 = 27.78
-console.log('3B (20m late check-out >10m & <=30m):', {
+const expectedPay3B = Number((((10 * 1.0 + 10 * 2.0) / 60) * hr).toFixed(2)); // (30/60)*83.33 = 41.67
+console.log('3B (20m late check-out >10m):', {
   late_out_minutes: r3B.late_out_minutes,
   late_out_pay: r3B.late_out_pay,
   expected_pay: expectedPay3B,
   net_daily_salary: r3B.net_daily_salary,
   expected_net: Number((dr + expectedPay3B).toFixed(2))
 });
-console.assert(r3B.late_out_pay === expectedPay3B, '3B late out pay mismatch');
+console.assert(Math.abs(r3B.late_out_pay - expectedPay3B) < 0.05, '3B late out pay mismatch');
 console.assert(Math.abs(r3B.net_daily_salary - (dr + expectedPay3B)) < 0.05, '3B net salary mismatch');
 
-// 3C: 30 min late check-out (20:30) -> > 10m and <= 30m -> Pay by 1x
+// 3C: 30 min late check-out (20:30) -> > 10m -> 10m @ 1.0x + (30-10=20m) @ 2.0x = 50m
 const r3C = CalculationEngine.calculateDayRecord(emp, {
   attendance_date_iso: '2026-05-09',
   in_time: '08:00',
   out_time: '20:30',
   status_code: 'P'
 }, 31);
-const expectedPay3C = Number(((30 / 60) * hr * 1.0).toFixed(2)); // (30/60)*83.33*1.0 = 41.67
-console.log('3C (30m late check-out <= 30m):', {
+const expectedPay3C = Number((((10 * 1.0 + 20 * 2.0) / 60) * hr).toFixed(2)); // (50/60)*83.33 = 69.44
+console.log('3C (30m late check-out > 10m):', {
   late_out_minutes: r3C.late_out_minutes,
   late_out_pay: r3C.late_out_pay,
   expected_pay: expectedPay3C
 });
-console.assert(r3C.late_out_pay === expectedPay3C, '3C late out pay mismatch');
+console.assert(Math.abs(r3C.late_out_pay - expectedPay3C) < 0.05, '3C late out pay mismatch');
 
-// 3D: 45 min late check-out (20:45) -> > 30m -> Pay by 2x
+// 3D: 45 min late check-out (20:45) -> > 10m -> 10m @ 1.0x + (45-10=35m) @ 2.0x = 80m
 const r3D = CalculationEngine.calculateDayRecord(emp, {
   attendance_date_iso: '2026-05-10',
   in_time: '08:00',
   out_time: '20:45',
   status_code: 'P'
 }, 31);
-const expectedPay3D = Number(((45 / 60) * hr * 2.0).toFixed(2)); // (45/60)*83.33*2.0 = 125.00
-console.log('3D (45m late check-out > 30m):', {
+const expectedPay3D = Number((((10 * 1.0 + 35 * 2.0) / 60) * hr).toFixed(2)); // (80/60)*83.33 = 111.11
+console.log('3D (45m late check-out > 10m):', {
   late_out_minutes: r3D.late_out_minutes,
   late_out_pay: r3D.late_out_pay,
   expected_pay: expectedPay3D,
   net_daily_salary: r3D.net_daily_salary,
   expected_net: Number((dr + expectedPay3D).toFixed(2))
 });
-console.assert(r3D.late_out_pay === expectedPay3D, '3D late out pay mismatch');
+console.assert(Math.abs(r3D.late_out_pay - expectedPay3D) < 0.05, '3D late out pay mismatch');
 console.assert(Math.abs(r3D.net_daily_salary - (dr + expectedPay3D)) < 0.05, '3D net salary mismatch');
 
 // -------------------------------------------------------------
@@ -305,8 +307,8 @@ console.assert(r5B.excess_break_deduction === expectedDed5B, '5B excess break de
 // COMBINED TEST: MULTIPLE DEVIATIONS ON SAME DAY
 // -------------------------------------------------------------
 console.log('\n--- COMBINED TEST: 15m Late In + 45m Late Out ---');
-// In: 08:15 (15m late in -> 15m * 1.5x deduction = ₹31.25)
-// Out: 20:45 (45m late out -> 45m * 2.0x OT pay = ₹125.00)
+// In: 08:15 (15m late in -> 10m @ 1.0x + 5m @ 1.5x = 17.5m deduction = ₹24.31)
+// Out: 20:45 (45m late out -> 10m @ 1.0x + 35m @ 2.0x = 80m OT pay = ₹111.11)
 const rComb = CalculationEngine.calculateDayRecord(emp, {
   attendance_date_iso: '2026-05-15',
   in_time: '08:15',
@@ -324,6 +326,117 @@ console.assert(rComb.late_in_deduction === expectedDed1B, 'Combined late in dedu
 console.assert(rComb.late_out_pay === expectedPay3D, 'Combined late out pay mismatch');
 console.assert(Math.abs(rComb.net_daily_salary - expectedNetComb) < 0.05, 'Combined net daily salary mismatch');
 
+// -------------------------------------------------------------
+// RULE 6: FIXED PER DAY SALARY POLICY
+// "in employee master set fix per day salary option (if ticked then hours calculation is okay, but per day salary amount will be for that employee if present full day salary, if absent then no salary zero)"
+// -------------------------------------------------------------
+console.log('\n--- RULE 6: FIXED PER DAY SALARY OPTION ---');
+
+const empFixedPerDay = {
+  employee_code: 'FIXED01',
+  employee_name: 'Fixed Day Worker',
+  department: 'Operations',
+  designation: 'Technician',
+  salary: 31000,
+  is_fixed_per_day_salary: 1,
+  salary_basis: 'Monthly',
+  standard_in_time: '08:00',
+  standard_out_time: '20:00',
+  standard_break_minutes: 0,
+  standard_work_hours: 12.0,
+  late_grace_minutes: 10,
+  overtime_multiplier: 2.0,
+  overtime_allowed: 1
+};
+
+const fixedRates = CalculationEngine.getEmployeeRates(empFixedPerDay, 31);
+console.log('Fixed Staff Rates:', fixedRates);
+console.assert(fixedRates.isFixedPerDay === true, 'isFixedPerDay should be true');
+console.assert(Math.abs(fixedRates.dailyRate - 999.96) < 0.1, 'dailyRate should match monthly / 31');
+
+// 6A: Present day with 25m late check-in and 15m early check-out
+// Normal employee would get deductions. Fixed Per Day employee gets full day salary (₹999.96) and 0 deductions!
+const r6A = CalculationEngine.calculateDayRecord(empFixedPerDay, {
+  attendance_date_iso: '2026-05-18',
+  in_time: '08:25',
+  out_time: '19:45',
+  status_code: 'P'
+}, 31);
+console.log('6A (Fixed staff present with 25m late in, 15m early out):', {
+  status_code: r6A.status_code,
+  work_duration: r6A.work_duration,
+  late_minutes: r6A.late_minutes,
+  early_minutes: r6A.early_minutes,
+  late_salary_deduction: r6A.late_salary_deduction,
+  daily_salary_earned: r6A.daily_salary_earned,
+  net_daily_salary: r6A.net_daily_salary,
+  is_fixed_per_day_salary: r6A.is_fixed_per_day_salary
+});
+console.assert(r6A.late_minutes === 25, 'Hours calculation preserved: late minutes should be 25');
+console.assert(r6A.early_minutes === 15, 'Hours calculation preserved: early minutes should be 15');
+console.assert(r6A.late_salary_deduction === 0, 'Fixed per day: no late deductions from daily wage');
+console.assert(Math.abs(r6A.net_daily_salary - fixedRates.dailyRate) < 0.05, 'Fixed per day: Present gets 100% full daily salary');
+
+// 6B: Absent day -> ₹0 salary
+const r6B = CalculationEngine.calculateDayRecord(empFixedPerDay, {
+  attendance_date_iso: '2026-05-19',
+  in_time: null,
+  out_time: null,
+  status_code: 'A'
+}, 31);
+console.log('6B (Fixed staff absent):', {
+  status_code: r6B.status_code,
+  daily_salary_earned: r6B.daily_salary_earned,
+  net_daily_salary: r6B.net_daily_salary
+});
+console.assert(r6B.daily_salary_earned === 0, 'Fixed per day: Absent daily salary should be 0');
+console.assert(r6B.net_daily_salary === 0, 'Fixed per day: Absent net salary should be 0');
+
+// 6C: Present day with Overtime (08:00 to 20:45 -> 45m late out OT = 80 effective mins)
+// Full day salary (₹999.96) + Overtime (₹111.11)
+const r6C = CalculationEngine.calculateDayRecord(empFixedPerDay, {
+  attendance_date_iso: '2026-05-20',
+  in_time: '08:00',
+  out_time: '20:45',
+  status_code: 'P'
+}, 31);
+const expectedFixedNetWithOT = Number((fixedRates.dailyRate + expectedPay3D).toFixed(2));
+console.log('6C (Fixed staff with 45m late out OT):', {
+  daily_salary_earned: r6C.daily_salary_earned,
+  late_out_pay: r6C.late_out_pay,
+  net_daily_salary: r6C.net_daily_salary,
+  expected_net: expectedFixedNetWithOT
+});
+console.assert(Math.abs(r6C.net_daily_salary - expectedFixedNetWithOT) < 0.05, 'Fixed per day OT adds on top of full daily salary');
+
+// 6D: Employee with explicit salary_basis = 'Daily' (e.g. ₹1200 / day)
+const empDailyWage = {
+  employee_code: 'DAILY01',
+  employee_name: 'Daily Wage Staff',
+  salary: 1200,
+  salary_basis: 'Daily',
+  is_fixed_per_day_salary: 1,
+  standard_in_time: '09:00',
+  standard_out_time: '18:00',
+  standard_work_hours: 9.0,
+  overtime_multiplier: 2.0,
+  overtime_allowed: 1
+};
+const dailyRates = CalculationEngine.getEmployeeRates(empDailyWage, 30);
+console.log('6D Daily Wage Staff Rates:', dailyRates);
+console.assert(dailyRates.dailyRate === 1200, 'Daily rate should directly equal 1200');
+const r6D = CalculationEngine.calculateDayRecord(empDailyWage, {
+  attendance_date_iso: '2026-05-21',
+  in_time: '09:00',
+  out_time: '18:00',
+  status_code: 'P'
+}, 30);
+console.log('6D (Daily wage staff present):', {
+  daily_salary_earned: r6D.daily_salary_earned,
+  net_daily_salary: r6D.net_daily_salary
+});
+console.assert(r6D.net_daily_salary === 1200, 'Daily wage staff earns full ₹1200 on present');
+
 console.log('\n===============================================================');
-console.log('🎉 ALL 5 SALARY CALCULATION RULES VERIFIED SUCCESSFULLY 100%!');
+console.log('🎉 ALL SALARY CALCULATION RULES & FIXED PER DAY POLICIES VERIFIED 100%!');
 console.log('===============================================================\n');

@@ -499,6 +499,10 @@ export const generateEmployeeAttendanceHtml = (sheetData, options = {}) => {
             <td class="val">${emp.late_grace_minutes || 11} Minutes</td>
           </tr>
           <tr>
+            <td class="label">Weekly Off Schedule:</td>
+            <td class="val" style="font-weight: 700; color: #0369a1;">${emp.weekly_off_days || 'Sunday'}</td>
+          </tr>
+          <tr>
             <td class="label">Leaves (WOP / YPL):</td>
             <td class="val">${emp.wop || 0} WOP${emp.wop_work_hours ? ` (${emp.wop_work_hours}h)` : ''} / ${emp.ypl || 0} YPL</td>
           </tr>
@@ -555,6 +559,7 @@ export const generateEmployeeAttendanceHtml = (sheetData, options = {}) => {
         </div>
         <div class="kpi-sub">
           P: <strong>${summary.presentDays || 0}</strong> | WOP: <strong>${summary.weeklyOffPresentDays || 0}</strong> | A: <strong>${summary.absentDays || 0}</strong> | Off: <strong>${summary.weeklyOffDays || 0}</strong>
+          ${summary.sandwichAbsentDays > 0 ? ` | <span style="color: #dc2626; font-weight: 700;">Sandwich: ${summary.sandwichAbsentDays}</span>` : ''}
         </div>
       </div>
 
@@ -637,12 +642,13 @@ export const generateEmployeeAttendanceHtml = (sheetData, options = {}) => {
           ${records.map((r) => {
             const isWO = r.status_code === 'WO';
             const isWOP = r.status_code === 'WOP';
-            const isAbsent = r.status_code === 'A';
+            const isSandwichAbsent = Boolean(r.is_sandwich_absent);
             const isWopShortfall = r.is_wop_shortfall;
+            const isAbsent = r.status_code === 'A' || isSandwichAbsent;
             const isLate = r.is_late;
-            const rowClass = isWopShortfall ? 'row-absent' : (isWO ? 'row-wo' : (isWOP ? 'row-wop' : (isAbsent ? 'row-absent' : '')));
-            const badgeClass = isWopShortfall ? 'a' : (isAbsent ? 'a' : (isWO ? 'wo' : (isWOP ? 'wop' : 'p')));
-            const displayStatus = isWopShortfall ? 'WO (A)' : r.status_code;
+            const rowClass = (isWopShortfall || isSandwichAbsent) ? 'row-absent' : (isWO ? 'row-wo' : (isWOP ? 'row-wop' : (isAbsent ? 'row-absent' : '')));
+            const badgeClass = (isWopShortfall || isSandwichAbsent || isAbsent) ? 'a' : (isWO ? 'wo' : (isWOP ? 'wop' : 'p'));
+            const displayStatus = isSandwichAbsent ? 'Sandwich (A)' : (isWopShortfall ? 'WO (A)' : r.status_code);
 
             return `
             <tr class="${rowClass}">

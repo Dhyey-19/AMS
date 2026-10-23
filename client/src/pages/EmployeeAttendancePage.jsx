@@ -40,6 +40,7 @@ import { EditEmployeeMasterModal } from '../components/employees/EditEmployeeMas
 import { EditDayAttendanceModal } from '../components/attendance/EditDayAttendanceModal';
 import { EmployeeAttendancePdfModal } from '../components/attendance/EmployeeAttendancePdfModal';
 import { printEmployeeAttendance } from '../utils/employeeAttendancePdf';
+import { calculateDayRule } from '../utils/attendanceCalculator';
 
 const formatHoursToHHMM = (hrs) => {
   if (hrs === null || hrs === undefined || isNaN(hrs)) return '00:00';
@@ -73,8 +74,8 @@ const formatBreakToHHMM = (val) => {
 
 export const ATTENDANCE_COLUMNS = [
   { id: 'date', label: 'DATE', width: 120, description: 'Attendance Date' },
-  { id: 'manual', label: 'MANUAL', width: 75, align: 'center', description: 'Manual Record (Type & Save)' },
-  { id: 'status', label: 'P/A', width: 68, align: 'center', description: 'Status (P/A/WO/WOP)' },
+  { id: 'manual', label: 'MANUAL', width: 75, align: 'center', description: 'Manual Record (Rule Calculated & Fully Editable)' },
+  { id: 'status', label: 'P/A', width: 68, align: 'center', description: 'Status (P/A/WO/WOP/HD/L)' },
   { id: 'calc_mode', label: 'CALC MODE', width: 118, description: 'Calculation Mode' },
   { id: 'sched_in', label: 'SCHED IN', width: 88, description: 'Scheduled In Time' },
   { id: 'sched_out', label: 'SCHED OUT', width: 88, description: 'Scheduled Out Time' },
@@ -95,8 +96,12 @@ export const ATTENDANCE_COLUMNS = [
   { id: 'daily_salary', label: 'SALARY', width: 90, align: 'right', description: 'Daily Salary' },
   { id: 'late_ded', label: 'LATE DED', width: 85, align: 'right', description: 'Late Deduction' },
   { id: 'ot_pay', label: 'O.T. PAY', width: 85, align: 'right', description: 'Overtime Pay' },
+  { id: 'leave_ded', label: 'LEAVE DED', width: 85, align: 'right', description: 'Leave Deduction' },
+  { id: 'penalty', label: 'PENALTY', width: 85, align: 'right', description: 'Penalty' },
   { id: 'net_salary', label: 'NET SALARY', width: 105, align: 'right', description: 'Net Daily Salary' },
-  { id: 'action', label: 'ACTION', width: 75, align: 'center', description: 'Edit Record' }
+  { id: 'punch_records', label: 'PUNCHES', width: 130, description: 'Punch Records' },
+  { id: 'remarks', label: 'REMARKS', width: 130, description: 'Remarks' },
+  { id: 'action', label: 'ACTION', width: 80, align: 'center', description: 'Actions' }
 ];
 
 export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmployees }) => {
@@ -127,17 +132,28 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
   const [inlineFormData, setInlineFormData] = useState({});
   const [inlineSaving, setInlineSaving] = useState(false);
 
+  // Number of days in selected month (e.g. 30, 31, 28)
+  const daysInMonth = React.useMemo(() => {
+    if (!selectedMonth) return 30;
+    const parts = selectedMonth.split('-');
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    if (!isNaN(y) && !isNaN(m)) return new Date(y, m, 0).getDate();
+    return 30;
+  }, [selectedMonth]);
+
   // Column Visibility State
   const [visibleColumns, setVisibleColumns] = useState(() => {
+    const defaults = ATTENDANCE_COLUMNS.reduce((acc, col) => ({ ...acc, [col.id]: true }), {});
     try {
       const saved = localStorage.getItem('ams_employee_attendance_visible_columns');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.manual === undefined) parsed.manual = true;
-        return parsed;
+        return { ...defaults, ...parsed };
       }
     } catch (e) {}
-    return ATTENDANCE_COLUMNS.reduce((acc, col) => ({ ...acc, [col.id]: true }), {});
+    return defaults;
   });
 
   // Column Manager Dropdown Popover State
@@ -232,7 +248,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
 
   const handleToggleManual = async (r) => {
     if (r.is_manual) {
-      if (window.confirm(`Revert record for ${r.attendance_date_iso} to automatic calculations?\n\nDynamic formulas and salary rules will be applied.`)) {
+      if (window.confirm(`Revert record for ${r.attendance_date_iso} to automatic calculations?\n\nDynamic formulas and standard master shift rules will be applied.`)) {
         try {
           setLoading(true);
           await attendanceApi.updateRecord(selectedEmployeeCode, r.attendance_date_iso, { is_manual: 0 });
@@ -249,13 +265,16 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
       }
     } else {
       // User ticked manual on a record!
-      // Activate inline editing row for direct type & save
+      // Activate inline editing row and run rule calculation dynamically
       setInlineEditingDate(r.attendance_date_iso);
-      setInlineFormData({
+      const initialForm = {
+        is_manual: 1,
+        attendance_date: r.attendance_date || r.attendance_date_iso,
+        attendance_date_iso: r.attendance_date_iso,
         status_code: r.status_code || 'P',
-        calc_mode: r.calc_mode || 'Manual',
-        scheduled_in_time: r.scheduled_in_time || '',
-        scheduled_out_time: r.scheduled_out_time || '',
+        calc_mode: r.calc_mode || 'Normal',
+        scheduled_in_time: r.scheduled_in_time || currentEmp?.standard_in_time || '08:00',
+        scheduled_out_time: r.scheduled_out_time || currentEmp?.standard_out_time || '20:00',
         scheduled_duration_formatted: r.scheduled_duration_formatted || '12:00',
         scheduled_break_formatted: r.scheduled_break_formatted || '00:00',
         scheduled_work_formatted: r.scheduled_work_formatted || '12:00',
@@ -276,9 +295,19 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
         leave_deduction: r.leave_deduction || 0,
         penalty_amount: r.penalty_amount || 0,
         net_daily_salary: r.net_daily_salary !== undefined && r.net_daily_salary !== null ? r.net_daily_salary : '',
+        punch_records: r.punch_records || '',
         remarks: r.remarks || ''
-      });
+      };
+      const calculated = calculateDayRule(initialForm, currentEmp, daysInMonth, null);
+      setInlineFormData(calculated);
     }
+  };
+
+  const handleInlineChange = (field, value) => {
+    setInlineFormData(prev => {
+      const updated = { ...prev, [field]: value };
+      return calculateDayRule(updated, currentEmp, daysInMonth, field);
+    });
   };
 
   const handleSaveInline = async (dateIso) => {
@@ -286,8 +315,9 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
       setInlineSaving(true);
       const payload = {
         is_manual: 1,
+        attendance_date: inlineFormData.attendance_date || dateIso,
         status_code: (inlineFormData.status_code || 'P').toUpperCase().trim(),
-        calc_mode: inlineFormData.calc_mode || 'Manual',
+        calc_mode: inlineFormData.calc_mode || 'Normal',
         scheduled_in_time: inlineFormData.scheduled_in_time || '',
         scheduled_out_time: inlineFormData.scheduled_out_time || '',
         scheduled_duration_formatted: inlineFormData.scheduled_duration_formatted || '',
@@ -303,13 +333,14 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
         work_diff_formatted: inlineFormData.work_diff_formatted || '',
         late_formatted: inlineFormData.late_formatted || '',
         overtime_formatted: inlineFormData.overtime_formatted || '',
-        hourly_rate: inlineFormData.hourly_rate !== '' ? parseFloat(inlineFormData.hourly_rate) : undefined,
-        daily_salary_earned: inlineFormData.daily_salary_earned !== '' ? parseFloat(inlineFormData.daily_salary_earned) : undefined,
-        late_salary_deduction: inlineFormData.late_salary_deduction !== '' ? parseFloat(inlineFormData.late_salary_deduction) : 0,
-        overtime_pay: inlineFormData.overtime_pay !== '' ? parseFloat(inlineFormData.overtime_pay) : 0,
+        hourly_rate: inlineFormData.hourly_rate !== '' && inlineFormData.hourly_rate !== undefined ? parseFloat(inlineFormData.hourly_rate) : undefined,
+        daily_salary_earned: inlineFormData.daily_salary_earned !== '' && inlineFormData.daily_salary_earned !== undefined ? parseFloat(inlineFormData.daily_salary_earned) : undefined,
+        late_salary_deduction: inlineFormData.late_salary_deduction !== '' && inlineFormData.late_salary_deduction !== undefined ? parseFloat(inlineFormData.late_salary_deduction) : 0,
+        overtime_pay: inlineFormData.overtime_pay !== '' && inlineFormData.overtime_pay !== undefined ? parseFloat(inlineFormData.overtime_pay) : 0,
         leave_deduction: parseFloat(inlineFormData.leave_deduction) || 0,
         penalty_amount: parseFloat(inlineFormData.penalty_amount) || 0,
-        net_daily_salary: inlineFormData.net_daily_salary !== '' ? parseFloat(inlineFormData.net_daily_salary) : undefined,
+        net_daily_salary: inlineFormData.net_daily_salary !== '' && inlineFormData.net_daily_salary !== undefined ? parseFloat(inlineFormData.net_daily_salary) : undefined,
+        punch_records: inlineFormData.punch_records ? inlineFormData.punch_records.trim() : '',
         remarks: inlineFormData.remarks ? inlineFormData.remarks.trim() : ''
       };
 
@@ -1066,6 +1097,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem', fontSize: '0.8125rem' }}>
                   <div><span style={{ color: 'var(--slate-500)' }}>Shift:</span> <strong>{currentEmp?.standard_in_time} - {currentEmp?.standard_out_time}</strong></div>
                   <div><span style={{ color: 'var(--slate-500)' }}>Daily Target:</span> <strong>{formatHoursToHHMM(currentEmp?.standard_work_hours)} hrs/d</strong></div>
+                  <div><span style={{ color: 'var(--slate-500)' }}>Weekly Off:</span> <strong style={{ color: '#0369a1' }}>{currentEmp?.weekly_off_days || 'Sunday'}</strong></div>
                   <div><span style={{ color: 'var(--slate-500)' }}>Master Break:</span> <strong style={{ color: 'var(--primary-700)' }}>{formatBreakToHHMM(currentEmp?.standard_break_time || currentEmp?.standard_break_minutes || 0)}</strong></div>
                   <div><span style={{ color: 'var(--slate-500)' }}>Grace Window:</span> <strong>{currentEmp?.late_grace_minutes || 11}m</strong></div>
                   <div><span style={{ color: 'var(--slate-500)' }}>WOP Days:</span> <strong style={{ color: '#0284c7' }}>{currentEmp?.wop || 0}d{currentEmp?.wop_work_hours ? ` (${formatHoursToHHMM(currentEmp.wop_work_hours)}h)` : ''}</strong></div>
@@ -1176,6 +1208,9 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--slate-500)', marginTop: '0.25rem' }}>
                 P: <strong>{summary?.presentDays}</strong> | WOP: <strong>{summary?.weeklyOffPresentDays}</strong> | A: <strong>{summary?.absentDays}</strong> | Off: <strong>{summary?.weeklyOffDays}</strong>
+                {Boolean(summary?.sandwichAbsentDays > 0) && (
+                  <span style={{ color: '#b91c1c', fontWeight: '700' }}> | Sandwich: {summary.sandwichAbsentDays}</span>
+                )}
               </div>
             </div>
 
@@ -1442,7 +1477,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                       let rowBg = '#ffffff';
                       if (isWO) rowBg = '#f0f9ff';
                       if (isWOP) rowBg = '#f0fdfa';
-                      if (isAbsent || isWopShortfall) rowBg = '#fff1f2';
+                      if (isAbsent || isWopShortfall || r.is_sandwich_absent) rowBg = '#fff1f2';
                       if (isManual) rowBg = '#fffdf7';
                       if (isInlineEditing) rowBg = '#fefce8';
 
@@ -1456,25 +1491,34 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                         >
                           {visibleColumns.date && (
                             <td style={getStickyStyle('date', false, false, rowBg, { fontWeight: '600', color: 'var(--slate-900)' })}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <span>{r.attendance_date || r.attendance_date_iso}</span>
-                                {isManual && !isInlineEditing && (
-                                  <span 
-                                    style={{ 
-                                      fontSize: '0.625rem', 
-                                      fontWeight: '700', 
-                                      color: '#b45309', 
-                                      backgroundColor: '#fef3c7', 
-                                      border: '1px solid #fde68a', 
-                                      padding: '1px 4px', 
-                                      borderRadius: '3px' 
-                                    }}
-                                    title="Manual record (Type & Save)"
-                                  >
-                                    Manual
-                                  </span>
-                                )}
-                              </div>
+                              {isInlineEditing ? (
+                                <input
+                                  style={{ ...inlineInputStyle, width: '100px', fontWeight: '600' }}
+                                  value={inlineFormData.attendance_date || inlineFormData.attendance_date_iso || ''}
+                                  onChange={e => handleInlineChange('attendance_date', e.target.value)}
+                                  placeholder="YYYY-MM-DD"
+                                />
+                              ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <span>{r.attendance_date || r.attendance_date_iso}</span>
+                                  {isManual && (
+                                    <span 
+                                      style={{ 
+                                        fontSize: '0.625rem', 
+                                        fontWeight: '700', 
+                                        color: '#b45309', 
+                                        backgroundColor: '#fef3c7', 
+                                        border: '1px solid #fde68a', 
+                                        padding: '1px 4px', 
+                                        borderRadius: '3px' 
+                                      }}
+                                      title="Manual record (Calculated as per rule)"
+                                    >
+                                      Manual
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </td>
                           )}
                           {visibleColumns.manual && (
@@ -1484,7 +1528,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                   type="checkbox"
                                   checked={isInlineEditing || isManual}
                                   onChange={() => handleToggleManual(r)}
-                                  title={isManual ? 'Manual record active (Click to revert to auto rules)' : 'Click to tick manual and edit all fields (No salary rules)'}
+                                  title={isManual ? 'Manual record active (Click to revert to standard auto shift)' : 'Click to enable manual entry (All columns editable, rules calculated dynamically)'}
                                   style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#d97706' }}
                                 />
                               </label>
@@ -1496,9 +1540,22 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                 <input
                                   style={{ ...inlineInputStyle, width: '56px', textAlign: 'center', fontWeight: '700' }}
                                   value={inlineFormData.status_code || ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, status_code: e.target.value.toUpperCase() }))}
+                                  onChange={e => handleInlineChange('status_code', e.target.value.toUpperCase())}
                                   placeholder="P"
                                 />
+                              ) : r.is_sandwich_absent ? (
+                                <span
+                                  className="badge"
+                                  style={{
+                                    backgroundColor: '#fee2e2',
+                                    color: '#991b1b',
+                                    border: '1px solid #f87171',
+                                    fontWeight: '700'
+                                  }}
+                                  title={r.sandwich_note || 'Sandwich Leave Rule: Absent on both sides of holiday. Treated as Absent (No Salary).'}
+                                >
+                                  Sandwich (A)
+                                </span>
                               ) : isWopShortfall ? (
                                 <span
                                   className="badge"
@@ -1532,8 +1589,8 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                 <input
                                   style={{ ...inlineInputStyle, width: '100px' }}
                                   value={inlineFormData.calc_mode || ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, calc_mode: e.target.value }))}
-                                  placeholder="Manual"
+                                  onChange={e => handleInlineChange('calc_mode', e.target.value)}
+                                  placeholder="Normal"
                                 />
                               ) : (
                                 <span 
@@ -1558,7 +1615,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                 <input
                                   style={inlineInputStyle}
                                   value={inlineFormData.scheduled_in_time || ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, scheduled_in_time: e.target.value }))}
+                                  onChange={e => handleInlineChange('scheduled_in_time', e.target.value)}
                                   placeholder="08:00"
                                 />
                               ) : (
@@ -1572,7 +1629,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                 <input
                                   style={inlineInputStyle}
                                   value={inlineFormData.scheduled_out_time || ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, scheduled_out_time: e.target.value }))}
+                                  onChange={e => handleInlineChange('scheduled_out_time', e.target.value)}
                                   placeholder="20:00"
                                 />
                               ) : (
@@ -1586,7 +1643,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                 <input
                                   style={inlineInputStyle}
                                   value={inlineFormData.scheduled_duration_formatted || ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, scheduled_duration_formatted: e.target.value }))}
+                                  onChange={e => handleInlineChange('scheduled_duration_formatted', e.target.value)}
                                   placeholder="12:00"
                                 />
                               ) : (
@@ -1600,7 +1657,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                 <input
                                   style={inlineInputStyle}
                                   value={inlineFormData.scheduled_break_formatted || ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, scheduled_break_formatted: e.target.value }))}
+                                  onChange={e => handleInlineChange('scheduled_break_formatted', e.target.value)}
                                   placeholder="00:00"
                                 />
                               ) : (
@@ -1614,7 +1671,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                 <input
                                   style={inlineInputStyle}
                                   value={inlineFormData.scheduled_work_formatted || ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, scheduled_work_formatted: e.target.value }))}
+                                  onChange={e => handleInlineChange('scheduled_work_formatted', e.target.value)}
                                   placeholder="12:00"
                                 />
                               ) : (
@@ -1628,7 +1685,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                 <input
                                   style={inlineInputStyle}
                                   value={inlineFormData.in_time || ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, in_time: e.target.value }))}
+                                  onChange={e => handleInlineChange('in_time', e.target.value)}
                                   placeholder="08:00"
                                 />
                               ) : (
@@ -1642,7 +1699,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                 <input
                                   style={inlineInputStyle}
                                   value={inlineFormData.out_time || ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, out_time: e.target.value }))}
+                                  onChange={e => handleInlineChange('out_time', e.target.value)}
                                   placeholder="20:00"
                                 />
                               ) : (
@@ -1656,7 +1713,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                 <input
                                   style={inlineInputStyle}
                                   value={inlineFormData.actual_duration_formatted || ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, actual_duration_formatted: e.target.value }))}
+                                  onChange={e => handleInlineChange('actual_duration_formatted', e.target.value)}
                                   placeholder="12:00"
                                 />
                               ) : (
@@ -1670,7 +1727,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                 <input
                                   style={inlineInputStyle}
                                   value={inlineFormData.break_out || ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, break_out: e.target.value }))}
+                                  onChange={e => handleInlineChange('break_out', e.target.value)}
                                   placeholder="13:00"
                                 />
                               ) : (
@@ -1684,7 +1741,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                 <input
                                   style={inlineInputStyle}
                                   value={inlineFormData.break_in || ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, break_in: e.target.value }))}
+                                  onChange={e => handleInlineChange('break_in', e.target.value)}
                                   placeholder="13:30"
                                 />
                               ) : (
@@ -1698,7 +1755,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                 <input
                                   style={inlineInputStyle}
                                   value={inlineFormData.effective_break_formatted || ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, effective_break_formatted: e.target.value }))}
+                                  onChange={e => handleInlineChange('effective_break_formatted', e.target.value)}
                                   placeholder="00:00"
                                 />
                               ) : (
@@ -1712,7 +1769,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                 <input
                                   style={{ ...inlineInputStyle, fontWeight: '700' }}
                                   value={inlineFormData.actual_work_formatted || ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, actual_work_formatted: e.target.value }))}
+                                  onChange={e => handleInlineChange('actual_work_formatted', e.target.value)}
                                   placeholder="12:00"
                                 />
                               ) : (
@@ -1724,9 +1781,9 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                             <td style={getStickyStyle('work_diff', false, false, rowBg, { textAlign: 'center' })}>
                               {isInlineEditing ? (
                                 <input
-                                  style={inlineInputStyle}
+                                  style={{ ...inlineInputStyle, textAlign: 'center' }}
                                   value={inlineFormData.work_diff_formatted || ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, work_diff_formatted: e.target.value }))}
+                                  onChange={e => handleInlineChange('work_diff_formatted', e.target.value)}
                                   placeholder="+00:00"
                                 />
                               ) : (
@@ -1742,7 +1799,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                 <input
                                   style={inlineInputStyle}
                                   value={inlineFormData.late_formatted || ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, late_formatted: e.target.value }))}
+                                  onChange={e => handleInlineChange('late_formatted', e.target.value)}
                                   placeholder="00:00"
                                 />
                               ) : (
@@ -1756,7 +1813,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                 <input
                                   style={inlineInputStyle}
                                   value={inlineFormData.overtime_formatted || ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, overtime_formatted: e.target.value }))}
+                                  onChange={e => handleInlineChange('overtime_formatted', e.target.value)}
                                   placeholder="00:00"
                                 />
                               ) : (
@@ -1772,7 +1829,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                   step="0.01"
                                   style={inlineInputStyle}
                                   value={inlineFormData.hourly_rate ?? ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, hourly_rate: e.target.value }))}
+                                  onChange={e => handleInlineChange('hourly_rate', e.target.value)}
                                   placeholder="83.33"
                                 />
                               ) : (
@@ -1788,7 +1845,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                   step="0.01"
                                   style={{ ...inlineInputStyle, fontWeight: '700' }}
                                   value={inlineFormData.daily_salary_earned ?? ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, daily_salary_earned: e.target.value }))}
+                                  onChange={e => handleInlineChange('daily_salary_earned', e.target.value)}
                                   placeholder="1000.00"
                                 />
                               ) : (
@@ -1804,7 +1861,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                   step="0.01"
                                   style={{ ...inlineInputStyle, color: 'var(--danger-text)' }}
                                   value={inlineFormData.late_salary_deduction ?? ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, late_salary_deduction: e.target.value }))}
+                                  onChange={e => handleInlineChange('late_salary_deduction', e.target.value)}
                                   placeholder="0.00"
                                 />
                               ) : (
@@ -1820,11 +1877,43 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                   step="0.01"
                                   style={{ ...inlineInputStyle, color: 'var(--success-text)' }}
                                   value={inlineFormData.overtime_pay ?? ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, overtime_pay: e.target.value }))}
+                                  onChange={e => handleInlineChange('overtime_pay', e.target.value)}
                                   placeholder="0.00"
                                 />
                               ) : (
                                 r.overtime_pay > 0 ? `+₹${r.overtime_pay}` : '—'
+                              )}
+                            </td>
+                          )}
+                          {visibleColumns.leave_ded && (
+                            <td style={getStickyStyle('leave_ded', false, false, rowBg, { textAlign: 'right', color: r.leave_deduction > 0 ? 'var(--danger-text)' : 'var(--slate-400)' })}>
+                              {isInlineEditing ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  style={{ ...inlineInputStyle, color: 'var(--danger-text)' }}
+                                  value={inlineFormData.leave_deduction ?? ''}
+                                  onChange={e => handleInlineChange('leave_deduction', e.target.value)}
+                                  placeholder="0.00"
+                                />
+                              ) : (
+                                r.leave_deduction > 0 ? `-₹${r.leave_deduction}` : '—'
+                              )}
+                            </td>
+                          )}
+                          {visibleColumns.penalty && (
+                            <td style={getStickyStyle('penalty', false, false, rowBg, { textAlign: 'right', color: r.penalty_amount > 0 ? 'var(--danger-text)' : 'var(--slate-400)' })}>
+                              {isInlineEditing ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  style={{ ...inlineInputStyle, color: 'var(--danger-text)' }}
+                                  value={inlineFormData.penalty_amount ?? ''}
+                                  onChange={e => handleInlineChange('penalty_amount', e.target.value)}
+                                  placeholder="0.00"
+                                />
+                              ) : (
+                                r.penalty_amount > 0 ? `-₹${r.penalty_amount}` : '—'
                               )}
                             </td>
                           )}
@@ -1836,11 +1925,43 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                   step="0.01"
                                   style={{ ...inlineInputStyle, fontWeight: '800', color: 'var(--primary-700)', backgroundColor: '#ecfdf5', border: '1.5px solid #10b981' }}
                                   value={inlineFormData.net_daily_salary ?? ''}
-                                  onChange={e => setInlineFormData(p => ({ ...p, net_daily_salary: e.target.value }))}
+                                  onChange={e => handleInlineChange('net_daily_salary', e.target.value)}
                                   placeholder="1000.00"
                                 />
                               ) : (
                                 `₹${r.net_daily_salary}`
+                              )}
+                            </td>
+                          )}
+                          {visibleColumns.punch_records && (
+                            <td style={getStickyStyle('punch_records', false, false, rowBg)}>
+                              {isInlineEditing ? (
+                                <input
+                                  style={{ ...inlineInputStyle, width: '120px' }}
+                                  value={inlineFormData.punch_records || ''}
+                                  onChange={e => handleInlineChange('punch_records', e.target.value)}
+                                  placeholder="08:00, 20:00"
+                                />
+                              ) : (
+                                <span style={{ fontSize: '0.725rem', color: 'var(--slate-600)' }} title={r.punch_records}>
+                                  {r.punch_records || '—'}
+                                </span>
+                              )}
+                            </td>
+                          )}
+                          {visibleColumns.remarks && (
+                            <td style={getStickyStyle('remarks', false, false, rowBg)}>
+                              {isInlineEditing ? (
+                                <input
+                                  style={{ ...inlineInputStyle, width: '120px' }}
+                                  value={inlineFormData.remarks || ''}
+                                  onChange={e => handleInlineChange('remarks', e.target.value)}
+                                  placeholder="Remarks"
+                                />
+                              ) : (
+                                <span style={{ fontSize: '0.725rem', color: 'var(--slate-600)' }} title={r.remarks}>
+                                  {r.remarks || '—'}
+                                </span>
                               )}
                             </td>
                           )}
@@ -1853,7 +1974,7 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                     onClick={() => handleSaveInline(r.attendance_date_iso)}
                                     className="btn btn-sm btn-success"
                                     style={{ padding: '0.2rem 0.4rem', fontSize: '0.7rem' }}
-                                    title="Save manual record (No rules)"
+                                    title="Save manual record (Rule calculated)"
                                     disabled={inlineSaving}
                                   >
                                     <Check size={12} />
@@ -1952,9 +2073,21 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                       {visibleColumns.ot_pay && (
                         <td style={{ textAlign: 'right', color: 'var(--success-text)' }}>+₹{summary?.totalOvertimePay}</td>
                       )}
+                      {visibleColumns.leave_ded && (
+                        <td style={{ textAlign: 'right', color: 'var(--danger-text)' }}>
+                          {summary?.totalLeaveDeductions > 0 ? `-₹${summary.totalLeaveDeductions}` : '—'}
+                        </td>
+                      )}
+                      {visibleColumns.penalty && (
+                        <td style={{ textAlign: 'right', color: 'var(--danger-text)' }}>
+                          {summary?.totalPenalties > 0 ? `-₹${summary.totalPenalties}` : '—'}
+                        </td>
+                      )}
                       {visibleColumns.net_salary && (
                         <td style={{ textAlign: 'right', color: 'var(--primary-700)', fontSize: '0.95rem', background: 'var(--primary-100)' }}>₹{summary?.netPayableSalary}</td>
                       )}
+                      {visibleColumns.punch_records && <td>—</td>}
+                      {visibleColumns.remarks && <td>—</td>}
                       {visibleColumns.action && <td style={{ textAlign: 'center' }}>—</td>}
                     </tr>
                   </tfoot>

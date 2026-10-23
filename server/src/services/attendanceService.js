@@ -770,8 +770,7 @@ class AttendanceService {
       for (let d = 1; d <= daysInMonth; d++) {
         const dayStr = String(d).padStart(2, '0');
         const isoDate = `${targetMonth}-${dayStr}`;
-        const dateObj = new Date(isoDate);
-        const isSunday = dateObj.getDay() === 0;
+        const isWO = CalculationEngine.isWeeklyOff(emp, isoDate);
 
         placeholders.push({
           employee_code: emp.employee_code,
@@ -781,7 +780,7 @@ class AttendanceService {
           out_time: '',
           break_out: '',
           break_in: '',
-          status_code: isSunday ? 'WO' : 'A',
+          status_code: isWO ? 'WO' : 'A',
           leave_deduction: 0,
           penalty_amount: 0,
           overtime_override_minutes: 0,
@@ -1681,11 +1680,11 @@ class AttendanceService {
       penalty_amount: updateData.penalty_amount !== undefined ? parseFloat(updateData.penalty_amount) || 0 : (existing?.penalty_amount || 0),
       overtime_override_minutes: updateData.overtime_override_minutes !== undefined ? parseInt(updateData.overtime_override_minutes, 10) || 0 : (existing?.overtime_override_minutes || 0),
       is_manual: isManual,
-      manual_data: manualDataJson,
-      calc_mode: updateData.calc_mode || existing?.calc_mode || (isManual ? 'Manual' : null),
-      scheduled_in_time: updateData.scheduled_in_time !== undefined ? updateData.scheduled_in_time : (existing?.scheduled_in_time || null),
-      scheduled_out_time: updateData.scheduled_out_time !== undefined ? updateData.scheduled_out_time : (existing?.scheduled_out_time || null),
-      scheduled_work: updateData.scheduled_work_formatted !== undefined ? updateData.scheduled_work_formatted : (updateData.scheduled_work || existing?.scheduled_work || null),
+      manual_data: isManual ? manualDataJson : null,
+      calc_mode: isManual ? (updateData.calc_mode || existing?.calc_mode || 'Manual') : (updateData.calc_mode || null),
+      scheduled_in_time: isManual ? (updateData.scheduled_in_time !== undefined ? updateData.scheduled_in_time : (existing?.scheduled_in_time || null)) : (updateData.scheduled_in_time || null),
+      scheduled_out_time: isManual ? (updateData.scheduled_out_time !== undefined ? updateData.scheduled_out_time : (existing?.scheduled_out_time || null)) : (updateData.scheduled_out_time || null),
+      scheduled_work: isManual ? (updateData.scheduled_work_formatted !== undefined ? updateData.scheduled_work_formatted : (updateData.scheduled_work || existing?.scheduled_work || null)) : (updateData.scheduled_work || null),
       actual_duration: updateData.actual_duration_formatted !== undefined ? updateData.actual_duration_formatted : (updateData.actual_duration || totalDuration),
       effective_break: updateData.effective_break_formatted !== undefined ? updateData.effective_break_formatted : (updateData.effective_break || existing?.effective_break || null),
       actual_work: updateData.actual_work_formatted !== undefined ? updateData.actual_work_formatted : (updateData.actual_work || existing?.actual_work || null),

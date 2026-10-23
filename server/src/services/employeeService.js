@@ -230,7 +230,12 @@ class EmployeeService {
       ypl: normalized['ypl'] ? parseFloat(normalized['ypl']) : (normalized['yearlypaidleave'] ? parseFloat(normalized['yearlypaidleave']) : 0),
       wop_work_hours: (normalized['wopworkhours'] || normalized['wophours'] || normalized['wopworktime'] || normalized['woptime'] || normalized['woptargethours'])
         ? this.parseWorkHours(normalized['wopworkhours'] || normalized['wophours'] || normalized['wopworktime'] || normalized['woptime'] || normalized['woptargethours'], null)
-        : null
+        : null,
+      weekly_off_days: normalized['weeklyoffdays'] || normalized['weeklyoff'] || normalized['weekoff'] || normalized['holidaydays'] || 'Sunday',
+      is_fixed_per_day_salary: (normalized['isfixedperdaysalary'] !== undefined || normalized['fixedperdaysalary'] !== undefined || normalized['fixperdaysalary'] !== undefined)
+        ? (['1', 'true', 'yes', 'y'].includes(String(normalized['isfixedperdaysalary'] || normalized['fixedperdaysalary'] || normalized['fixperdaysalary']).trim().toLowerCase()) ? 1 : 0)
+        : 0,
+      salary_basis: normalized['salarybasis'] || normalized['ratetype'] || 'Monthly'
     };
   }
 
@@ -261,7 +266,7 @@ class EmployeeService {
         wop_work_hours, payment_mode,
         late_grace_minutes, late_deduction_multiplier, overtime_multiplier, overtime_allowed,
         min_overtime_minutes, min_overtime_deduction_minutes, special_rules, salary_history_json,
-        wop, ypl
+        wop, ypl, weekly_off_days, is_fixed_per_day_salary, salary_basis
       ) VALUES (
         @employee_code, @employee_name, @device_code, @company, @department,
         @location, @designation, @grade, @team, @category,
@@ -272,7 +277,7 @@ class EmployeeService {
         @wop_work_hours, @payment_mode,
         @late_grace_minutes, @late_deduction_multiplier, @overtime_multiplier, @overtime_allowed,
         @min_overtime_minutes, @min_overtime_deduction_minutes, @special_rules, @salary_history_json,
-        @wop, @ypl
+        @wop, @ypl, @weekly_off_days, @is_fixed_per_day_salary, @salary_basis
       )
     `);
 
@@ -319,6 +324,9 @@ class EmployeeService {
         salary_history_json = COALESCE(@salary_history_json, salary_history_json),
         wop = COALESCE(@wop, wop),
         ypl = COALESCE(@ypl, ypl),
+        weekly_off_days = COALESCE(@weekly_off_days, weekly_off_days),
+        is_fixed_per_day_salary = COALESCE(@is_fixed_per_day_salary, is_fixed_per_day_salary),
+        salary_basis = COALESCE(@salary_basis, salary_basis),
         updated_at = CURRENT_TIMESTAMP
       WHERE employee_code = @employee_code
     `);
@@ -329,13 +337,13 @@ class EmployeeService {
         standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
         wop_work_hours, payment_mode, late_grace_minutes, late_deduction_multiplier,
         overtime_multiplier, overtime_allowed, min_overtime_minutes, min_overtime_deduction_minutes,
-        special_rules, remarks
+        special_rules, remarks, wop, weekly_off_days, is_fixed_per_day_salary, salary_basis
       ) VALUES (
         @employee_code, @effective_date, @salary, @incentive,
         @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
         @wop_work_hours, @payment_mode, @late_grace_minutes, @late_deduction_multiplier,
         @overtime_multiplier, @overtime_allowed, @min_overtime_minutes, @min_overtime_deduction_minutes,
-        @special_rules, @remarks
+        @special_rules, @remarks, @wop, @weekly_off_days, @is_fixed_per_day_salary, @salary_basis
       )
       ON CONFLICT(employee_code, effective_date) DO UPDATE SET
         salary = COALESCE(excluded.salary, employee_wef_history.salary),
@@ -347,6 +355,10 @@ class EmployeeService {
         wop_work_hours = COALESCE(excluded.wop_work_hours, employee_wef_history.wop_work_hours),
         payment_mode = COALESCE(excluded.payment_mode, employee_wef_history.payment_mode),
         special_rules = COALESCE(excluded.special_rules, employee_wef_history.special_rules),
+        wop = COALESCE(excluded.wop, employee_wef_history.wop),
+        weekly_off_days = COALESCE(excluded.weekly_off_days, employee_wef_history.weekly_off_days),
+        is_fixed_per_day_salary = COALESCE(excluded.is_fixed_per_day_salary, employee_wef_history.is_fixed_per_day_salary),
+        salary_basis = COALESCE(excluded.salary_basis, employee_wef_history.salary_basis),
         updated_at = CURRENT_TIMESTAMP
     `);
 
@@ -375,6 +387,7 @@ class EmployeeService {
                 standard_out_time: emp.standard_out_time || '20:00',
                 standard_break_minutes: emp.standard_break_minutes || 0,
                 standard_work_hours: emp.standard_work_hours || 12.0,
+                wop_work_hours: emp.wop_work_hours || null,
                 payment_mode: emp.payment_mode || 'Bank',
                 late_grace_minutes: emp.late_grace_minutes ?? 11,
                 late_deduction_multiplier: emp.late_deduction_multiplier ?? 0.5,
@@ -383,7 +396,9 @@ class EmployeeService {
                 min_overtime_minutes: emp.min_overtime_minutes || 0,
                 min_overtime_deduction_minutes: emp.min_overtime_deduction_minutes || 0,
                 special_rules: emp.special_rules || null,
-                remarks: 'Master Import'
+                remarks: 'Master Import',
+                is_fixed_per_day_salary: emp.is_fixed_per_day_salary ?? 0,
+                salary_basis: emp.salary_basis || 'Monthly'
               });
               updated++;
             }
@@ -398,6 +413,7 @@ class EmployeeService {
               standard_out_time: emp.standard_out_time || '20:00',
               standard_break_minutes: emp.standard_break_minutes || 0,
               standard_work_hours: emp.standard_work_hours || 12.0,
+              wop_work_hours: emp.wop_work_hours || null,
               payment_mode: emp.payment_mode || 'Bank',
               late_grace_minutes: emp.late_grace_minutes ?? 11,
               late_deduction_multiplier: emp.late_deduction_multiplier ?? 0.5,
@@ -406,7 +422,9 @@ class EmployeeService {
               min_overtime_minutes: emp.min_overtime_minutes || 0,
               min_overtime_deduction_minutes: emp.min_overtime_deduction_minutes || 0,
               special_rules: emp.special_rules || null,
-              remarks: 'Master Import'
+              remarks: 'Master Import',
+              is_fixed_per_day_salary: emp.is_fixed_per_day_salary ?? 0,
+              salary_basis: emp.salary_basis || 'Monthly'
             });
             inserted++;
           }
@@ -944,11 +962,19 @@ class EmployeeService {
         salary_history_json = COALESCE(@salary_history_json, salary_history_json),
         wop = COALESCE(@wop, wop),
         ypl = COALESCE(@ypl, ypl),
+        weekly_off_days = COALESCE(@weekly_off_days, weekly_off_days),
+        is_fixed_per_day_salary = @is_fixed_per_day_salary,
+        salary_basis = @salary_basis,
         updated_at = CURRENT_TIMESTAMP
       WHERE employee_code = @employee_code
     `);
 
     const effectiveWefDate = updateData.wef_date || existing.wef_date || existing.doj || '1900-01-01';
+
+    const isFixedPerDay = updateData.is_fixed_per_day_salary !== undefined 
+      ? (updateData.is_fixed_per_day_salary ? 1 : 0) 
+      : (existing.is_fixed_per_day_salary ? 1 : 0);
+    const salaryBasis = updateData.salary_basis || existing.salary_basis || 'Monthly';
 
     stmt.run({
       employee_code: employeeCode.toString(),
@@ -992,7 +1018,10 @@ class EmployeeService {
       special_rules: updateData.special_rules ?? existing.special_rules,
       salary_history_json: updateData.salary_history_json !== undefined ? (typeof updateData.salary_history_json === 'object' ? JSON.stringify(updateData.salary_history_json) : updateData.salary_history_json) : existing.salary_history_json,
       wop: updateData.wop !== undefined ? parseFloat(updateData.wop) : existing.wop,
-      ypl: updateData.ypl !== undefined ? parseFloat(updateData.ypl) : existing.ypl
+      ypl: updateData.ypl !== undefined ? parseFloat(updateData.ypl) : existing.ypl,
+      weekly_off_days: updateData.weekly_off_days ?? existing.weekly_off_days ?? 'Sunday',
+      is_fixed_per_day_salary: isFixedPerDay,
+      salary_basis: salaryBasis
     });
 
     // Upsert baseline W.E.F. entry in employee_wef_history
@@ -1003,13 +1032,13 @@ class EmployeeService {
           standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
           wop_work_hours, payment_mode, late_grace_minutes, late_deduction_multiplier,
           overtime_multiplier, overtime_allowed, min_overtime_minutes, min_overtime_deduction_minutes,
-          special_rules, remarks
+          special_rules, remarks, wop, weekly_off_days, is_fixed_per_day_salary, salary_basis
         ) VALUES (
           @employee_code, @effective_date, @salary, @incentive,
           @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
           @wop_work_hours, @payment_mode, @late_grace_minutes, @late_deduction_multiplier,
           @overtime_multiplier, @overtime_allowed, @min_overtime_minutes, @min_overtime_deduction_minutes,
-          @special_rules, @remarks
+          @special_rules, @remarks, @wop, @weekly_off_days, @is_fixed_per_day_salary, @salary_basis
         )
         ON CONFLICT(employee_code, effective_date) DO UPDATE SET
           salary = excluded.salary,
@@ -1027,6 +1056,39 @@ class EmployeeService {
           min_overtime_minutes = excluded.min_overtime_minutes,
           min_overtime_deduction_minutes = excluded.min_overtime_deduction_minutes,
           special_rules = excluded.special_rules,
+          wop = excluded.wop,
+          weekly_off_days = excluded.weekly_off_days,
+          is_fixed_per_day_salary = excluded.is_fixed_per_day_salary,
+          salary_basis = excluded.salary_basis,
+          updated_at = CURRENT_TIMESTAMP
+      `).run({
+        employee_code: employeeCode.toString(),
+        effective_date: effectiveWefDate,
+        salary,
+        incentive,
+        standard_in_time: updateData.standard_in_time ?? existing.standard_in_time ?? '08:00',
+        standard_out_time: updateData.standard_out_time ?? existing.standard_out_time ?? '20:00',
+        standard_break_minutes: updateData.standard_break_minutes ?? existing.standard_break_minutes ?? 0,
+        standard_work_hours: stdHours,
+        wop_work_hours: wopHours,
+        payment_mode: updateData.payment_mode ?? existing.payment_mode ?? 'Bank',
+        late_grace_minutes: updateData.late_grace_minutes ?? existing.late_grace_minutes ?? 11,
+        late_deduction_multiplier: updateData.late_deduction_multiplier ?? existing.late_deduction_multiplier ?? 0.5,
+        overtime_multiplier: updateData.overtime_multiplier ?? existing.overtime_multiplier ?? 2.0,
+        overtime_allowed: updateData.overtime_allowed !== undefined ? (updateData.overtime_allowed ? 1 : 0) : (existing.overtime_allowed ?? 1),
+        min_overtime_minutes: updateData.min_overtime_minutes !== undefined ? (parseInt(updateData.min_overtime_minutes, 10) || 0) : (existing.min_overtime_minutes || 0),
+        min_overtime_deduction_minutes: updateData.min_overtime_deduction_minutes !== undefined ? (parseInt(updateData.min_overtime_deduction_minutes, 10) || 0) : (existing.min_overtime_deduction_minutes || 0),
+        special_rules: updateData.special_rules ?? existing.special_rules ?? null,
+        remarks: 'Updated Master Baseline',
+        wop: updateData.wop !== undefined ? parseFloat(updateData.wop) : (existing.wop || 0),
+        weekly_off_days: updateData.weekly_off_days ?? existing.weekly_off_days ?? 'Sunday',
+        is_fixed_per_day_salary: isFixedPerDay,
+        salary_basis: salaryBasis
+      });
+          min_overtime_deduction_minutes = excluded.min_overtime_deduction_minutes,
+          special_rules = excluded.special_rules,
+          is_fixed_per_day_salary = excluded.is_fixed_per_day_salary,
+          salary_basis = excluded.salary_basis,
           updated_at = CURRENT_TIMESTAMP
       `).run({
         employee_code: employeeCode.toString(),
@@ -1046,7 +1108,9 @@ class EmployeeService {
         min_overtime_minutes: updateData.min_overtime_minutes !== undefined ? (parseInt(updateData.min_overtime_minutes, 10) || 0) : (existing.min_overtime_minutes || 0),
         min_overtime_deduction_minutes: updateData.min_overtime_deduction_minutes !== undefined ? (parseInt(updateData.min_overtime_deduction_minutes, 10) || 0) : (existing.min_overtime_deduction_minutes || 0),
         special_rules: updateData.special_rules ?? existing.special_rules,
-        remarks: 'Master Profile Update'
+        remarks: 'Master Profile Update',
+        is_fixed_per_day_salary: isFixedPerDay,
+        salary_basis: salaryBasis
       });
     } catch (e) {
       console.error('Failed to sync W.E.F. on updateEmployee:', e.message);
@@ -1090,7 +1154,7 @@ class EmployeeService {
         wop_work_hours, payment_mode,
         late_grace_minutes, late_deduction_multiplier, overtime_multiplier, overtime_allowed,
         min_overtime_minutes, min_overtime_deduction_minutes, special_rules, salary_history_json,
-        wop, ypl
+        wop, ypl, weekly_off_days, is_fixed_per_day_salary, salary_basis
       ) VALUES (
         @employee_code, @employee_name, @device_code, @company, @department,
         @location, @designation, @grade, @team, @category,
@@ -1101,9 +1165,12 @@ class EmployeeService {
         @wop_work_hours, @payment_mode,
         @late_grace_minutes, @late_deduction_multiplier, @overtime_multiplier, @overtime_allowed,
         @min_overtime_minutes, @min_overtime_deduction_minutes, @special_rules, @salary_history_json,
-        @wop, @ypl
+        @wop, @ypl, @weekly_off_days, @is_fixed_per_day_salary, @salary_basis
       )
     `);
+
+    const isFixedPerDay = data.is_fixed_per_day_salary ? 1 : 0;
+    const salaryBasis = data.salary_basis || 'Monthly';
 
     stmt.run({
       employee_code: data.employee_code.toString().trim(),
@@ -1147,7 +1214,10 @@ class EmployeeService {
       special_rules: data.special_rules || null,
       salary_history_json: data.salary_history_json ? (typeof data.salary_history_json === 'object' ? JSON.stringify(data.salary_history_json) : data.salary_history_json) : null,
       wop: parseFloat(data.wop) || 0,
-      ypl: parseFloat(data.ypl) || 0
+      ypl: parseFloat(data.ypl) || 0,
+      weekly_off_days: data.weekly_off_days || 'Sunday',
+      is_fixed_per_day_salary: isFixedPerDay,
+      salary_basis: salaryBasis
     });
 
     // Create initial W.E.F. revision
@@ -1158,13 +1228,13 @@ class EmployeeService {
           standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
           wop_work_hours, payment_mode, late_grace_minutes, late_deduction_multiplier,
           overtime_multiplier, overtime_allowed, min_overtime_minutes, min_overtime_deduction_minutes,
-          special_rules, remarks
+          special_rules, remarks, wop, weekly_off_days, is_fixed_per_day_salary, salary_basis
         ) VALUES (
           @employee_code, @effective_date, @salary, @incentive,
           @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
           @wop_work_hours, @payment_mode, @late_grace_minutes, @late_deduction_multiplier,
           @overtime_multiplier, @overtime_allowed, @min_overtime_minutes, @min_overtime_deduction_minutes,
-          @special_rules, @remarks
+          @special_rules, @remarks, @wop, @weekly_off_days, @is_fixed_per_day_salary, @salary_basis
         )
       `).run({
         employee_code: data.employee_code.toString().trim(),
@@ -1184,7 +1254,11 @@ class EmployeeService {
         min_overtime_minutes: parseInt(data.min_overtime_minutes, 10) || 0,
         min_overtime_deduction_minutes: parseInt(data.min_overtime_deduction_minutes, 10) || 0,
         special_rules: data.special_rules || null,
-        remarks: 'Initial Master Record'
+        remarks: 'Initial Master Record',
+        wop: parseFloat(data.wop) || 0,
+        weekly_off_days: data.weekly_off_days || 'Sunday',
+        is_fixed_per_day_salary: isFixedPerDay,
+        salary_basis: salaryBasis
       });
     } catch (e) {
       console.error('Failed to create initial W.E.F. on createEmployee:', e.message);
@@ -1365,19 +1439,24 @@ class EmployeeService {
       wefData.standard_break_time !== undefined ? wefData.standard_break_time : (wefData.standard_break_minutes !== undefined ? wefData.standard_break_minutes : emp.standard_break_minutes)
     );
 
+    const isFixedPerDay = wefData.is_fixed_per_day_salary !== undefined 
+      ? (wefData.is_fixed_per_day_salary ? 1 : 0) 
+      : (emp.is_fixed_per_day_salary ? 1 : 0);
+    const salaryBasis = wefData.salary_basis || emp.salary_basis || 'Monthly';
+
     const stmt = db.prepare(`
       INSERT INTO employee_wef_history (
         employee_code, effective_date, salary, incentive,
         standard_in_time, standard_out_time, standard_break_minutes, standard_work_hours,
         wop_work_hours, payment_mode, late_grace_minutes, late_deduction_multiplier,
         overtime_multiplier, overtime_allowed, min_overtime_minutes, min_overtime_deduction_minutes,
-        special_rules, remarks
+        special_rules, remarks, wop, weekly_off_days, is_fixed_per_day_salary, salary_basis
       ) VALUES (
         @employee_code, @effective_date, @salary, @incentive,
         @standard_in_time, @standard_out_time, @standard_break_minutes, @standard_work_hours,
         @wop_work_hours, @payment_mode, @late_grace_minutes, @late_deduction_multiplier,
         @overtime_multiplier, @overtime_allowed, @min_overtime_minutes, @min_overtime_deduction_minutes,
-        @special_rules, @remarks
+        @special_rules, @remarks, @wop, @weekly_off_days, @is_fixed_per_day_salary, @salary_basis
       )
       ON CONFLICT(employee_code, effective_date) DO UPDATE SET
         salary = excluded.salary,
@@ -1396,6 +1475,10 @@ class EmployeeService {
         min_overtime_deduction_minutes = excluded.min_overtime_deduction_minutes,
         special_rules = excluded.special_rules,
         remarks = excluded.remarks,
+        wop = excluded.wop,
+        weekly_off_days = excluded.weekly_off_days,
+        is_fixed_per_day_salary = excluded.is_fixed_per_day_salary,
+        salary_basis = excluded.salary_basis,
         updated_at = CURRENT_TIMESTAMP
     `);
 
@@ -1417,7 +1500,11 @@ class EmployeeService {
       min_overtime_minutes: wefData.min_overtime_minutes !== undefined ? parseInt(wefData.min_overtime_minutes, 10) : (emp.min_overtime_minutes || 0),
       min_overtime_deduction_minutes: wefData.min_overtime_deduction_minutes !== undefined ? parseInt(wefData.min_overtime_deduction_minutes, 10) : (emp.min_overtime_deduction_minutes || 0),
       special_rules: wefData.special_rules !== undefined ? wefData.special_rules : emp.special_rules,
-      remarks: wefData.remarks || 'Salary / Schedule Revision'
+      remarks: wefData.remarks || 'Salary / Schedule Revision',
+      wop: wefData.wop !== undefined ? parseFloat(wefData.wop) : (emp.wop || 0),
+      weekly_off_days: wefData.weekly_off_days || emp.weekly_off_days || 'Sunday',
+      is_fixed_per_day_salary: isFixedPerDay,
+      salary_basis: salaryBasis
     });
 
     this.syncLatestWefToMaster(employeeCode);
@@ -1447,6 +1534,11 @@ class EmployeeService {
       ? parseFloat(wefData.incentive)
       : (existing.incentive || 0);
 
+    const isFixedPerDay = wefData.is_fixed_per_day_salary !== undefined 
+      ? (wefData.is_fixed_per_day_salary ? 1 : 0) 
+      : (existing.is_fixed_per_day_salary ? 1 : 0);
+    const salaryBasis = wefData.salary_basis || existing.salary_basis || 'Monthly';
+
     const stdBreak = this.parseBreakTimeToMinutes(
       wefData.standard_break_time !== undefined ? wefData.standard_break_time : (wefData.standard_break_minutes !== undefined ? wefData.standard_break_minutes : existing.standard_break_minutes)
     );
@@ -1470,6 +1562,10 @@ class EmployeeService {
         min_overtime_deduction_minutes = COALESCE(@min_overtime_deduction_minutes, min_overtime_deduction_minutes),
         special_rules = COALESCE(@special_rules, special_rules),
         remarks = COALESCE(@remarks, remarks),
+        wop = COALESCE(@wop, wop),
+        weekly_off_days = COALESCE(@weekly_off_days, weekly_off_days),
+        is_fixed_per_day_salary = @is_fixed_per_day_salary,
+        salary_basis = @salary_basis,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = @id
     `).run({
@@ -1490,7 +1586,11 @@ class EmployeeService {
       min_overtime_minutes: wefData.min_overtime_minutes !== undefined ? parseInt(wefData.min_overtime_minutes, 10) : existing.min_overtime_minutes,
       min_overtime_deduction_minutes: wefData.min_overtime_deduction_minutes !== undefined ? parseInt(wefData.min_overtime_deduction_minutes, 10) : existing.min_overtime_deduction_minutes,
       special_rules: wefData.special_rules !== undefined ? wefData.special_rules : existing.special_rules,
-      remarks: wefData.remarks !== undefined ? wefData.remarks : existing.remarks
+      remarks: wefData.remarks !== undefined ? wefData.remarks : existing.remarks,
+      wop: wefData.wop !== undefined ? parseFloat(wefData.wop) : existing.wop,
+      weekly_off_days: wefData.weekly_off_days || existing.weekly_off_days || 'Sunday',
+      is_fixed_per_day_salary: isFixedPerDay,
+      salary_basis: salaryBasis
     });
 
     this.syncLatestWefToMaster(existing.employee_code);
@@ -1550,6 +1650,10 @@ class EmployeeService {
         min_overtime_minutes = @min_overtime_minutes,
         min_overtime_deduction_minutes = @min_overtime_deduction_minutes,
         special_rules = COALESCE(@special_rules, special_rules),
+        wop = COALESCE(@wop, wop),
+        weekly_off_days = COALESCE(@weekly_off_days, weekly_off_days),
+        is_fixed_per_day_salary = @is_fixed_per_day_salary,
+        salary_basis = @salary_basis,
         updated_at = CURRENT_TIMESTAMP
       WHERE employee_code = @employee_code
     `).run({
@@ -1569,7 +1673,11 @@ class EmployeeService {
       overtime_allowed: latest.overtime_allowed ?? 1,
       min_overtime_minutes: latest.min_overtime_minutes || 0,
       min_overtime_deduction_minutes: latest.min_overtime_deduction_minutes || 0,
-      special_rules: latest.special_rules || null
+      special_rules: latest.special_rules || null,
+      wop: latest.wop || 0,
+      weekly_off_days: latest.weekly_off_days || 'Sunday',
+      is_fixed_per_day_salary: latest.is_fixed_per_day_salary ?? 0,
+      salary_basis: latest.salary_basis || 'Monthly'
     });
   }
 
@@ -1752,6 +1860,9 @@ class EmployeeService {
       { key: 'min_overtime_deduction_minutes', label: 'MinOvertimeDeductionMinutes', width: 26 },
       { key: 'wop', label: 'WOP', width: 10 },
       { key: 'ypl', label: 'YPL', width: 10 },
+      { key: 'weekly_off_days', label: 'WeeklyOffDays', width: 16 },
+      { key: 'is_fixed_per_day_salary', label: 'FixPerDaySalary', width: 18 },
+      { key: 'salary_basis', label: 'SalaryBasis', width: 16 },
       { key: 'special_rules', label: 'SpecialRules', width: 35 }
     ];
 
@@ -1797,6 +1908,9 @@ class EmployeeService {
       min_overtime_deduction_minutes: emp.min_overtime_deduction_minutes || 0,
       wop: emp.wop || 0,
       ypl: emp.ypl || 0,
+      weekly_off_days: emp.weekly_off_days || 'Sunday',
+      is_fixed_per_day_salary: emp.is_fixed_per_day_salary ? 'Yes' : 'No',
+      salary_basis: emp.salary_basis || 'Monthly',
       special_rules: emp.special_rules || ''
     });
 
