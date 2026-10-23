@@ -1085,33 +1085,6 @@ class EmployeeService {
         is_fixed_per_day_salary: isFixedPerDay,
         salary_basis: salaryBasis
       });
-          min_overtime_deduction_minutes = excluded.min_overtime_deduction_minutes,
-          special_rules = excluded.special_rules,
-          is_fixed_per_day_salary = excluded.is_fixed_per_day_salary,
-          salary_basis = excluded.salary_basis,
-          updated_at = CURRENT_TIMESTAMP
-      `).run({
-        employee_code: employeeCode.toString(),
-        effective_date: effectiveWefDate,
-        salary: salary,
-        incentive: incentive,
-        standard_in_time: updateData.standard_in_time ?? existing.standard_in_time ?? '08:00',
-        standard_out_time: updateData.standard_out_time ?? existing.standard_out_time ?? '20:00',
-        standard_break_minutes: updateData.standard_break_minutes ?? existing.standard_break_minutes ?? 0,
-        standard_work_hours: stdHours,
-        wop_work_hours: wopHours,
-        payment_mode: updateData.payment_mode ?? existing.payment_mode ?? 'Bank',
-        late_grace_minutes: updateData.late_grace_minutes ?? existing.late_grace_minutes ?? 11,
-        late_deduction_multiplier: updateData.late_deduction_multiplier ?? existing.late_deduction_multiplier ?? 0.5,
-        overtime_multiplier: updateData.overtime_multiplier ?? existing.overtime_multiplier ?? 2.0,
-        overtime_allowed: updateData.overtime_allowed !== undefined ? (updateData.overtime_allowed ? 1 : 0) : (existing.overtime_allowed ?? 1),
-        min_overtime_minutes: updateData.min_overtime_minutes !== undefined ? (parseInt(updateData.min_overtime_minutes, 10) || 0) : (existing.min_overtime_minutes || 0),
-        min_overtime_deduction_minutes: updateData.min_overtime_deduction_minutes !== undefined ? (parseInt(updateData.min_overtime_deduction_minutes, 10) || 0) : (existing.min_overtime_deduction_minutes || 0),
-        special_rules: updateData.special_rules ?? existing.special_rules,
-        remarks: 'Master Profile Update',
-        is_fixed_per_day_salary: isFixedPerDay,
-        salary_basis: salaryBasis
-      });
     } catch (e) {
       console.error('Failed to sync W.E.F. on updateEmployee:', e.message);
     }

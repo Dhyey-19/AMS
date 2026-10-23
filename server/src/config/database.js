@@ -1,10 +1,14 @@
+const path = require('path');
+const fs = require('fs');
+const { execSync } = require('child_process');
+const bcrypt = require('bcryptjs');
+
 let Database;
 try {
   Database = require('better-sqlite3');
 } catch (err) {
   if (err.message && err.message.includes('NODE_MODULE_VERSION')) {
     console.warn('⚡ Detected NODE_MODULE_VERSION mismatch in better-sqlite3. Auto-recompiling for current Node environment...');
-    const { execSync } = require('child_process');
     try {
       execSync('npm rebuild better-sqlite3', { stdio: 'inherit', cwd: path.resolve(__dirname, '../../..') });
       delete require.cache[require.resolve('better-sqlite3')];
@@ -18,9 +22,6 @@ try {
     throw err;
   }
 }
-const path = require('path');
-const fs = require('fs');
-const bcrypt = require('bcryptjs');
 
 // Database path in project root or publish root (supports data/ folder or custom userData dir)
 const dataDir = process.env.AMS_DATA_DIR || process.env.DATA_DIR || path.resolve(process.cwd(), 'data');
@@ -54,7 +55,27 @@ const DB_PATH = targetDbPath;
 let db;
 
 function openAndCheckDb(filePath) {
-  const instance = new Database(filePath, { verbose: process.env.NODE_ENV === 'development' ? console.log : null });
+  let instance;
+  try {
+    instance = new Database(filePath, { verbose: process.env.NODE_ENV === 'development' ? console.log : null });
+  } catch (err) {
+    if (err.message && err.message.includes('NODE_MODULE_VERSION')) {
+      console.warn('⚡ Detected NODE_MODULE_VERSION mismatch in better-sqlite3. Auto-recompiling for current Node environment...');
+      try {
+        execSync('npm rebuild better-sqlite3', { stdio: 'inherit', cwd: path.resolve(__dirname, '../../..') });
+        delete require.cache[require.resolve('better-sqlite3')];
+        Database = require('better-sqlite3');
+        console.log('✅ Successfully auto-recompiled better-sqlite3 for Node.js', process.version);
+        instance = new Database(filePath, { verbose: process.env.NODE_ENV === 'development' ? console.log : null });
+      } catch (rebuildErr) {
+        console.error('Failed to auto-rebuild better-sqlite3:', rebuildErr.message);
+        throw err;
+      }
+    } else {
+      throw err;
+    }
+  }
+
   instance.pragma('journal_mode = WAL');
   instance.pragma('foreign_keys = ON');
   try {
