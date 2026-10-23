@@ -74,6 +74,7 @@ export const EditDayAttendanceModal = ({
     if (record) {
       setFormData({
         is_manual: record.is_manual === 1 || record.is_manual === true || record.is_manual === '1',
+        is_night_shift: record.is_night_shift === 1 || record.is_night_shift === true || record.is_night_shift === '1',
         status_code: record.status_code || 'P',
         calc_mode: record.calc_mode || 'Normal',
         scheduled_in_time: formatTimeToHHMM(record.scheduled_in_time || employee?.standard_in_time || '08:00'),
@@ -180,6 +181,7 @@ export const EditDayAttendanceModal = ({
           leave_deduction: parseFloat(formData.leave_deduction) || 0,
           penalty_amount: parseFloat(formData.penalty_amount) || 0,
           overtime_override_minutes: parseInt(formData.overtime_override_minutes, 10) || 0,
+          is_night_shift: formData.is_night_shift ? 1 : 0,
           net_daily_salary: formData.net_daily_salary !== '' ? parseFloat(formData.net_daily_salary) : undefined,
           remarks: formData.remarks ? formData.remarks.trim() : ''
         };
@@ -187,6 +189,7 @@ export const EditDayAttendanceModal = ({
         payload = {
           is_manual: 0,
           status_code: formData.status_code.toUpperCase().trim(),
+          is_night_shift: formData.is_night_shift ? 1 : 0,
           in_time: formData.in_time ? formData.in_time.trim() : '',
           out_time: formData.out_time ? formData.out_time.trim() : '',
           break_out: formData.break_out ? formData.break_out.trim() : '',
@@ -480,6 +483,62 @@ export const EditDayAttendanceModal = ({
                   className="form-control"
                 />
               </div>
+            </div>
+
+            {/* Night Duty / Overnight Shift Status */}
+            <div 
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between', 
+                padding: '0.65rem 0.85rem', 
+                backgroundColor: formData.is_night_shift ? '#eef2ff' : '#f8fafc', 
+                borderRadius: '8px', 
+                border: formData.is_night_shift ? '1.5px solid #a5b4fc' : '1px solid var(--border-color)',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <span style={{ fontSize: '1.25rem' }}>🌙</span>
+                <div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: '700', color: formData.is_night_shift ? '#3730a3' : 'var(--slate-800)' }}>
+                    Night Duty (Overnight Shift)
+                  </div>
+                  <div style={{ fontSize: '0.725rem', color: formData.is_night_shift ? '#4f46e5' : 'var(--slate-500)' }}>
+                    {formData.is_night_shift 
+                      ? 'Active: Evening/night check-in with next day morning check-out across midnight.' 
+                      : 'Day duty: Regular shift punches within the same calendar day.'}
+                  </div>
+                </div>
+              </div>
+              {formData.is_manual ? (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer', margin: 0, fontSize: '0.8rem', fontWeight: '700', color: '#4338ca' }}>
+                  <input
+                    type="checkbox"
+                    name="is_night_shift"
+                    checked={!!formData.is_night_shift}
+                    onChange={handleChange}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#4f46e5' }}
+                  />
+                  Night Shift
+                </label>
+              ) : (
+                formData.is_night_shift ? (
+                  <span 
+                    className="badge" 
+                    style={{ backgroundColor: '#312e81', color: '#e0e7ff', border: '1px solid #4f46e5', fontSize: '0.72rem', padding: '0.25rem 0.55rem', fontWeight: '700' }}
+                  >
+                    🌙 AUTO DETECTED
+                  </span>
+                ) : (
+                  <span 
+                    className="badge badge-secondary" 
+                    style={{ fontSize: '0.72rem', padding: '0.25rem 0.55rem' }}
+                  >
+                    ☀️ DAY SHIFT
+                  </span>
+                )
+              )}
             </div>
 
             {/* If Manual Mode is ON: Expose All Additional Fields */}

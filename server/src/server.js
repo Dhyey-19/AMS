@@ -132,6 +132,14 @@ function startServer(port = PORT, host = HOST) {
     }
   });
 
+  serverInstance.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`⚠️ Port ${port} is already in use by another instance or running server.`);
+    } else {
+      console.error('❌ Server listen error:', err);
+    }
+  });
+
   return serverInstance;
 }
 

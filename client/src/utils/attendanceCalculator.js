@@ -90,7 +90,7 @@ export const calculateDayRule = (formData, employee = {}, daysInMonth = 30, chan
 
   const stdInMins = timeToMinutes(stdInTimeStr);
   const stdOutMins = timeToMinutes(stdOutTimeStr);
-  const schedDurMins = stdOutMins > stdInMins ? (stdOutMins - stdInMins) : 0;
+  const schedDurMins = stdOutMins >= stdInMins ? (stdOutMins - stdInMins) : (1440 - stdInMins + stdOutMins);
 
   // Target work hours
   let targetWorkHours = schedDailyWorkHours;
@@ -133,7 +133,9 @@ export const calculateDayRule = (formData, employee = {}, daysInMonth = 30, chan
   const breakOutMins = timeToMinutes(breakOutStr);
   const breakInMins = timeToMinutes(breakInStr);
 
-  const actualBreakMins = (breakInMins > breakOutMins) ? (breakInMins - breakOutMins) : 0;
+  const actualBreakMins = (breakInMins >= breakOutMins) 
+    ? (breakInMins - breakOutMins) 
+    : (breakOutMins > 0 && breakInMins > 0 ? (1440 - breakOutMins + breakInMins) : 0);
 
   // Effective break rule:
   // 1) If std break == 0: <= 30 min is free (0 min deduction); > 30 min deduct full actual break
@@ -157,19 +159,60 @@ export const calculateDayRule = (formData, employee = {}, daysInMonth = 30, chan
     updated.effective_break_formatted = minutesToHHMM(effectiveBreakMins);
   }
 
-  // Deviations
+  // Night Shift / Overnight Duty Detection:
+  const isScheduledNight = stdInMins > 0 && stdOutMins > 0 && stdInMins > stdOutMins;
+  const isWorkedNight = (actualInMins > 0 && actualOutMins > 0 && actualOutMins < actualInMins && (actualInMins >= 720 || actualOutMins <= 720));
+  const isNightShift = Boolean(
+    isScheduledNight || 
+    isWorkedNight || 
+    employee.is_night_shift === 1 || 
+    employee.is_night_shift === '1' || 
+    employee.is_night_shift === true ||
+    updated.is_night_shift === 1 ||
+    updated.is_night_shift === '1' ||
+    updated.is_night_shift === true
+  );
+  updated.is_night_shift = isNightShift ? 1 : 0;
+
+  // Deviations (Supporting Night Duty Shifts)
   let lateInMins = 0;
   let earlyInMins = 0;
   if (actualInMins > 0 && stdInMins > 0) {
-    if (actualInMins > stdInMins) lateInMins = actualInMins - stdInMins;
-    else if (actualInMins < stdInMins) earlyInMins = stdInMins - actualInMins;
+    let inDiff = 0;
+    if (isNightShift) {
+      if (stdInMins >= 720 && actualInMins < 720) {
+        inDiff = (actualInMins + 1440) - stdInMins;
+      } else if (stdInMins < 720 && actualInMins >= 720) {
+        inDiff = actualInMins - (stdInMins + 1440);
+      } else {
+        inDiff = actualInMins - stdInMins;
+      }
+    } else {
+      inDiff = actualInMins - stdInMins;
+    }
+
+    if (inDiff > 0) lateInMins = inDiff;
+    else if (inDiff < 0) earlyInMins = -inDiff;
   }
 
   let lateOutMins = 0;
   let earlyOutMins = 0;
   if (actualOutMins > 0 && stdOutMins > 0) {
-    if (actualOutMins > stdOutMins) lateOutMins = actualOutMins - stdOutMins;
-    else if (actualOutMins < stdOutMins) earlyOutMins = stdOutMins - actualOutMins;
+    let outDiff = 0;
+    if (isNightShift) {
+      if (stdOutMins < 720 && actualOutMins >= 720) {
+        outDiff = actualOutMins - (stdOutMins + 1440);
+      } else if (stdOutMins >= 720 && actualOutMins < 720) {
+        outDiff = (actualOutMins + 1440) - stdOutMins;
+      } else {
+        outDiff = actualOutMins - stdOutMins;
+      }
+    } else {
+      outDiff = actualOutMins - stdOutMins;
+    }
+
+    if (outDiff > 0) lateOutMins = outDiff;
+    else if (outDiff < 0) earlyOutMins = -outDiff;
   }
 
   // Calc Mode & Duration

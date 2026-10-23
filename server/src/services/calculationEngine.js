@@ -177,10 +177,10 @@ class CalculationEngine {
         actualIn = punches[0].time;
       }
 
-      // 2) If 2 or more punches, LAST punch is Actual OUT if not explicitly provided or if later than actualOut
+      // 2) If 2 or more punches, LAST punch is Actual OUT if not explicitly provided
       if (punches.length >= 2) {
         const lastPunch = punches[punches.length - 1];
-        if (!actualOut || lastPunch.mins > this.timeToMinutes(actualOut)) {
+        if (!actualOut) {
           actualOut = lastPunch.time;
         }
       }
@@ -194,10 +194,10 @@ class CalculationEngine {
       let detectedBreakIn = punches[2].time;
 
       for (let i = 1; i + 1 <= punches.length - 2; i += 2) {
-        const bMins = Math.max(0, punches[i + 1].mins - punches[i].mins);
-        if (punches[i + 1].mins >= punches[i].mins) {
-          calculatedBreakMins += bMins;
-        }
+        const p1 = punches[i].mins;
+        const p2 = punches[i + 1].mins;
+        const bMins = p2 >= p1 ? (p2 - p1) : (1440 - p1 + p2);
+        calculatedBreakMins += bMins;
       }
 
       if (!firstBreakOut && detectedBreakOut) firstBreakOut = detectedBreakOut;
@@ -208,7 +208,7 @@ class CalculationEngine {
       } else if (totalBreakMins === 0 && firstBreakOut && firstBreakIn) {
         const outM = this.timeToMinutes(firstBreakOut);
         const inM = this.timeToMinutes(firstBreakIn);
-        totalBreakMins = Math.max(0, inM - outM);
+        totalBreakMins = inM >= outM ? (inM - outM) : (1440 - outM + inM);
       }
     } else if (punches.length === 3) {
       if (!firstBreakOut) firstBreakOut = punches[1].time;
@@ -216,18 +216,16 @@ class CalculationEngine {
       if (totalBreakMins === 0 && firstBreakOut && firstBreakIn) {
         const outM = this.timeToMinutes(firstBreakOut);
         const inM = this.timeToMinutes(firstBreakIn);
-        totalBreakMins = Math.max(0, inM - outM);
+        totalBreakMins = inM >= outM ? (inM - outM) : (1440 - outM + inM);
       }
     }
 
-    // Ensure totalBreakMins does not deduct time outside the actual [actualIn, actualOut] window
-    if (actualIn && actualOut && totalBreakMins > 0 && firstBreakOut && firstBreakIn) {
+    // Ensure totalBreakMins does not deduct time outside the actual duty window
+    if (actualIn && actualOut && totalBreakMins > 0) {
       const inM = this.timeToMinutes(actualIn);
       const outM = this.timeToMinutes(actualOut);
-      const bOutM = this.timeToMinutes(firstBreakOut);
-      const bInM = this.timeToMinutes(firstBreakIn);
-      const overlapMins = Math.max(0, Math.min(bInM, outM) - Math.max(bOutM, inM));
-      totalBreakMins = Math.min(totalBreakMins, overlapMins);
+      const dutyMins = outM >= inM ? (outM - inM) : (1440 - inM + outM);
+      totalBreakMins = Math.min(totalBreakMins, dutyMins);
     }
 
     return {
@@ -460,7 +458,7 @@ class CalculationEngine {
 
     const stdInMins = this.timeToMinutes(stdInTimeStr);
     const stdOutMins = this.timeToMinutes(stdOutTimeStr);
-    let schedDurMins = stdOutMins > stdInMins ? stdOutMins - stdInMins : 0;
+    let schedDurMins = stdOutMins >= stdInMins ? (stdOutMins - stdInMins) : (1440 - stdInMins + stdOutMins);
 
     const rawInTime = manual.in_time !== undefined ? manual.in_time : (manual.actual_in_time !== undefined ? manual.actual_in_time : (record.in_time || ''));
     const rawOutTime = manual.out_time !== undefined ? manual.out_time : (manual.actual_out_time !== undefined ? manual.actual_out_time : (record.out_time || ''));
@@ -550,24 +548,75 @@ class CalculationEngine {
       breakDeductionMins = effectiveBreakMins;
     }
 
-    // 1) Punch Deviations from Master Shift:
+    // 1) Punch Deviations from Master Shift (Supporting Regular & Night Duty Shifts):
+    // Night Shift Detection:
+    // a) Standard shift crosses midnight (stdInMins > stdOutMins, e.g. 20:00 to 08:00)
+    // b) Actual check-in is in evening/night and check-out is next morning (actualOutMins < actualInMins)
+    // c) Explicitly flagged in master, WEF, or attendance record
+    const isScheduledNight = stdInMins > 0 && stdOutMins > 0 && stdInMins > stdOutMins;
+    const isWorkedNight = (actualInMins > 0 && actualOutMins > 0 && actualOutMins < actualInMins && (actualInMins >= 720 || actualOutMins <= 720));
+    const isNightShift = Boolean(
+      isScheduledNight || 
+      isWorkedNight || 
+      effectiveEmp.is_night_shift === 1 || 
+      effectiveEmp.is_night_shift === '1' ||
+      effectiveEmp.is_night_shift === true ||
+      manual.is_night_shift === 1 ||
+      manual.is_night_shift === '1' ||
+      manual.is_night_shift === true ||
+      record.is_night_shift === 1 ||
+      record.is_night_shift === '1'
+    );
+
     let lateInMins = 0;
     let earlyInMins = 0;
     if (actualInMins > 0 && stdInMins > 0) {
-      if (actualInMins > stdInMins) {
-        lateInMins = actualInMins - stdInMins;
-      } else if (actualInMins < stdInMins) {
-        earlyInMins = stdInMins - actualInMins;
+      let inDiff = 0;
+      if (isNightShift) {
+        // Night duty shift start is around evening/night (e.g. 20:00).
+        // If employee arrives past midnight (e.g. 00:15 when shift was 20:00),
+        // they are arriving on day 2 (+1440 mins).
+        if (stdInMins >= 720 && actualInMins < 720) {
+          inDiff = (actualInMins + 1440) - stdInMins;
+        } else if (stdInMins < 720 && actualInMins >= 720) {
+          inDiff = actualInMins - (stdInMins + 1440);
+        } else {
+          inDiff = actualInMins - stdInMins;
+        }
+      } else {
+        inDiff = actualInMins - stdInMins;
+      }
+
+      if (inDiff > 0) {
+        lateInMins = inDiff;
+      } else if (inDiff < 0) {
+        earlyInMins = -inDiff;
       }
     }
 
     let lateOutMins = 0;
     let earlyOutMins = 0;
     if (actualOutMins > 0 && stdOutMins > 0) {
-      if (actualOutMins > stdOutMins) {
-        lateOutMins = actualOutMins - stdOutMins;
-      } else if (actualOutMins < stdOutMins) {
-        earlyOutMins = stdOutMins - actualOutMins;
+      let outDiff = 0;
+      if (isNightShift) {
+        // Night duty shift end is around morning (e.g. 08:00 next day).
+        // If employee leaves early BEFORE midnight (e.g. 23:30 previous day when stdOut is 08:00 next day),
+        // checkout is relative to the morning checkout (08:00 + 1440 mins = 1920 mins).
+        if (stdOutMins < 720 && actualOutMins >= 720) {
+          outDiff = actualOutMins - (stdOutMins + 1440);
+        } else if (stdOutMins >= 720 && actualOutMins < 720) {
+          outDiff = (actualOutMins + 1440) - stdOutMins;
+        } else {
+          outDiff = actualOutMins - stdOutMins;
+        }
+      } else {
+        outDiff = actualOutMins - stdOutMins;
+      }
+
+      if (outDiff > 0) {
+        lateOutMins = outDiff;
+      } else if (outDiff < 0) {
+        earlyOutMins = -outDiff;
       }
     }
 
@@ -881,6 +930,7 @@ class CalculationEngine {
       punch_records: manual.punch_records !== undefined ? manual.punch_records : (record.punch_records || ''),
       remarks: manual.remarks !== undefined ? manual.remarks : (record.remarks || ''),
       is_manual: isManual ? 1 : 0,
+      is_night_shift: isNightShift ? 1 : 0,
 
       // Weekly Off and Sandwich Leave Flags
       is_weekly_off: isEmpWeeklyOff ? 1 : 0,

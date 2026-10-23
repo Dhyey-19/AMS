@@ -1593,19 +1593,40 @@ export const EmployeeAttendancePage = ({ initialEmployeeCode, onNavigateToEmploy
                                   placeholder="Normal"
                                 />
                               ) : (
-                                <span 
-                                  className={`badge ${
-                                    r.calc_mode === 'Normal' ? 'badge-success' :
-                                    r.calc_mode === 'Both late' ? 'badge-danger' :
-                                    r.calc_mode === 'Late IN only' ? 'badge-warning' :
-                                    r.calc_mode === 'Late OUT only' ? 'badge-info' :
-                                    'badge-secondary'
-                                  }`}
-                                  style={{ fontSize: '0.7rem', padding: '0.2rem 0.45rem' }}
-                                  title={r.calc_mode}
-                                >
-                                  {r.calc_mode || 'Normal'}
-                                </span>
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                                  <span 
+                                    className={`badge ${
+                                      r.calc_mode === 'Normal' ? 'badge-success' :
+                                      r.calc_mode === 'Both late' ? 'badge-danger' :
+                                      r.calc_mode === 'Late IN only' ? 'badge-warning' :
+                                      r.calc_mode === 'Late OUT only' ? 'badge-info' :
+                                      'badge-secondary'
+                                    }`}
+                                    style={{ fontSize: '0.7rem', padding: '0.2rem 0.45rem' }}
+                                    title={r.calc_mode}
+                                  >
+                                    {r.calc_mode || 'Normal'}
+                                  </span>
+                                  {Boolean(r.is_night_shift) && (
+                                    <span 
+                                      className="badge"
+                                      style={{ 
+                                        fontSize: '0.68rem', 
+                                        padding: '0.18rem 0.42rem',
+                                        backgroundColor: '#312e81',
+                                        color: '#c7d2fe',
+                                        border: '1px solid #4338ca',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '2px',
+                                        fontWeight: '600'
+                                      }}
+                                      title="Night Duty (Overnight Shift)"
+                                    >
+                                      🌙 Night
+                                    </span>
+                                  )}
+                                </div>
                               )}
                             </td>
                           )}

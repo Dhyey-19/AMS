@@ -1614,7 +1614,7 @@ class AttendanceService {
         scheduled_in_time, scheduled_out_time, scheduled_work,
         actual_duration, effective_break, actual_work, work_diff,
         hourly_rate, daily_salary, late_deduction, overtime_pay, net_daily_salary,
-        punch_records, remarks
+        punch_records, remarks, is_night_shift
       ) VALUES (
         @employee_code, @attendance_date, @attendance_date_iso, @employee_name,
         @designation, @department, @in_time, @out_time, @break_out, @break_in,
@@ -1625,7 +1625,7 @@ class AttendanceService {
         @scheduled_in_time, @scheduled_out_time, @scheduled_work,
         @actual_duration, @effective_break, @actual_work, @work_diff,
         @hourly_rate, @daily_salary, @late_deduction, @overtime_pay, @net_daily_salary,
-        @punch_records, @remarks
+        @punch_records, @remarks, @is_night_shift
       )
       ON CONFLICT(employee_code, attendance_date_iso) DO UPDATE SET
         in_time = @in_time,
@@ -1657,6 +1657,7 @@ class AttendanceService {
         net_daily_salary = @net_daily_salary,
         punch_records = @punch_records,
         remarks = @remarks,
+        is_night_shift = @is_night_shift,
         updated_at = CURRENT_TIMESTAMP
     `);
 
@@ -1695,7 +1696,8 @@ class AttendanceService {
       overtime_pay: updateData.overtime_pay !== undefined && updateData.overtime_pay !== '' ? parseFloat(updateData.overtime_pay) : (existing?.overtime_pay || 0),
       net_daily_salary: updateData.net_daily_salary !== undefined && updateData.net_daily_salary !== '' ? parseFloat(updateData.net_daily_salary) : (existing?.net_daily_salary || null),
       punch_records: punchRecords,
-      remarks: updateData.remarks !== undefined ? updateData.remarks : (existing?.remarks || '')
+      remarks: updateData.remarks !== undefined ? updateData.remarks : (existing?.remarks || ''),
+      is_night_shift: updateData.is_night_shift ? 1 : 0
     });
 
     return db.prepare('SELECT * FROM attendance WHERE employee_code = ? AND attendance_date_iso = ?').get(String(employeeCode).trim(), dateIso);

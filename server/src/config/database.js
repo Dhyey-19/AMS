@@ -4,22 +4,47 @@ const { execSync } = require('child_process');
 const bcrypt = require('bcryptjs');
 
 let Database;
-try {
-  Database = require('better-sqlite3');
-} catch (err) {
-  if (err.message && err.message.includes('NODE_MODULE_VERSION')) {
-    console.warn('⚡ Detected NODE_MODULE_VERSION mismatch in better-sqlite3. Auto-recompiling for current Node environment...');
+
+function restoreBetterSqlite(err) {
+  const isElectron = Boolean(process.versions && process.versions.electron);
+  const rootDir = path.resolve(__dirname, '../../..');
+  const betterSqliteDir = path.join(rootDir, 'node_modules/better-sqlite3');
+
+  if (isElectron) {
+    const elVer = process.versions.electron || '32.2.8';
+    console.warn(`⚡ Detected SQLite binary mismatch (${err.message ? err.message.split('\n')[0] : err}). Auto-downloading prebuilt binary for Electron ${elVer}...`);
     try {
-      execSync('npm rebuild better-sqlite3', { stdio: 'inherit', cwd: path.resolve(__dirname, '../../..') });
+      execSync(`npx prebuild-install --runtime=electron --target=${elVer}`, { stdio: 'inherit', cwd: betterSqliteDir });
       delete require.cache[require.resolve('better-sqlite3')];
       Database = require('better-sqlite3');
-      console.log('✅ Successfully auto-recompiled better-sqlite3 for Node.js', process.version);
-    } catch (rebuildErr) {
-      console.error('Failed to auto-rebuild better-sqlite3:', rebuildErr.message);
+      console.log(`✅ Successfully restored better-sqlite3 for Electron ${elVer}`);
+      return Database;
+    } catch (e) {
+      console.error('Failed to auto-restore better-sqlite3 prebuild for Electron:', e.message);
       throw err;
     }
   } else {
-    throw err;
+    console.warn(`⚡ Detected SQLite binary mismatch (${err.message ? err.message.split('\n')[0] : err}). Rebuilding for Node.js ${process.version}...`);
+    try {
+      execSync('npm rebuild better-sqlite3', { stdio: 'inherit', cwd: rootDir });
+      delete require.cache[require.resolve('better-sqlite3')];
+      Database = require('better-sqlite3');
+      console.log(`✅ Successfully rebuilt better-sqlite3 for Node.js ${process.version}`);
+      return Database;
+    } catch (e) {
+      console.error('Failed to auto-rebuild better-sqlite3 for Node:', e.message);
+      throw err;
+    }
+  }
+}
+
+function getDatabaseClass() {
+  if (Database) return Database;
+  try {
+    Database = require('better-sqlite3');
+    return Database;
+  } catch (err) {
+    return restoreBetterSqlite(err);
   }
 }
 
@@ -55,22 +80,14 @@ const DB_PATH = targetDbPath;
 let db;
 
 function openAndCheckDb(filePath) {
+  const DBClass = getDatabaseClass();
   let instance;
   try {
-    instance = new Database(filePath, { verbose: process.env.NODE_ENV === 'development' ? console.log : null });
+    instance = new DBClass(filePath, { verbose: process.env.NODE_ENV === 'development' ? console.log : null });
   } catch (err) {
-    if (err.message && err.message.includes('NODE_MODULE_VERSION')) {
-      console.warn('⚡ Detected NODE_MODULE_VERSION mismatch in better-sqlite3. Auto-recompiling for current Node environment...');
-      try {
-        execSync('npm rebuild better-sqlite3', { stdio: 'inherit', cwd: path.resolve(__dirname, '../../..') });
-        delete require.cache[require.resolve('better-sqlite3')];
-        Database = require('better-sqlite3');
-        console.log('✅ Successfully auto-recompiled better-sqlite3 for Node.js', process.version);
-        instance = new Database(filePath, { verbose: process.env.NODE_ENV === 'development' ? console.log : null });
-      } catch (rebuildErr) {
-        console.error('Failed to auto-rebuild better-sqlite3:', rebuildErr.message);
-        throw err;
-      }
+    if (err.message && (err.message.includes('NODE_MODULE_VERSION') || err.code === 'ERR_DLOPEN_FAILED')) {
+      const RestoredClass = restoreBetterSqlite(err);
+      instance = new RestoredClass(filePath, { verbose: process.env.NODE_ENV === 'development' ? console.log : null });
     } else {
       throw err;
     }
@@ -267,6 +284,7 @@ function initSchema() {
   addColumnIfNotExists('employees', 'weekly_off_days', "TEXT DEFAULT 'Sunday'");
   addColumnIfNotExists('employees', 'is_fixed_per_day_salary', 'INTEGER DEFAULT 0');
   addColumnIfNotExists('employees', 'salary_basis', "TEXT DEFAULT 'Monthly'");
+  addColumnIfNotExists('employees', 'is_night_shift', 'INTEGER DEFAULT 0');
 
   // Employee W.E.F. (With Effect From) Revisions History table
   db.exec(`
@@ -309,6 +327,7 @@ function initSchema() {
   addColumnIfNotExists('employee_wef_history', 'weekly_off_days', "TEXT DEFAULT 'Sunday'");
   addColumnIfNotExists('employee_wef_history', 'is_fixed_per_day_salary', 'INTEGER DEFAULT 0');
   addColumnIfNotExists('employee_wef_history', 'salary_basis', "TEXT DEFAULT 'Monthly'");
+  addColumnIfNotExists('employee_wef_history', 'is_night_shift', 'INTEGER DEFAULT 0');
 
   // Seed baseline W.E.F. records for existing employees if none exist
   try {
@@ -450,6 +469,7 @@ function initSchema() {
   addColumnIfNotExists('attendance', 'overtime_pay', 'REAL');
   addColumnIfNotExists('attendance', 'net_daily_salary', 'REAL');
   addColumnIfNotExists('attendance', 'remarks', 'TEXT');
+  addColumnIfNotExists('attendance', 'is_night_shift', 'INTEGER DEFAULT 0');
 
   // Import logs table
   db.exec(`
